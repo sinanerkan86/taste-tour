@@ -9,7 +9,19 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     this.makeCoinTexture();
+    this.makeParticleTextures();
     this.scene.start('Restaurant');
+  }
+
+  // White shapes, tinted per effect.
+  private makeParticleTextures(): void {
+    const g = this.make.graphics({}, false);
+    g.fillStyle(0xffffff, 1).fillCircle(8, 8, 8);
+    g.generateTexture('spark', 16, 16);
+    g.clear();
+    g.fillStyle(0xffffff, 1).fillRect(0, 0, 14, 8);
+    g.generateTexture('confetti', 14, 8);
+    g.destroy();
   }
 
   private makeCoinTexture(): void {

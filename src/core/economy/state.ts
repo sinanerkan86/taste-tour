@@ -1,4 +1,4 @@
-import { DISHES, MILESTONE_BONUS, SECTION_IDS, SECTIONS, type SectionId } from './config';
+import { DISHES, MILESTONE_BONUS, SECTION_IDS, SECTIONS, TAP, type SectionId } from './config';
 import { scaledValue, starMultiplier } from './formulas';
 
 export interface EconomyState {
@@ -66,6 +66,13 @@ export function earn(state: EconomyState, amount: number): void {
   state.money += amount;
   state.runEarnings += amount;
   state.lifetimeEarnings += amount;
+}
+
+// Tip earned by one tap on the restaurant. Returns the amount earned.
+export function tap(state: EconomyState): number {
+  const amount = billPerCustomer(state) * starMultiplier(state.stars) * TAP.billFraction;
+  earn(state, amount);
+  return amount;
 }
 
 // Earn the income of `seconds` of play. Returns the amount earned.

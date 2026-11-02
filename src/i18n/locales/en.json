@@ -23,5 +23,8 @@
   "row.locked": "Not on the menu yet",
   "row.unlock": "Unlock",
   "row.mastered": "MASTERED",
-  "row.hidden": "???"
+  "row.hidden": "???",
+  "banner.milestone": "{name} x{bonus}!",
+  "banner.newDish": "New dish: {name}!",
+  "banner.mastered": "{name} mastered!"
 }

@@ -23,5 +23,8 @@
   "row.locked": "Henüz menüde yok",
   "row.unlock": "Aç",
   "row.mastered": "USTALAŞILDI",
-  "row.hidden": "???"
+  "row.hidden": "???",
+  "banner.milestone": "{name} x{bonus}!",
+  "banner.newDish": "Yeni yemek: {name}!",
+  "banner.mastered": "{name} ustalaşıldı!"
 }

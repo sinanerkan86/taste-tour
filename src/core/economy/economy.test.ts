@@ -16,6 +16,7 @@ import {
   scaledValue,
   sectionRates,
   sectionUpgradeCost,
+  tap,
   throughput,
   totalStarsFor,
   PRESTIGE,
@@ -76,6 +77,20 @@ describe('economy state', () => {
     expect(incomePerSecond(state)).toBe(before);
     buySectionLevel(state, throughput(state).bottleneck);
     expect(incomePerSecond(state)).toBeGreaterThan(before);
+  });
+});
+
+describe('tap', () => {
+  it('tips a fraction of one bill, so it matters less as customers speed up', () => {
+    const state = newEconomy();
+    const tip = tap(state);
+    expect(state.money).toBe(tip);
+    // At the start a tap is worth about a second of income...
+    const early = tip / incomePerSecond(state);
+    expect(early).toBeGreaterThanOrEqual(1);
+    // ...and much less once customers flow in faster.
+    SECTION_IDS.forEach((id) => (state.sectionLevels[id] = 50));
+    expect(tap(state) / incomePerSecond(state)).toBeLessThan(early / 50);
   });
 });
 

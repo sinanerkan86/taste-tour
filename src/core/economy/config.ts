@@ -63,6 +63,12 @@ export const PRESTIGE = {
   bonusPerStar: 0.1,
 };
 
+export const TAP = {
+  // A tap earns this fraction of one customer's bill. Strong while few customers come in,
+  // negligible once the restaurant runs itself, so tapping fades out naturally.
+  billFraction: 0.25,
+};
+
 export const OFFLINE = {
   // Offline earnings are capped to this many seconds at first.
   baseCapSeconds: 2 * 60 * 60,

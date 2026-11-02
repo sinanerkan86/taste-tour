@@ -17,6 +17,7 @@ Customer arrives → sits → orders → chef cooks → waiter serves → custom
 → restaurant grows → prestige (franchise) restarts in a new city with a permanent multiplier.
 
 Early on the player can speed things up by tapping; as staff are hired, everything becomes automated.
+A tap on the restaurant earns a tip worth 25% of one customer's bill. At the start that is about a second of income per tap; once customers flow in quickly it becomes negligible, so tapping fades out naturally without a separate rule. (The balance simulation ignores tapping.)
 
 ## 3. Restaurant sections
 

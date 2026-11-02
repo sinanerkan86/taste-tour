@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { FONT, GAME_HEIGHT, GAME_WIDTH, PALETTE, toCss } from '../config';
+import { FONT, GAME_HEIGHT, GAME_WIDTH, MAX_GAME_HEIGHT, PALETTE, toCss } from '../config';
 
 const RADIUS = 40;
 const HEADER_HEIGHT = 130;
@@ -13,7 +13,7 @@ export interface ModalCard {
 
 // The shared look of dialogs: a dim overlay that swallows taps, and a cream card with a red header.
 export function createModalCard(scene: Phaser.Scene, width: number, height: number, title: string): ModalCard {
-  const dim = scene.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.55).setOrigin(0).setInteractive();
+  const dim = scene.add.rectangle(0, 0, GAME_WIDTH, MAX_GAME_HEIGHT, 0x000000, 0.55).setOrigin(0).setInteractive();
   const cx = GAME_WIDTH / 2;
   const top = GAME_HEIGHT / 2 - 60 - height / 2;
   const card = scene.add.graphics();

@@ -7,6 +7,8 @@ import { AdMobAdService } from './AdMobAdService';
 export type AdPlacement = 'rush' | 'timeSkip' | 'offlineDouble' | 'vip';
 
 export interface AdService {
+  // Prepares the ad network (and asks for consent where needed) at startup.
+  init(): Promise<void>;
   // Shows a rewarded ad. Resolves true only if the player watched it to the end.
   showRewarded(placement: AdPlacement): Promise<boolean>;
 }
@@ -16,6 +18,8 @@ const TEST_AD_SECONDS = 3;
 // Stand-in for a real ad network while developing in the browser: a full-screen overlay with a
 // short countdown. Closing it early forfeits the reward, like a real rewarded ad.
 export class TestAdService implements AdService {
+  async init(): Promise<void> {}
+
   showRewarded(placement: AdPlacement): Promise<boolean> {
     return new Promise((resolve) => {
       const overlay = document.createElement('div');

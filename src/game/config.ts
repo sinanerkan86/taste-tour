@@ -2,7 +2,22 @@
 // so all game code can use these fixed coordinates regardless of screen size.
 // 1080 wide keeps text and shapes sharp on typical phone screens.
 export const GAME_WIDTH = 1080;
-export const GAME_HEIGHT = 1920;
+const BASE_HEIGHT = 1920;
+// Backgrounds that run to the bottom edge are drawn this tall, so a later resize never uncovers them.
+export const MAX_GAME_HEIGHT = 2560;
+
+// Phones taller than 16:9 get a taller canvas instead of empty bands above and below; the
+// extra height goes to the upgrade panel at the bottom. Measured at startup and again when the
+// view resizes (e.g. Android hides the navigation bar after the game has started).
+export function fitHeight(): number {
+  if (typeof document === 'undefined') return BASE_HEIGHT;
+  const box = document.getElementById('game');
+  if (!box || box.clientWidth === 0) return BASE_HEIGHT;
+  const height = Math.round((GAME_WIDTH * box.clientHeight) / box.clientWidth);
+  return Math.min(Math.max(height, BASE_HEIGHT), MAX_GAME_HEIGHT);
+}
+
+export const GAME_HEIGHT = fitHeight();
 
 // Vertical layout bands.
 export const LAYOUT = {

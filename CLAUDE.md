@@ -37,7 +37,7 @@ Full design: [docs/GDD.md](docs/GDD.md). Keep the GDD up to date when design dec
 ## Status
 
 - `npm run dev`: game at `/`, balance report at `/sim.html`. `npm run sim`: balance tables in the terminal. `npm test`: unit tests (vitest) for `src/core`.
-- Economy model and tuned numbers are in `src/core/economy` (see GDD section 7). Phaser code is in `src/game` (logical resolution 1080x1920).
+- Economy model and tuned numbers are in `src/core/economy` (see GDD section 7). Phaser code is in `src/game` (logical resolution 1080 wide, 1920 to 2560 tall depending on the screen).
 - Roadmap item 4 (playable prototype) is done:
   - [x] 4a. Economy wired into the game: HUD (money, income/s), upgrade panel with Restaurant/Menu tabs, bottleneck marker, passive income. EN/TR strings in `src/i18n`. Dev shortcut: `/?money=1e6`.
   - [x] 4b. Living restaurant scene (`src/game/view`): customers arrive at the economy's rate (shown up to 1.2/s), sit, order, get served by waiters, pay at the cashier; staff counts follow the economy; a red marker floats over the bottleneck section. Real queues per section come with roadmap item 5. Dev: `window.game` exposes the Phaser game; the Browser pane must be visible or the game loop does not run.
@@ -55,4 +55,6 @@ Full design: [docs/GDD.md](docs/GDD.md). Keep the GDD up to date when design dec
   - [x] 7b. VIP guest: every 3-6 minutes of play a food tourist (hat, sunglasses, star bubble) waits near the door for 40 s; tapping them offers 15 minutes of income for an ad. `AdMobAdService` (`@capacitor-community/admob`, Google's test rewarded ad unit) is used on native platforms, `TestAdService` in the browser. Dev: `/?vip=1` brings a VIP right away.
 - Roadmap item 8 (Android build) is split into sub-steps:
   - [x] 8a. Capacitor Android project: portrait only, AdMob test app ID in the manifest, saves in Capacitor Preferences on Android, the back button sends the game to the background (`src/game/native.ts`). Gradle wrapper raised to 9.1 because Android Studio's bundled JDK 25 cannot run Gradle 8.14. Build: `npm run android:apk` (needs `JAVA_HOME` = Android Studio's `jbr` folder; `android/local.properties` holds the SDK path) gives `android/app/build/outputs/apk/debug/app-debug.apk`. Checked on the `Pixel_8` emulator: game runs, AdMob test rewarded ad grants Rush, save survives a restart.
-  - [ ] 8b. Test on a real phone; fill the screen on tall phones instead of letterboxing (status bar, safe areas); UMP consent form before ads.
+  - [x] 8b. Full screen on Android (system bars hidden in `capacitor.config.ts`, top padding for a camera cutout). The logical height grows with the screen (1920 to 2560, `fitHeight()` in `src/game/config.ts`, re-applied on resize); the extra height goes to the upgrade panel. UMP consent (GDPR) is requested at launch in `AdMobAdService.init()`; `VITE_ADS_DEBUG_EEA=1 npm run android:apk` builds an APK that behaves as if in the EU (uninstall first to see the form again).
+  - [ ] 8c. Test on a real phone (USB debugging; `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`).
+- Before release (roadmap item 9): a settings entry that opens `AdMob.showPrivacyOptionsForm()` so players can change consent, real AdMob app and ad unit IDs, app icon and splash.

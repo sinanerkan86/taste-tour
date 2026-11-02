@@ -7,6 +7,9 @@
     <title>Taste Tour: Idle Restaurant</title>
     <style>
       html, body { margin: 0; padding: 0; height: 100%; background: #2b1d14; overflow: hidden; }
+      /* Keep the game clear of a camera cutout; the band above it shows the HUD color. */
+      body { box-sizing: border-box; padding-top: env(safe-area-inset-top); }
+      html.native, html.native body { background: linear-gradient(#c0392b 50%, #f3e6d0 50%); }
       #game { width: 100%; height: 100%; }
     </style>
   </head>

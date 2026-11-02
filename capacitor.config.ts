@@ -5,6 +5,10 @@ const config: CapacitorConfig = {
   appId: 'com.sinanerkan.tastetour',
   appName: 'Taste Tour',
   webDir: 'dist',
+  plugins: {
+    // Full screen game: status and navigation bars stay hidden until the player swipes.
+    SystemBars: { hidden: true },
+  },
   android: {
     // Game assets are bundled, so the WebView never needs plain HTTP.
     allowMixedContent: false,

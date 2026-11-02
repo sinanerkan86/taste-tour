@@ -17,7 +17,7 @@ import {
 } from '../../core/economy';
 import { formatNumber } from '../../core/format';
 import { t, type TranslationKey } from '../../i18n';
-import { FONT, GAME_HEIGHT, GAME_WIDTH, LAYOUT, PALETTE, toCss } from '../config';
+import { FONT, GAME_WIDTH, LAYOUT, MAX_GAME_HEIGHT, PALETTE, toCss } from '../config';
 import { DISH_COLORS, SECTION_COLORS } from '../colors';
 import { BUTTON_STYLES, Button } from './Button';
 
@@ -153,7 +153,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     super(scene, 0, LAYOUT.panelTop);
     const bg = scene.add.graphics();
     bg.fillStyle(PALETTE.panel, 1);
-    bg.fillRoundedRect(0, 0, GAME_WIDTH, GAME_HEIGHT - LAYOUT.panelTop + 40, 36);
+    bg.fillRoundedRect(0, 0, GAME_WIDTH, MAX_GAME_HEIGHT - LAYOUT.panelTop + 40, 36);
     this.add(bg);
 
     const tabWidth = (GAME_WIDTH - MARGIN * 3) / 2;

@@ -5,11 +5,14 @@ import {
   advanceTime,
   buyDish,
   buySectionLevel,
+  canFranchise,
   cityConfig,
   earn,
   incomePerSecond,
   milestonesReached,
   newEconomy,
+  pendingStars,
+  prestige,
   sectionRates,
   tap,
   throughput,
@@ -17,11 +20,13 @@ import {
   type SectionId,
 } from '../../core/economy';
 import { formatNumber } from '../../core/format';
-import { offlineReward, type OfflineReward, type SaveData } from '../../core/save';
+import { createSave, offlineReward, type OfflineReward, type SaveData } from '../../core/save';
 import { t, type TranslationKey } from '../../i18n';
 import { FONT, GAME_WIDTH, LAYOUT, PALETTE, toCss } from '../config';
 import { FX_DEPTH, banner, confetti, floatingText, sparkle } from '../fx';
 import { saves } from '../persistence';
+import { BUTTON_STYLES, Button } from '../ui/Button';
+import { FranchiseModal } from '../ui/FranchiseModal';
 import { HintBubble } from '../ui/HintBubble';
 import { UpgradePanel } from '../ui/UpgradePanel';
 import { WelcomeBackModal } from '../ui/WelcomeBackModal';
@@ -32,6 +37,7 @@ const PANEL_REFRESH_MS = 100;
 // HUD and panel draw above everything in the restaurant scene.
 const UI_DEPTH = 10000;
 const HUD_COIN: Point = { x: GAME_WIDTH / 2 - 150, y: 78 };
+const HUD_MARGIN = 30;
 const BANNER_Y = 330;
 const AUTOSAVE_MS = 10_000;
 // Shorter absences are paid out silently, as if the game had kept running.
@@ -41,9 +47,12 @@ const BOTTLENECK_HINT_DELAY_MS = 4000;
 const BOTTLENECK_HINT = 'bottleneck';
 // The hint card sits below the marker and its label.
 const HINT_OFFSET_Y = 85;
+const FRANCHISE_FADE_MS = 600;
 
 export interface RestaurantSceneData {
   save: SaveData | null;
+  // Set when the scene restarts right after a franchise.
+  arrived?: boolean;
 }
 
 export class RestaurantScene extends Phaser.Scene {
@@ -54,6 +63,11 @@ export class RestaurantScene extends Phaser.Scene {
   private panel!: UpgradePanel;
   private moneyText!: Phaser.GameObjects.Text;
   private incomeText!: Phaser.GameObjects.Text;
+  private starsText!: Phaser.GameObjects.Text;
+  private franchiseButton!: Button;
+  private franchiseCaption!: Phaser.GameObjects.Text;
+  // Null until the first UI refresh, so a loaded game does not announce the franchise again.
+  private franchiseReady: boolean | null = null;
   private hudCoin!: Phaser.GameObjects.Image;
   private sincePanelRefresh = 0;
 
@@ -65,6 +79,7 @@ export class RestaurantScene extends Phaser.Scene {
     this.economy = data.save?.economy ?? newEconomy();
     this.seenHints = data.save?.seenHints ?? [];
     this.hint = null;
+    this.franchiseReady = null;
     // Dev-only shortcut for testing: /?money=1e6
     if (import.meta.env.DEV) {
       const money = Number(new URLSearchParams(location.search).get('money'));
@@ -86,6 +101,42 @@ export class RestaurantScene extends Phaser.Scene {
     this.setUpSaving();
     if (data.save) this.payOffline(offlineReward(this.economy, data.save.savedAt, Date.now()));
     if (!this.seenHints.includes(BOTTLENECK_HINT)) this.time.delayedCall(BOTTLENECK_HINT_DELAY_MS, () => this.showBottleneckHint());
+    if (data.arrived) this.welcomeToCity();
+  }
+
+  private cityName(city: number): string {
+    return t(`city.${cityConfig(city).id}` as TranslationKey);
+  }
+
+  private openFranchise(): void {
+    if (!canFranchise(this.economy)) return;
+    const offer = {
+      city: this.cityName(this.economy.city + 1),
+      starsNow: this.economy.stars,
+      starsGained: pendingStars(this.economy),
+    };
+    new FranchiseModal(this, offer, UI_DEPTH + 100, () => this.franchise());
+  }
+
+  // Sell the restaurant: save the fresh one in the next city and restart the scene with it.
+  private franchise(): void {
+    if (!canFranchise(this.economy)) return;
+    this.economy = prestige(this.economy);
+    const save = createSave(this.economy, Date.now(), this.seenHints);
+    void this.saveGame();
+    this.input.enabled = false;
+    this.cameras.main.fadeOut(FRANCHISE_FADE_MS, 0, 0, 0);
+    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      this.input.enabled = true;
+      this.scene.restart({ save, arrived: true } satisfies RestaurantSceneData);
+    });
+  }
+
+  private welcomeToCity(): void {
+    this.cameras.main.fadeIn(FRANCHISE_FADE_MS, 0, 0, 0);
+    this.time.delayedCall(FRANCHISE_FADE_MS, () =>
+      this.celebrate(t('banner.newCity', { city: this.cityName(this.economy.city) }), PALETTE.tileBlue),
+    );
   }
 
   private saveGame(): Promise<void> {
@@ -266,7 +317,22 @@ export class RestaurantScene extends Phaser.Scene {
   private refreshUi(): void {
     this.moneyText.setText(formatNumber(this.economy.money, 0));
     this.incomeText.setText(t('hud.perSecond', { amount: formatNumber(incomePerSecond(this.economy)) }));
+    this.starsText.setText(formatNumber(this.economy.stars, 0));
     this.panel.refresh(this.economy);
+    this.refreshFranchise();
+  }
+
+  // The franchise button appears once the whole menu is unlocked and shows the stars on offer.
+  private refreshFranchise(): void {
+    const ready = canFranchise(this.economy);
+    this.franchiseButton.setVisible(ready);
+    this.franchiseCaption.setVisible(ready);
+    if (ready) this.franchiseButton.setLabel(`+${formatNumber(pendingStars(this.economy), 0)}`);
+    if (ready && this.franchiseReady === false) {
+      this.celebrate(t('banner.franchiseReady'), PALETTE.success);
+      this.tweens.add({ targets: this.franchiseButton, scale: 1.15, duration: 300, yoyo: true, repeat: 3, ease: 'Sine.easeInOut' });
+    }
+    this.franchiseReady = ready;
   }
 
   private drawHud(): void {
@@ -289,6 +355,36 @@ export class RestaurantScene extends Phaser.Scene {
       .text(GAME_WIDTH / 2, 150, '', { fontFamily: FONT, fontSize: '36px', fontStyle: 'bold', color: toCss(PALETTE.saffron) })
       .setOrigin(0.5)
       .setDepth(UI_DEPTH);
+
+    // Left: city and Chef Stars.
+    this.add
+      .text(HUD_MARGIN, 52, this.cityName(this.economy.city), {
+        fontFamily: FONT,
+        fontSize: '32px',
+        fontStyle: 'bold',
+        color: toCss(PALETTE.cream),
+      })
+      .setOrigin(0, 0.5)
+      .setDepth(UI_DEPTH);
+    this.add.image(HUD_MARGIN + 26, 122, 'star').setScale(0.8).setDepth(UI_DEPTH);
+    this.starsText = this.add
+      .text(HUD_MARGIN + 62, 122, '0', { fontFamily: FONT, fontSize: '40px', fontStyle: 'bold', color: toCss(PALETTE.cream) })
+      .setOrigin(0, 0.5)
+      .setDepth(UI_DEPTH);
+
+    // Right: franchise button, hidden until the menu is complete.
+    this.franchiseButton = new Button(this, GAME_WIDTH - HUD_MARGIN - 105, 80, 210, 100, () => this.openFranchise(), 'star');
+    this.franchiseButton.setButtonStyle(BUTTON_STYLES.buy).setDepth(UI_DEPTH).setVisible(false);
+    this.franchiseCaption = this.add
+      .text(this.franchiseButton.x, 155, t('franchise.button'), {
+        fontFamily: FONT,
+        fontSize: '26px',
+        fontStyle: 'bold',
+        color: toCss(PALETTE.cream),
+      })
+      .setOrigin(0.5)
+      .setDepth(UI_DEPTH)
+      .setVisible(false);
   }
 
   private showPayment(amount: number, at: Point): void {

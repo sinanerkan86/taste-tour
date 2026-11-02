@@ -75,5 +75,15 @@
   "dish.injera": "Injera",
   "dish.nasiGoreng": "Nasi Goreng",
   "dish.arepas": "Arepa",
-  "dish.tiramisu": "Tiramisu"
+  "dish.tiramisu": "Tiramisu",
+  "franchise.button": "Şube Aç",
+  "franchise.title": "Yeni şube aç",
+  "franchise.body": "Bu restoranı sat ve yeni şehirde sıfırdan başla: {city}.\nŞef Yıldızların seninle kalır.",
+  "franchise.stars": "+{stars} Şef Yıldızı",
+  "franchise.bonus": "Gelir bonusu: +%{from} → +%{to}",
+  "franchise.reset": "Para, bölümler ve yemekler sıfırlanır.",
+  "franchise.confirm": "Şubeyi aç",
+  "franchise.cancel": "Şimdi değil",
+  "banner.franchiseReady": "Şube açmaya hazırsın!",
+  "banner.newCity": "Yeni şehir: {city}!"
 }

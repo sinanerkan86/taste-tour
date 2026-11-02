@@ -140,6 +140,7 @@ function milestoneText(level: number, bonus: number): string {
 
 export class UpgradePanel extends Phaser.GameObjects.Container {
   private tab: Tab = 'restaurant';
+  private lastState: EconomyState | null = null;
   private readonly sectionRows: UpgradeRow[];
   private readonly dishRows: UpgradeRow[];
   private readonly tabButtons: Record<Tab, Button>;
@@ -196,9 +197,12 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     this.dishRows.forEach((row) => row.setVisible(tab === 'menu'));
     this.tabButtons.restaurant.setButtonStyle(tab === 'restaurant' ? BUTTON_STYLES.primary : BUTTON_STYLES.disabled);
     this.tabButtons.menu.setButtonStyle(tab === 'menu' ? BUTTON_STYLES.primary : BUTTON_STYLES.disabled);
+    // Draw the new tab right away instead of on the next refresh tick.
+    if (this.lastState) this.refresh(this.lastState);
   }
 
   refresh(state: EconomyState): void {
+    this.lastState = state;
     if (this.tab === 'restaurant') this.refreshSections(state);
     else this.refreshDishes(state);
   }

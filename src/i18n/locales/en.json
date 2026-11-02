@@ -75,5 +75,15 @@
   "dish.injera": "Injera",
   "dish.nasiGoreng": "Nasi Goreng",
   "dish.arepas": "Arepas",
-  "dish.tiramisu": "Tiramisu"
+  "dish.tiramisu": "Tiramisu",
+  "franchise.button": "Franchise",
+  "franchise.title": "Open a franchise",
+  "franchise.body": "Sell this restaurant and start fresh in {city}.\nYour Chef Stars stay with you.",
+  "franchise.stars": "+{stars} Chef Stars",
+  "franchise.bonus": "Income bonus: +{from}% → +{to}%",
+  "franchise.reset": "Money, sections and dishes start over.",
+  "franchise.confirm": "Open in {city}",
+  "franchise.cancel": "Not yet",
+  "banner.franchiseReady": "Franchise ready!",
+  "banner.newCity": "Welcome to {city}!"
 }

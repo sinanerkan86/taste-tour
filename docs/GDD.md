@@ -80,6 +80,7 @@ The scene changes visually at each stage.
 - City order: Istanbul → Rome → Tokyo → New York → Mexico City → Bangkok, then the list starts over with bigger numbers.
 - Each city has its own 7-dish world menu that opens with the local specialty, and (later) its own decor, color palette and music.
 - New cities = ready-made content for future updates.
+- **In the game:** the HUD shows the city and the Chef Stars. When the menu is complete a "Franchise" button appears in the HUD with the stars on offer (it keeps counting up while the player stays). Its dialog shows the stars to gain, the income bonus before → after, and that money, sections and dishes start over. Confirming fades to the new city, which greets the player with a banner.
 
 ## 7. Economy math
 

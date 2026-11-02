@@ -3,7 +3,7 @@ import { GAME_HEIGHT, GAME_WIDTH, PALETTE } from './game/config';
 import { BootScene } from './game/scenes/BootScene';
 import { RestaurantScene } from './game/scenes/RestaurantScene';
 
-new Phaser.Game({
+const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
   width: GAME_WIDTH,
@@ -15,3 +15,8 @@ new Phaser.Game({
   },
   scene: [BootScene, RestaurantScene],
 });
+
+// Dev-only handle for debugging from the browser console.
+if (import.meta.env.DEV) {
+  (window as unknown as { game: Phaser.Game }).game = game;
+}

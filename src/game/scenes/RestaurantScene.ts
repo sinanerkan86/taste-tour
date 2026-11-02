@@ -5,6 +5,7 @@ import {
   buySectionLevel,
   incomePerSecond,
   newEconomy,
+  throughput,
   type EconomyState,
   type SectionId,
 } from '../../core/economy';
@@ -12,20 +13,20 @@ import { formatNumber } from '../../core/format';
 import { t } from '../../i18n';
 import { FONT, GAME_WIDTH, LAYOUT, PALETTE, toCss } from '../config';
 import { UpgradePanel } from '../ui/UpgradePanel';
+import type { Point } from '../view/layout';
+import { RestaurantView } from '../view/RestaurantView';
 
 const PANEL_REFRESH_MS = 100;
-const EARNINGS_POPUP_MS = 1000;
+// HUD and panel draw above everything in the restaurant scene.
+const UI_DEPTH = 10000;
 
 export class RestaurantScene extends Phaser.Scene {
   private economy!: EconomyState;
+  private view!: RestaurantView;
   private panel!: UpgradePanel;
   private moneyText!: Phaser.GameObjects.Text;
   private incomeText!: Phaser.GameObjects.Text;
-  private steam: Phaser.GameObjects.Ellipse[] = [];
-  private elapsed = 0;
   private sincePanelRefresh = 0;
-  private sincePopup = 0;
-  private earnedSincePopup = 0;
 
   constructor() {
     super('Restaurant');
@@ -38,28 +39,33 @@ export class RestaurantScene extends Phaser.Scene {
       const money = Number(new URLSearchParams(location.search).get('money'));
       if (money > 0) this.economy.money = money;
     }
-    this.drawRoom();
+    this.view = new RestaurantView(this);
+    this.view.onPayment = (amount, at) => this.showPayment(amount, at);
     this.drawHud();
     this.panel = new UpgradePanel(
       this,
       (id) => this.buySection(id),
       (index) => this.buyDish(index),
     );
+    this.panel.setDepth(UI_DEPTH);
     this.refreshUi();
   }
 
   // Called every frame; delta is milliseconds since the previous frame.
-  update(_time: number, delta: number): void {
-    this.earnedSincePopup += advanceTime(this.economy, delta / 1000);
-    this.elapsed += delta / 1000;
-    this.animateSteam();
-
-    this.sincePopup += delta;
-    if (this.sincePopup >= EARNINGS_POPUP_MS) {
-      this.sincePopup = 0;
-      this.showEarningsPopup(this.earnedSincePopup);
-      this.earnedSincePopup = 0;
-    }
+  update(time: number, delta: number): void {
+    advanceTime(this.economy, delta / 1000);
+    const flow = throughput(this.economy);
+    this.view.update(
+      {
+        customersPerSecond: flow.customersPerSecond,
+        incomePerSecond: incomePerSecond(this.economy),
+        bottleneck: flow.bottleneck,
+        kitchenLevel: this.economy.sectionLevels.kitchen,
+        menu: this.economy.dishLevels.flatMap((level, i) => (level > 0 ? [i] : [])),
+      },
+      time,
+      delta,
+    );
 
     this.sincePanelRefresh += delta;
     if (this.sincePanelRefresh >= PANEL_REFRESH_MS) {
@@ -89,9 +95,12 @@ export class RestaurantScene extends Phaser.Scene {
   }
 
   private drawHud(): void {
-    this.add.rectangle(0, 0, GAME_WIDTH, LAYOUT.hudHeight, PALETTE.pomegranate).setOrigin(0);
-    this.add.rectangle(0, LAYOUT.hudHeight, GAME_WIDTH, 8, PALETTE.pomegranateDark).setOrigin(0);
-    this.add.image(GAME_WIDTH / 2 - 150, 78, 'coin').setScale(1.1);
+    this.add.rectangle(0, 0, GAME_WIDTH, LAYOUT.hudHeight, PALETTE.pomegranate).setOrigin(0).setDepth(UI_DEPTH);
+    this.add
+      .rectangle(0, LAYOUT.hudHeight, GAME_WIDTH, 8, PALETTE.pomegranateDark)
+      .setOrigin(0)
+      .setDepth(UI_DEPTH);
+    this.add.image(GAME_WIDTH / 2 - 150, 78, 'coin').setScale(1.1).setDepth(UI_DEPTH);
     this.moneyText = this.add
       .text(GAME_WIDTH / 2 - 100, 78, '0', {
         fontFamily: FONT,
@@ -99,59 +108,31 @@ export class RestaurantScene extends Phaser.Scene {
         fontStyle: 'bold',
         color: toCss(PALETTE.cream),
       })
-      .setOrigin(0, 0.5);
+      .setOrigin(0, 0.5)
+      .setDepth(UI_DEPTH);
     this.incomeText = this.add
       .text(GAME_WIDTH / 2, 150, '', { fontFamily: FONT, fontSize: '36px', fontStyle: 'bold', color: toCss(PALETTE.saffron) })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setDepth(UI_DEPTH);
   }
 
-  private drawRoom(): void {
-    const top = LAYOUT.hudHeight;
-    const floorTop = 640;
-    this.add.rectangle(0, top, GAME_WIDTH, floorTop - top, PALETTE.wall).setOrigin(0);
-    for (let i = 0, x = 0; x < GAME_WIDTH; i++, x += 60) {
-      this.add.rectangle(x, floorTop - 80, 60, 80, i % 2 === 0 ? PALETTE.tileBlue : 0x2f8fb0).setOrigin(0);
-    }
-    for (let i = 0, y = floorTop; y < LAYOUT.panelTop; i++, y += 70) {
-      this.add.rectangle(0, y, GAME_WIDTH, 70, i % 2 === 0 ? PALETTE.floor : PALETTE.floorDark).setOrigin(0);
-    }
-    // Placeholder stove until the living scene arrives.
-    const cx = GAME_WIDTH / 2;
-    this.add.rectangle(cx, 600, 390, 160, PALETTE.ink);
-    this.add.circle(cx - 60, 525, 38, 0x555555);
-    this.add.circle(cx + 60, 525, 38, 0x555555);
-    this.add.rectangle(cx, 495, 180, 60, 0x8c8c8c);
-    this.steam = Array.from({ length: 5 }, () => this.add.ellipse(cx, 450, 60, 45, 0xffffff, 0.6));
-  }
-
-  private animateSteam(): void {
-    const cx = GAME_WIDTH / 2;
-    this.steam.forEach((puff, i) => {
-      const t = (this.elapsed * 0.6 + i / this.steam.length) % 1;
-      puff.y = 460 - t * 180;
-      puff.x = cx + Math.sin((this.elapsed + i) * 2) * 15;
-      puff.setAlpha(0.6 * (1 - t));
-      puff.setScale(0.6 + t);
-    });
-  }
-
-  private showEarningsPopup(amount: number): void {
+  private showPayment(amount: number, at: Point): void {
     if (amount <= 0) return;
-    const x = GAME_WIDTH / 2 + Phaser.Math.Between(-260, 260);
-    const y = Phaser.Math.Between(720, 900);
-    const popup = this.add
-      .text(x, y, `+${formatNumber(amount)}`, {
+    const coin = this.add.image(-34, 0, 'coin').setScale(0.7);
+    const text = this.add
+      .text(0, 0, `+${formatNumber(amount)}`, {
         fontFamily: FONT,
-        fontSize: '48px',
+        fontSize: '42px',
         fontStyle: 'bold',
         color: toCss(PALETTE.saffron),
         stroke: toCss(PALETTE.ink),
         strokeThickness: 8,
       })
-      .setOrigin(0.5);
+      .setOrigin(0, 0.5);
+    const popup = this.add.container(at.x, at.y, [coin, text]).setDepth(UI_DEPTH - 1);
     this.tweens.add({
       targets: popup,
-      y: y - 160,
+      y: at.y - 130,
       alpha: 0,
       duration: 1100,
       ease: 'Quad.easeOut',

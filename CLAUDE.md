@@ -40,6 +40,6 @@ Full design: [docs/GDD.md](docs/GDD.md). Keep the GDD up to date when design dec
 - Economy model and tuned numbers are in `src/core/economy` (see GDD section 7). Phaser code is in `src/game` (logical resolution 1080x1920).
 - Roadmap item 4 (playable prototype) is split into sub-steps:
   - [x] 4a. Economy wired into the game: HUD (money, income/s), upgrade panel with Restaurant/Menu tabs, bottleneck marker, passive income. EN/TR strings in `src/i18n`. Dev shortcut: `/?money=1e6`.
-  - [ ] 4b. Living restaurant scene: customers, waiters and chefs animated at the economy's rate; bottleneck visible as a queue.
+  - [x] 4b. Living restaurant scene (`src/game/view`): customers arrive at the economy's rate (shown up to 1.2/s), sit, order, get served by waiters, pay at the cashier; staff counts follow the economy; a red marker floats over the bottleneck section. Real queues per section come with roadmap item 5. Dev: `window.game` exposes the Phaser game; the Browser pane must be visible or the game loop does not run.
   - [ ] 4c. Tap interaction (early boost) and juice.
   - [ ] 4d. Save/load and offline earnings.

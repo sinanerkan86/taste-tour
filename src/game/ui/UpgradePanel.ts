@@ -17,6 +17,7 @@ import {
 import { formatNumber } from '../../core/format';
 import { t, type TranslationKey } from '../../i18n';
 import { FONT, GAME_HEIGHT, GAME_WIDTH, LAYOUT, PALETTE, toCss } from '../config';
+import { DISH_COLORS, SECTION_COLORS } from '../colors';
 import { BUTTON_STYLES, Button } from './Button';
 
 const MARGIN = 24;
@@ -25,15 +26,6 @@ const ROW_GAP = 6;
 const TAB_HEIGHT = 90;
 const BUTTON_WIDTH = 270;
 
-const SECTION_COLORS: Record<SectionId, number> = {
-  entrance: 0xc0392b,
-  seating: 0xe08e0b,
-  kitchen: 0x4a8c3a,
-  waiters: 0x1f6f8b,
-  cashier: 0x7b4fa0,
-  dishwashing: 0x5f8fa6,
-};
-const DISH_COLORS = [0xb8693d, 0xd8452b, 0xe0a00b, 0x8c5a2b, 0xc77d2e, 0x2f8fb0, 0xd9a21b];
 
 type Tab = 'restaurant' | 'menu';
 

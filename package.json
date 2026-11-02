@@ -12,6 +12,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@capacitor-community/admob": "^8.2.1",
+    "@capacitor/core": "^8.6.0",
     "phaser": "^3.90.0"
   },
   "devDependencies": {

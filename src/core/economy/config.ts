@@ -110,6 +110,13 @@ export const ADS = {
   timeSkipCooldownSeconds: 30 * 60,
   // Offline earnings collected with an ad are multiplied by this.
   offlineMultiplier: 2,
+  // VIP guest: shows up now and then and tips this many seconds of (non-Rush) income for an ad.
+  vipTipSeconds: 15 * 60,
+  // Seconds of play between VIP visits (random in this range), and how long a VIP waits.
+  vipMinGapSeconds: 3 * 60,
+  vipMaxGapSeconds: 6 * 60,
+  vipFirstGapSeconds: 90,
+  vipStaySeconds: 40,
 };
 
 export const OFFLINE = {

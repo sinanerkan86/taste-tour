@@ -30,6 +30,8 @@ export const CASHIER_STAFF: Point = { x: 170, y: 625 };
 // Customers line up to pay from the front of the desk toward the tables.
 export const CASHIER_LINE: Point[] = [0, 1, 2, 3, 4, 5].map((i) => ({ x: 170 + i * 52, y: 740 + (i % 2) * 14 }));
 export const WAITER_HOME: Point = { x: 470, y: 560 };
+// Where a VIP guest waits to be noticed, in the open floor near the door.
+export const VIP_SPOT: Point = { x: 300, y: 985 };
 
 // Where finished plates wait for a waiter, along the kitchen counter's front edge.
 export const PASS_SPOTS: Point[] = [640, 720, 800, 880, 960].map((x) => ({ x, y: KITCHEN.counterY + 4 }));

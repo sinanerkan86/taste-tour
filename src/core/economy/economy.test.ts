@@ -9,6 +9,8 @@ import {
   canActivateRush,
   timeSkipAmount,
   useTimeSkip,
+  nextVipGap,
+  vipTip,
   SECTION_IDS,
   buyDish,
   canFranchise,
@@ -183,6 +185,20 @@ describe('ad rewards', () => {
     state.rushSeconds = 10;
     expect(advanceTime(state, 30)).toBeCloseTo(base * (30 + 10));
     expect(state.rushSeconds).toBe(0);
+  });
+
+  it('tips a VIP guest from base income, ignoring Rush', () => {
+    const state = newEconomy();
+    const tip = vipTip(state);
+    expect(tip).toBeCloseTo(baseIncomePerSecond(state) * ADS.vipTipSeconds);
+    activateRush(state);
+    expect(vipTip(state)).toBeCloseTo(tip);
+  });
+
+  it('spaces VIP visits within the configured range', () => {
+    expect(nextVipGap(0)).toBe(ADS.vipMinGapSeconds);
+    expect(nextVipGap(0.999)).toBeLessThan(ADS.vipMaxGapSeconds);
+    expect(nextVipGap(0.5)).toBeGreaterThan(ADS.vipMinGapSeconds);
   });
 
   it('pays a time skip once per cooldown', () => {

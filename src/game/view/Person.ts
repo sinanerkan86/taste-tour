@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { Point } from './layout';
 
-export type PersonKind = 'customer' | 'waiter' | 'chef' | 'cashier' | 'dishwasher';
+export type PersonKind = 'customer' | 'waiter' | 'chef' | 'cashier' | 'dishwasher' | 'vip';
 
 const SKIN_TONES = [0xf6d2b0, 0xe8b48c, 0xc98e66, 0x9c6644, 0x6e4630];
 const SHIRT_COLORS = [0xc0392b, 0x1f6f8b, 0x4a8c3a, 0xe08e0b, 0x7b4fa0, 0x2f8fb0, 0xd35d8a, 0x5f6b73];
@@ -12,7 +12,9 @@ const STAFF_SHIRTS: Record<Exclude<PersonKind, 'customer'>, number> = {
   chef: 0xffffff,
   cashier: 0xf3e3c3,
   dishwasher: 0x9ec9d9,
+  vip: 0x6c3483,
 };
+const GOLD = 0xf4b400;
 
 export const WALK_SPEED = 260; // pixels per second
 const BOB_HEIGHT = 7;
@@ -52,11 +54,25 @@ export class Person extends Phaser.GameObjects.Container {
       // Rubber apron.
       g.fillStyle(0xf4b400, 1).fillRoundedRect(-20, -70, 40, 42, 8);
     }
+    if (kind === 'vip') {
+      // Gold sash and a camera: a well-off food tourist.
+      g.lineStyle(8, GOLD, 1).lineBetween(-20, -82, 18, -34);
+      g.fillStyle(0x2b2b3a, 1).fillRoundedRect(4, -60, 26, 18, 4);
+      g.fillStyle(0x9ec9d9, 1).fillCircle(17, -51, 6);
+    }
     // Head.
     g.fillStyle(skin, 1).fillCircle(0, -108, 24);
     g.fillStyle(hair, 1).fillEllipse(0, -124, 46, 18);
     g.fillStyle(0x2b1d14, 1).fillCircle(-8, -108, 3).fillCircle(8, -108, 3);
     g.lineStyle(2, 0x2b1d14, 1).beginPath().arc(0, -101, 7, 0.2, Math.PI - 0.2).strokePath();
+    if (kind === 'vip') {
+      // Sunglasses and a wide sun hat.
+      g.fillStyle(0x1c1c1c, 1).fillRoundedRect(-17, -114, 14, 10, 4).fillRoundedRect(3, -114, 14, 10, 4);
+      g.fillRect(-4, -111, 8, 3);
+      g.fillStyle(0xf3e3c3, 1).fillEllipse(0, -128, 78, 16);
+      g.fillStyle(0xf3e3c3, 1).fillRoundedRect(-20, -150, 40, 24, 10);
+      g.fillStyle(GOLD, 1).fillRect(-20, -134, 40, 6);
+    }
     if (kind === 'chef') {
       // Toque.
       g.fillStyle(0xffffff, 1).fillRoundedRect(-16, -150, 32, 24, 6);

@@ -13,6 +13,7 @@ import {
   earn,
   incomePerSecond,
   milestonesReached,
+  nextVipGap,
   passTime,
   newEconomy,
   pendingStars,
@@ -22,6 +23,7 @@ import {
   throughput,
   timeSkipAmount,
   useTimeSkip,
+  vipTip,
   type EconomyState,
   type SectionId,
 } from '../../core/economy';
@@ -81,6 +83,8 @@ export class RestaurantScene extends Phaser.Scene {
   private rushCaption!: Phaser.GameObjects.Text;
   private timeSkipButton!: Button;
   private timeSkipCaption!: Phaser.GameObjects.Text;
+  // Seconds of play until the next VIP guest walks in.
+  private vipCountdown = 0;
   // Null until the first UI refresh, so a loaded game does not announce the franchise again.
   private franchiseReady: boolean | null = null;
   private hudCoin!: Phaser.GameObjects.Image;
@@ -95,17 +99,20 @@ export class RestaurantScene extends Phaser.Scene {
     this.seenHints = data.save?.seenHints ?? [];
     this.hint = null;
     this.franchiseReady = null;
-    // Dev-only shortcuts for testing: /?money=1e6 and /?city=2 (look and prices of another city)
+    this.vipCountdown = ADS.vipFirstGapSeconds;
+    // Dev-only shortcuts for testing: /?money=1e6, /?city=2 (look and prices of another city), /?vip=1 (VIP right away)
     if (import.meta.env.DEV) {
       const params = new URLSearchParams(location.search);
       const money = Number(params.get('money'));
       if (money > 0) this.economy.money = money;
       const city = Number(params.get('city'));
       if (Number.isInteger(city) && city > 0 && !data.arrived) this.economy.city = city;
+      if (params.has('vip')) this.vipCountdown = 1;
     }
     this.view = new RestaurantView(this, cityTheme(cityConfig(this.economy.city).id));
     this.view.onPayment = (amount, at) => this.showPayment(amount, at);
     this.view.onMarkerTap = (section) => this.focusBottleneck(section);
+    this.view.onVipTap = (at) => this.offerVip(at);
     this.drawHud();
     this.createTapArea();
     this.createAdButtons();
@@ -292,12 +299,47 @@ export class RestaurantScene extends Phaser.Scene {
   }
 
   // Plays a rewarded ad and grants the reward only if it was watched to the end.
-  private async watchAd(placement: AdPlacement, grant: () => void): Promise<void> {
+  // Resolves whether the reward was granted.
+  private async watchAd(placement: AdPlacement, grant: () => void): Promise<boolean> {
     const watched = await ads.showRewarded(placement);
-    if (!watched || !this.sys.isActive()) return;
+    if (!watched || !this.sys.isActive()) return false;
     grant();
     void this.saveGame();
     this.refreshUi();
+    return true;
+  }
+
+  // Counts down play time to the next VIP guest while none is in the room.
+  private updateVip(seconds: number): void {
+    if (this.view.hasVip) return;
+    this.vipCountdown -= seconds;
+    if (this.vipCountdown > 0) return;
+    this.vipCountdown = nextVipGap(Math.random());
+    void this.view.spawnVip(ADS.vipStaySeconds);
+  }
+
+  private offerVip(at: Point): void {
+    const tip = vipTip(this.economy);
+    const offer = {
+      title: t('ads.vipTitle'),
+      body: t('ads.vipBody'),
+      reward: `+${formatNumber(tip)}`,
+      rewardIcon: 'coin',
+    };
+    new AdOfferModal(
+      this,
+      offer,
+      UI_DEPTH + 100,
+      async () => {
+        const granted = await this.watchAd('vip', () => {
+          earn(this.economy, tip);
+          floatingText(this, at.x, at.y - 80, `+${formatNumber(tip)}`, PALETTE.saffron, 56);
+          this.celebrateCollect();
+        });
+        void this.view.dismissVip(granted);
+      },
+      () => void this.view.dismissVip(false),
+    );
   }
 
   private celebrateCollect(): void {
@@ -312,6 +354,7 @@ export class RestaurantScene extends Phaser.Scene {
   // Called every frame; delta is milliseconds since the previous frame.
   update(time: number, delta: number): void {
     advanceTime(this.economy, delta / 1000);
+    this.updateVip(delta / 1000);
     const flow = throughput(this.economy);
     this.view.update(
       {

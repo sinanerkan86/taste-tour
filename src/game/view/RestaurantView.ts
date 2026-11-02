@@ -19,6 +19,7 @@ import {
   SECTION_ANCHORS,
   STOVES,
   TABLES,
+  VIP_SPOT,
   WAITER_HOME,
   type Point,
 } from './layout';
@@ -198,6 +199,7 @@ export class RestaurantView {
   private washing = false;
   private turnedAway = 0;
   private spawnTimer = 0;
+  private vip: { person: Person; bubble: Bubble | null; leave: Phaser.Time.TimerEvent | null } | null = null;
   private state: ViewState | null = null;
   private flow: Flow | null = null;
 
@@ -246,6 +248,66 @@ export class RestaurantView {
 
     this.animateSteam(time);
     this.people.forEach((p) => p.animate(time));
+  }
+
+  // Called when the player taps a waiting VIP guest.
+  onVipTap: (at: Point) => void = () => {};
+
+  get hasVip(): boolean {
+    return this.vip !== null;
+  }
+
+  // A VIP guest walks in and waits by the door with a star bubble, then leaves on their own
+  // after staySeconds unless the player taps them first.
+  async spawnVip(staySeconds: number): Promise<void> {
+    if (this.vip) return;
+    const person = this.addPerson(new Person(this.scene, OUTSIDE.x, OUTSIDE.y, 'vip'));
+    const vip: NonNullable<RestaurantView['vip']> = { person, bubble: null, leave: null };
+    this.vip = vip;
+    await person.walkTo(DOOR);
+    await person.walkTo(VIP_SPOT);
+    if (this.vip !== vip) return;
+    person.face(1);
+    vip.bubble = this.showBubble(person, (g) => drawStar(g, 0, -4, 20, PALETTE.saffron), 1.1);
+    this.scene.tweens.add({ targets: vip.bubble.container, y: '-=12', duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    // A tall hit area over the guest and the bubble, generous for fingers.
+    const hit = this.scene.add.zone(0, -125, 130, 260).setInteractive({ useHandCursor: true });
+    person.add(hit);
+    hit.on('pointerdown', (_: Phaser.Input.Pointer, __: number, ___: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      if (this.vip !== vip || !vip.leave) return;
+      // Stay while the player decides.
+      vip.leave.remove();
+      vip.leave = null;
+      this.onVipTap({ x: person.x, y: person.y - 120 });
+    });
+    vip.leave = this.scene.time.delayedCall(staySeconds * 1000, () => void this.dismissVip(false));
+  }
+
+  // Sends the VIP guest away, smiling if they were served.
+  async dismissVip(happy: boolean): Promise<void> {
+    const vip = this.vip;
+    if (!vip) return;
+    this.vip = null;
+    vip.leave?.remove();
+    vip.bubble?.close();
+    const person = vip.person;
+    if (!person.active) return;
+    if (!happy) {
+      await person.walkTo(OUTSIDE);
+      this.removePerson(person);
+      return;
+    }
+    const bubble = this.showBubble(person, (g) => {
+      g.fillStyle(PALETTE.success, 1).fillCircle(0, -4, 18);
+      g.fillStyle(0xffffff, 1).fillCircle(-6, -8, 3).fillCircle(6, -8, 3);
+      g.lineStyle(3, 0xffffff, 1).beginPath().arc(0, -2, 8, 0.4, Math.PI - 0.4).strokePath();
+    });
+    await this.delay(900);
+    bubble.close();
+    await person.walkTo(DOOR);
+    await person.walkTo(OUTSIDE);
+    this.removePerson(person);
   }
 
   // Called when a customer pays; the scene shows the popup.
@@ -723,4 +785,15 @@ export class RestaurantView {
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => this.scene.time.delayedCall(ms, resolve));
   }
+}
+
+// A five-pointed star centered on (x, y).
+function drawStar(g: Phaser.GameObjects.Graphics, x: number, y: number, radius: number, color: number): void {
+  const points: Phaser.Types.Math.Vector2Like[] = [];
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? radius : radius * 0.45;
+    const angle = -Math.PI / 2 + (i * Math.PI) / 5;
+    points.push({ x: x + Math.cos(angle) * r, y: y + Math.sin(angle) * r });
+  }
+  g.fillStyle(color, 1).fillPoints(points, true);
 }

@@ -1,6 +1,6 @@
 import { ADS, DISH_MAX_LEVEL, DISH_TIERS, SECTIONS, type SectionId } from './config';
 import { cityCostScale, levelCost, starsForReputation } from './formulas';
-import { earn, earningsOver, newEconomy, type EconomyState } from './state';
+import { baseIncomePerSecond, earn, earningsOver, newEconomy, type EconomyState } from './state';
 
 export function sectionUpgradeCost(state: EconomyState, id: SectionId): number {
   const cfg = SECTIONS[id];
@@ -81,4 +81,14 @@ export function useTimeSkip(state: EconomyState): number {
   earn(state, amount);
   state.timeSkipCooldown = ADS.timeSkipCooldownSeconds;
   return amount;
+}
+
+// What a VIP guest tips for a rewarded ad. Rush does not raise it, so the two do not stack.
+export function vipTip(state: EconomyState): number {
+  return baseIncomePerSecond(state) * ADS.vipTipSeconds;
+}
+
+// Picks the seconds of play until the next VIP visit; random in [0, 1) comes from the caller.
+export function nextVipGap(random: number): number {
+  return ADS.vipMinGapSeconds + random * (ADS.vipMaxGapSeconds - ADS.vipMinGapSeconds);
 }

@@ -1,7 +1,10 @@
-// Rewarded ads. Game code only talks to this interface; the browser build uses a fake test ad,
-// the Android build will use AdMob (roadmap item 7b/8).
+import { Capacitor } from '@capacitor/core';
+import { AdMobAdService } from './AdMobAdService';
 
-export type AdPlacement = 'rush' | 'timeSkip' | 'offlineDouble';
+// Rewarded ads. Game code only talks to this interface; the browser uses a fake test ad,
+// the Android build uses AdMob.
+
+export type AdPlacement = 'rush' | 'timeSkip' | 'offlineDouble' | 'vip';
 
 export interface AdService {
   // Shows a rewarded ad. Resolves true only if the player watched it to the end.
@@ -51,4 +54,4 @@ export class TestAdService implements AdService {
   }
 }
 
-export const ads: AdService = new TestAdService();
+export const ads: AdService = Capacitor.isNativePlatform() ? new AdMobAdService() : new TestAdService();

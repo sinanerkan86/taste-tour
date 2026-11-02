@@ -97,5 +97,7 @@
   "ads.timeSkipBody": "Watch a short ad and collect {hours}h of earnings right now.",
   "ads.timeSkipLabel": "+{hours}h",
   "ads.timeSkipCaption": "Time skip",
-  "banner.rush": "Rush! {multiplier}x income"
+  "banner.rush": "Rush! {multiplier}x income",
+  "ads.vipTitle": "VIP guest!",
+  "ads.vipBody": "A famous food blogger is visiting. Watch a short ad to serve them and get a big tip."
 }

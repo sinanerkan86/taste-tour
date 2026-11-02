@@ -97,5 +97,7 @@
   "ads.timeSkipBody": "Kısa bir reklam izle, {hours} saatlik kazancı hemen topla.",
   "ads.timeSkipLabel": "+{hours}sa",
   "ads.timeSkipCaption": "Zaman atla",
-  "banner.rush": "Yoğun saat! Gelir {multiplier}x"
+  "banner.rush": "Yoğun saat! Gelir {multiplier}x",
+  "ads.vipTitle": "VIP misafir!",
+  "ads.vipBody": "Ünlü bir yemek blogcusu geldi. Kısa bir reklam izle, ona hizmet et ve büyük bir bahşiş al."
 }

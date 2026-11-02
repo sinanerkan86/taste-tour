@@ -120,6 +120,8 @@ If the bot stays 1.5× longer per city it collects 15 stars per city (Istanbul 2
 
 Implemented (7a): Rush gives 2x income for 4 hours per ad and stacks up to 12 hours; its time keeps running while the player is away, so offline earnings use the boosted rate only for the Rush part. Time skip pays one hour of current income at once and then has a 30 minute cooldown. The welcome-back dialog offers "Collect 2x". Every ad starts from a dialog that shows the reward, and a skipped ad gives nothing. Rush time and the cooldown carry over through a franchise. Numbers live in `ADS` in the economy config.
 
+Implemented (7b): a VIP guest (a food tourist with a sun hat and a star bubble) walks in after 90 s of play and then every 3-6 minutes, and waits near the door for 40 s. Tapping them offers a tip worth 15 minutes of income (Rush does not raise it) for an ad; saying no or ignoring them sends them away. The staff discount placement is left for later.
+
 IAP: Remove ads (grants ad rewards without ads), permanent 2x income, starter packs.
 
 ## 9. Visual direction
@@ -146,7 +148,7 @@ IAP: Remove ads (grants ad rewards without ads), permanent 2x income, starter pa
 4. ~~**Prototype:** one restaurant, 2–3 dishes, kitchen + waiters + dining room, staff automation, save/load, offline earnings~~
 5. ~~Bottleneck visualization, cashier and dishwashing~~
 6. ~~Prestige / franchise to new cities~~
-7. Rewarded ads (with test ad unit IDs)
+7. ~~Rewarded ads (with test ad unit IDs)~~
 8. Android build with Capacitor, test on phone
 9. Localization (EN/TR), store assets, Play Store release
 

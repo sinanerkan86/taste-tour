@@ -18,7 +18,7 @@ export interface AdOffer {
 
 // Explains what a rewarded ad gives before the ad starts, so the player chooses to watch it.
 export class AdOfferModal extends Phaser.GameObjects.Container {
-  constructor(scene: Phaser.Scene, offer: AdOffer, depth: number, onWatch: () => void) {
+  constructor(scene: Phaser.Scene, offer: AdOffer, depth: number, onWatch: () => void, onCancel?: () => void) {
     super(scene, 0, 0);
     const card = createModalCard(scene, CARD_WIDTH, CARD_HEIGHT, offer.title);
     const { cx, top } = card;
@@ -44,7 +44,10 @@ export class AdOfferModal extends Phaser.GameObjects.Container {
       'ad',
     );
     watch.setLabel(t('ads.watch')).setButtonStyle(BUTTON_STYLES.buy);
-    const cancel = new Button(scene, cx, top + CARD_HEIGHT - 70, 360, 90, () => this.destroy());
+    const cancel = new Button(scene, cx, top + CARD_HEIGHT - 70, 360, 90, () => {
+      this.destroy();
+      onCancel?.();
+    });
     cancel.setLabel(t('ads.noThanks')).setButtonStyle(BUTTON_STYLES.disabled, true);
     children.push(watch, cancel);
 

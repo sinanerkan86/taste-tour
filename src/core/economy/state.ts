@@ -1,5 +1,5 @@
-import { DISHES, MILESTONE_BONUS, SECTION_IDS, SECTIONS, TAP, type SectionId } from './config';
-import { scaledValue, starMultiplier } from './formulas';
+import { DISH_TIERS, MILESTONE_BONUS, SECTION_IDS, SECTIONS, TAP, type SectionId } from './config';
+import { cityCostScale, cityPriceScale, scaledValue, starMultiplier } from './formulas';
 
 export interface EconomyState {
   money: number;
@@ -7,31 +7,41 @@ export interface EconomyState {
   lifetimeEarnings: number;
   // Earnings in the current run only.
   runEarnings: number;
+  // Run earnings divided by the city's cost scale; sets the stars a franchise awards.
+  runReputation: number;
   stars: number;
+  // Index of the current restaurant in the chain: 0 is the first one (see cityConfig).
+  city: number;
   sectionLevels: Record<SectionId, number>;
-  // Level per dish in DISHES order; 0 means not on the menu yet.
+  // Level per dish in menu order (DISH_TIERS); 0 means not on the menu yet.
   dishLevels: number[];
 }
 
-export function newEconomy(stars = 0, lifetimeEarnings = 0): EconomyState {
+export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomyState {
   const sectionLevels = Object.fromEntries(SECTION_IDS.map((id) => [id, 1])) as Record<SectionId, number>;
   return {
     money: 0,
     lifetimeEarnings,
     runEarnings: 0,
+    runReputation: 0,
     stars,
+    city,
     sectionLevels,
-    dishLevels: DISHES.map((d) => (d.unlockCost === 0 ? 1 : 0)),
+    dishLevels: DISH_TIERS.map((d) => (d.unlockCost === 0 ? 1 : 0)),
   };
 }
 
 // Every customer takes the "taste tour": one serving of each dish on the menu.
 export function billPerCustomer(state: EconomyState): number {
   let bill = 0;
-  DISHES.forEach((dish, i) => {
-    bill += scaledValue(dish.basePrice, state.dishLevels[i], MILESTONE_BONUS.dish);
-  });
+  DISH_TIERS.forEach((_, i) => (bill += dishPrice(state, i)));
   return bill;
+}
+
+// Price of one serving of a dish at its current level.
+export function dishPrice(state: EconomyState, index: number): number {
+  const tier = DISH_TIERS[index];
+  return scaledValue(tier.basePrice * cityPriceScale(state.city), state.dishLevels[index], MILESTONE_BONUS.dish);
 }
 
 // Customers per second each section can handle.
@@ -66,6 +76,7 @@ export function earn(state: EconomyState, amount: number): void {
   state.money += amount;
   state.runEarnings += amount;
   state.lifetimeEarnings += amount;
+  state.runReputation += amount / cityCostScale(state.city);
 }
 
 // Tip earned by one tap on the restaurant. Returns the amount earned.

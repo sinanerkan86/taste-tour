@@ -1,9 +1,12 @@
 // Balance simulation: a greedy "bot player" plays the economy from src/core and records pacing.
 // It runs in Node (tools/sim/cli.ts) and in the browser (sim.html), so it must stay pure.
 import {
-  DISHES,
+  DISH_TIERS,
   PRESTIGE,
   SECTION_IDS,
+  canFranchise,
+  cityConfig,
+  cityCostScale,
   dishCost,
   earn,
   incomePerSecond,
@@ -13,7 +16,6 @@ import {
   prestige,
   sectionRates,
   sectionUpgradeCost,
-  starMultiplier,
   throughput,
   type EconomyState,
   type SectionId,
@@ -23,8 +25,8 @@ export interface SimOptions {
   // Total simulated active play time.
   maxSeconds: number;
   maxCycles: number;
-  // The bot franchises once the new stars would multiply its star bonus by this much.
-  prestigeGain: number;
+  // Once the menu is complete, the bot stays until its stars per hour peak, times this factor.
+  stayFactor: number;
   // Extra income multiplier, e.g. 2 to model a permanently active Rush ad.
   incomeBoost: number;
   // Stop the first time no useful purchase is affordable within this many seconds (used for calibration).
@@ -34,7 +36,7 @@ export interface SimOptions {
 export const DEFAULT_OPTIONS: SimOptions = {
   maxSeconds: 12 * 3600,
   maxCycles: 5,
-  prestigeGain: 2,
+  stayFactor: 1,
   incomeBoost: 1,
   stopAfterWait: Infinity,
 };
@@ -48,6 +50,7 @@ export interface Sample {
 
 export interface CycleResult {
   index: number;
+  city: string;
   startTime: number;
   duration: number;
   starsBefore: number;
@@ -58,8 +61,8 @@ export interface CycleResult {
   // How many times each section or dish was bought.
   purchasesByTarget: Record<string, number>;
   bottleneckSeconds: Record<SectionId, number>;
-  // Seconds into the cycle at which each dish was unlocked.
-  dishUnlocks: { dish: string; time: number }[];
+  // Seconds into the cycle at which each dish (menu position) was unlocked.
+  dishUnlocks: { dish: number; time: number }[];
   finalSectionLevels: Record<SectionId, number>;
   finalDishLevels: number[];
 }
@@ -102,9 +105,9 @@ function candidates(state: EconomyState): Option[] {
     });
   }
 
-  DISHES.forEach((dish, i) => {
+  DISH_TIERS.forEach((_, i) => {
     if (state.dishLevels[i] > 0 || i === nextLockedDish(state)) {
-      options.push({ label: dish.id, targets: [dish.id], cost: dishCost(state, i), apply: (s) => s.dishLevels[i]++ });
+      options.push({ label: dishLabel(i), targets: [dishLabel(i)], cost: dishCost(state, i), apply: (s) => s.dishLevels[i]++ });
     }
   });
 
@@ -118,13 +121,24 @@ function candidates(state: EconomyState): Option[] {
       after.dishLevels[next]++;
     }
     options.push({
-      label: `${DISHES[next].id} to ${LOOKAHEAD_DISH_LEVEL}`,
-      targets: Array<string>(LOOKAHEAD_DISH_LEVEL).fill(DISHES[next].id),
+      label: `${dishLabel(next)} to ${LOOKAHEAD_DISH_LEVEL}`,
+      targets: Array<string>(LOOKAHEAD_DISH_LEVEL).fill(dishLabel(next)),
       cost,
       apply: (s) => (s.dishLevels[next] = LOOKAHEAD_DISH_LEVEL),
     });
   }
   return options;
+}
+
+// Cities have different dishes, so reports name dishes by menu position.
+export function dishLabel(index: number): string {
+  return `dish ${index + 1}`;
+}
+
+// Stars per second of the current run, without rounding down, after earning `extra` more.
+function starRate(state: EconomyState, elapsed: number, extra = 0, extraTime = 0): number {
+  const reputation = state.runReputation + extra / cityCostScale(state.city);
+  return (reputation / PRESTIGE.starDivisor) ** PRESTIGE.starExponent / Math.max(elapsed + extraTime, 1);
 }
 
 function clone(state: EconomyState): EconomyState {
@@ -144,10 +158,13 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
   let time = 0;
   let cycle = newCycle(0, 0, 0);
   let lastSampleTime = -Infinity;
+  // When this run's stars per hour peaked (null until then).
+  let peakTime: number | null = null;
 
   function newCycle(index: number, startTime: number, starsBefore: number): CycleResult {
     return {
       index,
+      city: cityConfig(state.city).id,
       startTime,
       duration: 0,
       starsBefore,
@@ -157,7 +174,7 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
       longestWait: 0,
       purchasesByTarget: {},
       bottleneckSeconds: emptyBottleneckTimes(),
-      dishUnlocks: [{ dish: DISHES[0].id, time: 0 }],
+      dishUnlocks: [{ dish: 0, time: 0 }],
       finalSectionLevels: { ...state.sectionLevels },
       finalDishLevels: [...state.dishLevels],
     };
@@ -190,11 +207,7 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
   sample();
   while (time < options.maxSeconds) {
     const inc = income(state);
-
-    // Time until the bot is willing to franchise.
-    const targetStars = Math.ceil(((options.prestigeGain - 1) * starMultiplier(state.stars)) / PRESTIGE.bonusPerStar);
-    const neededLifetime = (state.stars + targetStars) ** 2 * PRESTIGE.starDivisor;
-    const timeToPrestige = Math.max(0, (neededLifetime - state.lifetimeEarnings) / inc);
+    const elapsed = time - cycle.startTime;
 
     // Pick the purchase that pays for itself soonest, counting the time spent saving up for it.
     let best: Option | null = null;
@@ -216,7 +229,21 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
       }
     }
 
+    // Time until the bot is willing to franchise (Infinity while the menu is incomplete).
+    let timeToPrestige = Infinity;
+    if (canFranchise(state) || (nextLockedDish(state) < 0 && !best)) {
+      const wait = best ? bestWait : 0;
+      if (peakTime === null && (!best || starRate(state, elapsed, inc * wait, wait) < starRate(state, elapsed))) {
+        peakTime = elapsed;
+      }
+      if (peakTime !== null) timeToPrestige = Math.max(0, peakTime * options.stayFactor - elapsed);
+      // At least one star is needed to franchise.
+      const reputationForOne = PRESTIGE.starDivisor - state.runReputation;
+      timeToPrestige = Math.max(timeToPrestige, (reputationForOne * cityCostScale(state.city)) / inc);
+    }
+
     if (timeToPrestige <= bestWait || !best) {
+      if (!Number.isFinite(timeToPrestige)) break;
       advance(timeToPrestige);
       cycle.starsGained = pendingStars(state);
       closeCycle();
@@ -224,6 +251,7 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
       state = prestige(state);
       cycle = newCycle(cycles.length, time, state.stars);
       lastSampleTime = -Infinity;
+      peakTime = null;
       sample();
       continue;
     }
@@ -234,7 +262,7 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
     const lockedBefore = nextLockedDish(state);
     best.apply(state);
     if (lockedBefore >= 0 && state.dishLevels[lockedBefore] > 0) {
-      cycle.dishUnlocks.push({ dish: DISHES[lockedBefore].id, time: time - cycle.startTime });
+      cycle.dishUnlocks.push({ dish: lockedBefore, time: time - cycle.startTime });
     }
     cycle.purchases++;
     for (const target of best.targets) {

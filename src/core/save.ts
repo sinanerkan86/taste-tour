@@ -1,4 +1,13 @@
-import { DISHES, OFFLINE, SECTION_IDS, incomePerSecond, newEconomy, offlineEarnings, type EconomyState } from './economy';
+import {
+  DISH_TIERS,
+  OFFLINE,
+  SECTION_IDS,
+  cityCostScale,
+  incomePerSecond,
+  newEconomy,
+  offlineEarnings,
+  type EconomyState,
+} from './economy';
 
 export const SAVE_VERSION = 1;
 
@@ -38,18 +47,23 @@ export function parseSave(json: string): SaveData | null {
   if (typeof saved !== 'object' || saved === null) return null;
 
   const fresh = newEconomy();
+  const city = Math.max(0, Math.floor(finiteOr(saved.city, 0)));
+  const runEarnings = Math.max(0, finiteOr(saved.runEarnings, 0));
   const economy: EconomyState = {
     money: Math.max(0, finiteOr(saved.money, 0)),
     lifetimeEarnings: Math.max(0, finiteOr(saved.lifetimeEarnings, 0)),
-    runEarnings: Math.max(0, finiteOr(saved.runEarnings, 0)),
+    runEarnings,
+    // Saves from before cities existed only have run earnings.
+    runReputation: Math.max(0, finiteOr(saved.runReputation, runEarnings / cityCostScale(city))),
     stars: Math.max(0, Math.floor(finiteOr(saved.stars, 0))),
+    city,
     sectionLevels: { ...fresh.sectionLevels },
     dishLevels: [...fresh.dishLevels],
   };
   for (const id of SECTION_IDS) {
     economy.sectionLevels[id] = Math.max(1, Math.floor(finiteOr(saved.sectionLevels?.[id], 1)));
   }
-  DISHES.forEach((_, i) => {
+  DISH_TIERS.forEach((_, i) => {
     economy.dishLevels[i] = Math.max(fresh.dishLevels[i], Math.floor(finiteOr(saved.dishLevels?.[i], 0)));
   });
 

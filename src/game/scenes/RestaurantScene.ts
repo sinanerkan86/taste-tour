@@ -1,11 +1,11 @@
 import Phaser from 'phaser';
 import {
   DISH_MAX_LEVEL,
-  DISHES,
   MILESTONE_BONUS,
   advanceTime,
   buyDish,
   buySectionLevel,
+  cityConfig,
   earn,
   incomePerSecond,
   milestonesReached,
@@ -215,7 +215,7 @@ export class RestaurantScene extends Phaser.Scene {
     void this.saveGame();
     this.panel.pulseDish(index);
     this.celebratePurchase();
-    const name = t(`dish.${DISHES[index].id}` as TranslationKey);
+    const name = t(`dish.${cityConfig(this.economy.city).dishes[index]}` as TranslationKey);
     const newLevel = this.economy.dishLevels[index];
     if (level === 0) {
       this.celebrate(t('banner.newDish', { name }), PALETTE.success);

@@ -1,4 +1,4 @@
-import { MILESTONES, PRESTIGE } from './config';
+import { CITIES, CITY, MILESTONES, PRESTIGE, type CityConfig } from './config';
 
 export function milestonesReached(level: number): number {
   let count = 0;
@@ -25,12 +25,26 @@ export function levelCost(baseCost: number, growth: number, level: number): numb
   return baseCost * growth ** (level - 1);
 }
 
-export function totalStarsFor(lifetimeEarnings: number): number {
-  return Math.floor(Math.sqrt(lifetimeEarnings / PRESTIGE.starDivisor));
+export function starsForReputation(reputation: number): number {
+  // The epsilon keeps exact powers (1000 ** (1/3) = 9.999...) from rounding down.
+  return Math.floor((reputation / PRESTIGE.starDivisor) ** PRESTIGE.starExponent + 1e-9);
 }
 
 export function starMultiplier(stars: number): number {
   return 1 + stars * PRESTIGE.bonusPerStar;
+}
+
+// The n-th restaurant of the chain (0 = the first one). Cities repeat after the last one.
+export function cityConfig(city: number): CityConfig {
+  return CITIES[city % CITIES.length];
+}
+
+export function cityPriceScale(city: number): number {
+  return CITY.priceStep ** city;
+}
+
+export function cityCostScale(city: number): number {
+  return cityPriceScale(city) * starMultiplier(CITY.expectedStarsPerCity * city);
 }
 
 export function offlineEarnings(incomePerSecond: number, secondsAway: number, capSeconds: number): number {

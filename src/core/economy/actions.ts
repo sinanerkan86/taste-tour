@@ -1,19 +1,20 @@
-import { DISH_MAX_LEVEL, DISHES, SECTIONS, type SectionId } from './config';
-import { levelCost, totalStarsFor } from './formulas';
+import { DISH_MAX_LEVEL, DISH_TIERS, SECTIONS, type SectionId } from './config';
+import { cityCostScale, levelCost, starsForReputation } from './formulas';
 import { newEconomy, type EconomyState } from './state';
 
 export function sectionUpgradeCost(state: EconomyState, id: SectionId): number {
   const cfg = SECTIONS[id];
-  return levelCost(cfg.baseCost, cfg.costGrowth, state.sectionLevels[id]);
+  return levelCost(cfg.baseCost, cfg.costGrowth, state.sectionLevels[id]) * cityCostScale(state.city);
 }
 
 // Unlock cost if the dish is not on the menu yet, otherwise the next level's cost.
 // Infinity once the dish is mastered.
 export function dishCost(state: EconomyState, index: number): number {
-  const dish = DISHES[index];
+  const tier = DISH_TIERS[index];
   const level = state.dishLevels[index];
   if (level >= DISH_MAX_LEVEL) return Infinity;
-  return level === 0 ? dish.unlockCost : levelCost(dish.baseUpgradeCost, dish.costGrowth, level);
+  const cost = level === 0 ? tier.unlockCost : levelCost(tier.baseUpgradeCost, tier.costGrowth, level);
+  return cost * cityCostScale(state.city);
 }
 
 // Dishes unlock strictly in order. Returns -1 when every dish is on the menu.
@@ -40,11 +41,17 @@ export function buyDish(state: EconomyState, index: number): boolean {
   return true;
 }
 
+// Stars a franchise would award right now.
 export function pendingStars(state: EconomyState): number {
-  return Math.max(0, totalStarsFor(state.lifetimeEarnings) - state.stars);
+  return starsForReputation(state.runReputation);
 }
 
-// Franchise: start over with the stars earned so far.
+// A franchise opens once the city's whole menu is unlocked and it would award a star.
+export function canFranchise(state: EconomyState): boolean {
+  return nextLockedDish(state) < 0 && pendingStars(state) > 0;
+}
+
+// Franchise: sell the restaurant and start over in the next city, keeping the stars.
 export function prestige(state: EconomyState): EconomyState {
-  return newEconomy(state.stars + pendingStars(state), state.lifetimeEarnings);
+  return newEconomy(state.stars + pendingStars(state), state.lifetimeEarnings, state.city + 1);
 }

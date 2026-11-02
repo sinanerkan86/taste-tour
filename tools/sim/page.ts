@@ -1,8 +1,8 @@
 // Browser report for the balance simulation (served by the Vite dev server at /sim.html).
 import { Chart, registerables } from 'chart.js';
-import { DISHES, SECTION_IDS } from '../../src/core/economy';
+import { DISH_TIERS, SECTION_IDS } from '../../src/core/economy';
 import { formatDuration, formatNumber } from '../../src/core/format';
-import { simulate, type SimResult } from './simulate';
+import { dishLabel, simulate, type SimResult } from './simulate';
 
 Chart.register(...registerables);
 
@@ -18,7 +18,7 @@ function element<T extends HTMLElement>(id: string): T {
 function readOptions() {
   return {
     incomeBoost: Number(element<HTMLSelectElement>('boost').value),
-    prestigeGain: Number(element<HTMLSelectElement>('gain').value),
+    stayFactor: Number(element<HTMLSelectElement>('stay').value),
     maxCycles: Number(element<HTMLSelectElement>('cycles').value),
     maxSeconds: 48 * 3600,
   };
@@ -108,9 +108,10 @@ function render(): void {
   renderBottleneckChart(result);
   renderTable(
     'cycles-table',
-    ['Cycle', 'Duration', 'Stars before', 'Stars gained', 'Final income/s', 'Purchases', 'Longest wait'],
+    ['Cycle', 'City', 'Duration', 'Stars before', 'Stars gained', 'Final income/s', 'Purchases', 'Longest wait'],
     result.cycles.map((c) => [
       c.index + 1,
+      c.city,
       formatDuration(c.duration),
       c.starsBefore,
       c.starsGained,
@@ -121,16 +122,16 @@ function render(): void {
   );
   renderTable(
     'dishes-table',
-    ['Cycle', ...DISHES.map((d) => d.id)],
+    ['Cycle', ...DISH_TIERS.map((_, i) => dishLabel(i))],
     result.cycles.map((c) => [
       c.index + 1,
-      ...DISHES.map((d) => {
-        const unlock = c.dishUnlocks.find((u) => u.dish === d.id);
+      ...DISH_TIERS.map((_, i) => {
+        const unlock = c.dishUnlocks.find((u) => u.dish === i);
         return unlock ? formatDuration(unlock.time) : '-';
       }),
     ]),
   );
 }
 
-['boost', 'gain', 'cycles'].forEach((id) => element(id).addEventListener('change', render));
+['boost', 'stay', 'cycles'].forEach((id) => element(id).addEventListener('change', render));
 render();

@@ -1,13 +1,14 @@
 import Phaser from 'phaser';
 import {
   DISH_MAX_LEVEL,
-  DISHES,
+  DISH_TIERS,
   MILESTONE_BONUS,
   SECTION_IDS,
+  cityConfig,
   dishCost,
+  dishPrice,
   nextLockedDish,
   nextMilestone,
-  scaledValue,
   sectionRates,
   sectionUpgradeCost,
   throughput,
@@ -168,7 +169,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     this.sectionRows = SECTION_IDS.map(
       (id, i) => new UpgradeRow(scene, rowY(i), SECTION_COLORS[id], () => onBuySection(id)),
     );
-    this.dishRows = DISHES.map((_, i) => new UpgradeRow(scene, rowY(i), DISH_COLORS[i], () => onBuyDish(i)));
+    this.dishRows = DISH_TIERS.map((_, i) => new UpgradeRow(scene, rowY(i), DISH_COLORS[i], () => onBuyDish(i)));
     this.add([...this.sectionRows, ...this.dishRows]);
 
     this.showTab('restaurant');
@@ -224,18 +225,19 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
 
   private refreshDishes(state: EconomyState): void {
     const nextLocked = nextLockedDish(state);
-    DISHES.forEach((dish, i) => {
+    const city = cityConfig(state.city);
+    DISH_TIERS.forEach((_, i) => {
       const level = state.dishLevels[i];
       const cost = dishCost(state, i);
       const row = this.dishRows[i];
-      const title = t(`dish.${dish.id}` as TranslationKey);
+      const title = t(`dish.${city.dishes[i]}` as TranslationKey);
       if (level > 0) {
         const mastered = level >= DISH_MAX_LEVEL;
         row.render({
           title,
           level: t('row.level', { level }),
           detail:
-            t('row.dishPrice', { price: formatNumber(scaledValue(dish.basePrice, level, MILESTONE_BONUS.dish)) }) +
+            t('row.dishPrice', { price: formatNumber(dishPrice(state, i)) }) +
             (mastered ? '' : milestoneText(level, MILESTONE_BONUS.dish)),
           buttonLabel: mastered ? t('row.mastered') : formatNumber(cost),
           buttonIcon: !mastered,

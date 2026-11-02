@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   DISH_MAX_LEVEL,
-  DISHES,
+  DISH_TIERS,
   SECTION_IDS,
   buyDish,
+  canFranchise,
+  cityConfig,
+  cityCostScale,
+  cityPriceScale,
+  CITIES,
   buySectionLevel,
   dishCost,
   incomePerSecond,
@@ -18,7 +23,7 @@ import {
   sectionUpgradeCost,
   tap,
   throughput,
-  totalStarsFor,
+  starsForReputation,
   PRESTIGE,
 } from '.';
 
@@ -41,9 +46,16 @@ describe('formulas', () => {
     expect(levelCost(10, 1.5, 3)).toBeCloseTo(22.5);
   });
 
-  it('awards stars on the square root of lifetime earnings', () => {
-    expect(totalStarsFor(PRESTIGE.starDivisor * 99)).toBe(9);
-    expect(totalStarsFor(PRESTIGE.starDivisor * 100)).toBe(10);
+  it('awards stars on the cube root of reputation', () => {
+    expect(starsForReputation(PRESTIGE.starDivisor * 999)).toBe(9);
+    expect(starsForReputation(PRESTIGE.starDivisor * 1000)).toBe(10);
+  });
+
+  it('scales later cities and repeats the city list', () => {
+    expect(cityPriceScale(0)).toBe(1);
+    expect(cityCostScale(0)).toBe(1);
+    expect(cityCostScale(2)).toBeGreaterThan(cityPriceScale(2));
+    expect(cityConfig(CITIES.length + 1).id).toBe(CITIES[1].id);
   });
 
   it('caps offline earnings', () => {
@@ -56,7 +68,7 @@ describe('economy state', () => {
   it('starts with every section at level 1 and only the first dish', () => {
     const state = newEconomy();
     expect(SECTION_IDS.every((id) => state.sectionLevels[id] === 1)).toBe(true);
-    expect(state.dishLevels).toEqual(DISHES.map((_, i) => (i === 0 ? 1 : 0)));
+    expect(state.dishLevels).toEqual(DISH_TIERS.map((_, i) => (i === 0 ? 1 : 0)));
     expect(incomePerSecond(state)).toBeGreaterThan(0);
   });
 
@@ -120,15 +132,33 @@ describe('actions', () => {
     expect(buyDish(state, 0)).toBe(false);
   });
 
-  it('keeps stars and lifetime earnings across a franchise', () => {
+  it('opens a franchise only once the whole menu is unlocked', () => {
     const state = newEconomy();
-    state.lifetimeEarnings = PRESTIGE.starDivisor * 400;
+    state.runReputation = PRESTIGE.starDivisor * 8000;
     expect(pendingStars(state)).toBe(20);
+    expect(canFranchise(state)).toBe(false);
+    state.dishLevels = state.dishLevels.map(() => 1);
+    expect(canFranchise(state)).toBe(true);
+  });
+
+  it('moves to the next city and keeps stars across a franchise', () => {
+    const state = newEconomy();
+    state.lifetimeEarnings = 1e15;
+    state.runReputation = PRESTIGE.starDivisor * 8000;
     const next = prestige(state);
+    expect(next.city).toBe(1);
     expect(next.stars).toBe(20);
     expect(next.money).toBe(0);
     expect(next.lifetimeEarnings).toBe(state.lifetimeEarnings);
     expect(pendingStars(next)).toBe(0);
-    expect(incomePerSecond(next)).toBeCloseTo(incomePerSecond(newEconomy()) * 3);
+    // Prices grow with the city, and the star bonus applies on top.
+    expect(incomePerSecond(next)).toBeCloseTo(incomePerSecond(newEconomy()) * cityPriceScale(1) * 3);
+  });
+
+  it('measures reputation in the city scale', () => {
+    const state = newEconomy(0, 0, 2);
+    state.money = 0;
+    tap(state);
+    expect(state.runReputation).toBeCloseTo(state.runEarnings / cityCostScale(2));
   });
 });

@@ -74,9 +74,11 @@ The scene changes visually at each stage.
 
 ## 6. Prestige: Franchise
 
-- Sell the restaurant and start from scratch in a new city; earn permanent **Chef Stars** as a multiplier.
-- City order (example): Istanbul → Rome → Tokyo → New York → Mexico City → Bangkok → …
-- Each city has its own decor, color palette, local dishes (and later its own music).
+- Sell the restaurant and start from scratch in a new city; earn permanent **Chef Stars** as a multiplier (+10% income each).
+- **When:** the franchise opens once the city's whole menu is unlocked (a clear goal per city). Staying longer still earns more stars, but less and less.
+- **Stars** come from the current run only: `stars = floor((run reputation / 1.5e11)^(1/3))`, where reputation is the run's earnings measured in the city's cost scale. An on-pace city gives about 10 stars.
+- City order: Istanbul → Rome → Tokyo → New York → Mexico City → Bangkok, then the list starts over with bigger numbers.
+- Each city has its own 7-dish world menu that opens with the local specialty, and (later) its own decor, color palette and music.
 - New cities = ready-made content for future updates.
 
 ## 7. Economy math
@@ -87,24 +89,23 @@ All numbers live in `src/core/economy/config.ts`. Balance is checked with the si
 - **Section rate** = `baseRate × level × 1.5^milestones`. **Dish price** = `basePrice × level × 2^milestones`. Milestones: 10, 25, 50, 75, 100, 150, 200, …
 - **Upgrade cost:** `cost(level) = baseCost × r^(level-1)`. Sections have r = 1.20–1.22 and dishes r = 1.25. Each section has its own curve, so the bottleneck moves around as the restaurant grows (entrance and waiters early, kitchen and seating later).
 - **Dish unlock costs** are calibrated so that each new dish arrives just as growth from the previous one starts to stall.
-- **Prestige reward:** `stars = floor(√(lifetimeEarnings / 1e12))`, +10% income per star.
+- **Cities:** every dish tier (`DISH_TIERS`) is reused in each city. In the n-th city prices are ×1000ⁿ (bigger numbers feel like progress) and all costs are ×1000ⁿ × (1 + 0.1 × 10n), i.e. also scaled by the star bonus a player is expected to bring. So each city plays like the first one for an on-pace player, and faster for a player who collected more stars.
+- **Prestige reward:** see section 6; +10% income per star.
 - **Offline earnings:** income/s × time away, capped at 2 hours at first (upgradable later). Applies both when the game was closed and when it was in the background; absences over 1 minute show a "Welcome back" dialog.
 - **Saving:** every 10 s, after each purchase and when the game goes to the background. Saves are repaired on load (missing sections/dishes get starting values), so adding content later does not break old saves.
 - **Big numbers:** plain JS numbers for now; they reach ~1e308, which covers the whole planned content. Switch to `break_infinity.js` only if later cities exceed that. Display: 1.5K, 3.2M, 7.8B, T, then aa, ab, …
 
 ### Simulated pacing (greedy bot, active play, no ads)
 
-| Cycle | Duration | Stars after | Dishes unlocked at (min) |
-|---|---|---|---|
-| 1 | 1h 19m | 10 | pizza 3, taco 14, burger 28, ramen 40, sushi 50, paella 60 |
-| 2 | 1h 16m | 30 | everything ~2× faster |
-| 3 | 1h 23m | 70 | |
-| 4 | 1h 52m | 150 | |
-| 5 | 2h 59m | 310 | |
+The bot franchises once the menu is complete and its stars per hour peak.
 
-The bot franchises when the new stars would at least double its star bonus. Cycles get progressively longer from the 3rd one on.
+| City | Duration | Stars gained | Dishes unlocked at (min) | Income at the end |
+|---|---|---|---|---|
+| Istanbul | 1h 31m | 10 | 3, 14, 28, 40, 50, 60 | 93.7B/s |
+| Rome | 1h 31m | 10 | same | 187T/s |
+| Tokyo … Bangkok | 1h 31m each | 10 each | same | ×1000 per city |
 
-**Known issue:** in later cycles all dishes unlock quickly and the rest of the cycle is a long plateau. The fix belongs to roadmap item 6: each new city brings its own dishes and bigger numbers.
+If the bot stays 1.5× longer per city it collects 15 stars per city (Istanbul 2h 17m), and the following cities get shorter (1h 49m, 1h 43m, … 1h 36m) with the menu complete at ~45 min: lingering is rewarded but not required.
 
 ## 8. Rewarded ad placements
 

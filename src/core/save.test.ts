@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DISHES, OFFLINE, incomePerSecond, newEconomy } from './economy';
+import { DISH_TIERS, OFFLINE, incomePerSecond, newEconomy } from './economy';
 import { createSave, offlineReward, parseSave, serializeSave } from './save';
 
 describe('save', () => {
@@ -27,10 +27,12 @@ describe('save', () => {
     expect(economy.money).toBe(0);
     expect(economy.sectionLevels.kitchen).toBe(9);
     expect(economy.sectionLevels.entrance).toBe(1);
-    expect(economy.dishLevels).toHaveLength(DISHES.length);
+    expect(economy.dishLevels).toHaveLength(DISH_TIERS.length);
     expect(economy.dishLevels[0]).toBe(3);
     expect(economy.dishLevels[1]).toBe(0);
     expect(parsed!.seenHints).toEqual([]);
+    expect(economy.city).toBe(0);
+    expect(economy.runReputation).toBe(0);
   });
 });
 

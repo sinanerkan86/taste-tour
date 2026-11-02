@@ -14,8 +14,8 @@ export interface SectionConfig {
   costGrowth: number;
 }
 
-export interface DishConfig {
-  id: string;
+// Numbers for the n-th dish of a city's menu. Every city reuses them, scaled (see CITY).
+export interface DishTier {
   // Price per serving at level 1.
   basePrice: number;
   // Cost to add the dish to the menu (0 = on the menu from the start).
@@ -36,15 +36,40 @@ export const SECTIONS: Record<SectionId, SectionConfig> = {
 };
 
 // Unlock costs are calibrated so each new dish arrives as growth from the previous one stalls.
-export const DISHES: DishConfig[] = [
-  { id: 'doner', basePrice: 2, unlockCost: 0, baseUpgradeCost: 15, costGrowth: 1.25 },
-  { id: 'pizza', basePrice: 16, unlockCost: 500, baseUpgradeCost: 120, costGrowth: 1.25 },
-  { id: 'taco', basePrice: 125, unlockCost: 7.5e7, baseUpgradeCost: 950, costGrowth: 1.25 },
-  { id: 'burger', basePrice: 1e3, unlockCost: 3e9, baseUpgradeCost: 7.5e3, costGrowth: 1.25 },
-  { id: 'ramen', basePrice: 8e3, unlockCost: 3e10, baseUpgradeCost: 6e4, costGrowth: 1.25 },
-  { id: 'sushi', basePrice: 6.5e4, unlockCost: 3e11, baseUpgradeCost: 4.8e5, costGrowth: 1.25 },
-  { id: 'paella', basePrice: 5e5, unlockCost: 3.3e12, baseUpgradeCost: 3.8e6, costGrowth: 1.25 },
+export const DISH_TIERS: DishTier[] = [
+  { basePrice: 2, unlockCost: 0, baseUpgradeCost: 15, costGrowth: 1.25 },
+  { basePrice: 16, unlockCost: 500, baseUpgradeCost: 120, costGrowth: 1.25 },
+  { basePrice: 125, unlockCost: 7.5e7, baseUpgradeCost: 950, costGrowth: 1.25 },
+  { basePrice: 1e3, unlockCost: 3e9, baseUpgradeCost: 7.5e3, costGrowth: 1.25 },
+  { basePrice: 8e3, unlockCost: 3e10, baseUpgradeCost: 6e4, costGrowth: 1.25 },
+  { basePrice: 6.5e4, unlockCost: 3e11, baseUpgradeCost: 4.8e5, costGrowth: 1.25 },
+  { basePrice: 5e5, unlockCost: 3.3e12, baseUpgradeCost: 3.8e6, costGrowth: 1.25 },
 ];
+
+export interface CityConfig {
+  id: string;
+  // Dish ids in menu order, one per DISH_TIERS entry. Each city opens with its local specialty.
+  dishes: string[];
+}
+
+// Franchising moves to the next city. After the last one the list starts over (with ever
+// bigger numbers), so new cities can be added as content updates.
+export const CITIES: CityConfig[] = [
+  { id: 'istanbul', dishes: ['doner', 'pizza', 'taco', 'burger', 'ramen', 'sushi', 'paella'] },
+  { id: 'rome', dishes: ['lasagna', 'falafel', 'dumplings', 'fishAndChips', 'curry', 'pho', 'ceviche'] },
+  { id: 'tokyo', dishes: ['tempura', 'hummus', 'bibimbap', 'schnitzel', 'goulash', 'moussaka', 'empanadas'] },
+  { id: 'newYork', dishes: ['hotDog', 'risotto', 'gyoza', 'shawarma', 'jollof', 'pierogi', 'poke'] },
+  { id: 'mexicoCity', dishes: ['mole', 'butterChicken', 'borscht', 'laksa', 'feijoada', 'couscous', 'baklava'] },
+  { id: 'bangkok', dishes: ['padThai', 'bulgogi', 'poutine', 'injera', 'nasiGoreng', 'arepas', 'tiramisu'] },
+];
+
+export const CITY = {
+  // Prices in each city are this much higher than in the previous one (bigger numbers feel like progress).
+  priceStep: 1000,
+  // Costs grow on top of that by the star bonus a player is expected to bring along, so every city
+  // takes about as long as the first one. Players with more stars than this get through faster.
+  expectedStarsPerCity: 10,
+};
 
 // A dish stops leveling here ("mastered"), so growth has to come from new dishes.
 export const DISH_MAX_LEVEL = 100;
@@ -57,8 +82,12 @@ export const MILESTONE_BONUS = {
 };
 
 export const PRESTIGE = {
-  // stars = floor(sqrt(lifetimeEarnings / starDivisor))
-  starDivisor: 1e12,
+  // Stars a franchise awards = floor((run reputation / starDivisor) ^ starExponent), where reputation
+  // is the run's earnings measured in the city's own cost scale.
+  // A cube root rewards staying longer less and less, so moving on to the next city wins in the end.
+  // Tuned so an on-pace city gives CITY.expectedStarsPerCity stars after about 1.5 hours.
+  starDivisor: 1.5e11,
+  starExponent: 1 / 3,
   // Each Chef Star adds this fraction to income (0.1 = +10%).
   bonusPerStar: 0.1,
 };

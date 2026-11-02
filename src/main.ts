@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH, PALETTE } from './game/config';
+import { setUpNativeApp } from './game/native';
 import { BootScene } from './game/scenes/BootScene';
 import { RestaurantScene } from './game/scenes/RestaurantScene';
 
@@ -15,6 +16,8 @@ const game = new Phaser.Game({
   },
   scene: [BootScene, RestaurantScene],
 });
+
+setUpNativeApp();
 
 // Dev-only handle for debugging from the browser console.
 if (import.meta.env.DEV) {

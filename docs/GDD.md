@@ -149,7 +149,7 @@ IAP: Remove ads (grants ad rewards without ads), permanent 2x income, starter pa
 5. ~~Bottleneck visualization, cashier and dishwashing~~
 6. ~~Prestige / franchise to new cities~~
 7. ~~Rewarded ads (with test ad unit IDs)~~
-8. Android build with Capacitor, test on phone
+8. Android build with Capacitor, test on phone (8a: emulator build done)
 9. Localization (EN/TR), store assets, Play Store release
 
 ## 12. Open questions

@@ -28,7 +28,7 @@ Full design: [docs/GDD.md](docs/GDD.md). Keep the GDD up to date when design dec
 
 ## Tech stack
 
-- TypeScript + Phaser 3 + Vite; Android packaging via Capacitor (`android/` folder is generated later with `npx cap add android`)
+- TypeScript + Phaser 3 + Vite; Android packaging via Capacitor 8 (`android/` is the generated native project, committed; package name `com.sinanerkan.tastetour`)
 - Big numbers: plain JS numbers for now (enough up to ~1e308); `break_infinity.js` only if later content needs it
 - Ads: `@capacitor-community/admob` (test ad unit IDs only during development)
 - Economy balance is tuned with a simulation script separate from game code
@@ -53,4 +53,6 @@ Full design: [docs/GDD.md](docs/GDD.md). Keep the GDD up to date when design dec
 - Roadmap item 7 (rewarded ads) is done:
   - [x] 7a. Rush (2x income for 4h, stacks up to 12h), time skip (1h of earnings at once, 30 min cooldown) and 2x offline collect. Ad buttons on the room floor, an offer dialog before each ad (`src/game/ui/AdOfferModal.ts`). Ads go through `AdService` (`src/game/ads`); in the browser `TestAdService` shows a fake 3 s ad that can be skipped (no reward). Rush time and cooldown keep running offline (`passTime`).
   - [x] 7b. VIP guest: every 3-6 minutes of play a food tourist (hat, sunglasses, star bubble) waits near the door for 40 s; tapping them offers 15 minutes of income for an ad. `AdMobAdService` (`@capacitor-community/admob`, Google's test rewarded ad unit) is used on native platforms, `TestAdService` in the browser. Dev: `/?vip=1` brings a VIP right away.
-- Next: roadmap item 8 (Android build with Capacitor, test on phone). Still needed for ads there: AdMob app ID in the manifest and the UMP consent form.
+- Roadmap item 8 (Android build) is split into sub-steps:
+  - [x] 8a. Capacitor Android project: portrait only, AdMob test app ID in the manifest, saves in Capacitor Preferences on Android, the back button sends the game to the background (`src/game/native.ts`). Gradle wrapper raised to 9.1 because Android Studio's bundled JDK 25 cannot run Gradle 8.14. Build: `npm run android:apk` (needs `JAVA_HOME` = Android Studio's `jbr` folder; `android/local.properties` holds the SDK path) gives `android/app/build/outputs/apk/debug/app-debug.apk`. Checked on the `Pixel_8` emulator: game runs, AdMob test rewarded ad grants Rush, save survives a restart.
+  - [ ] 8b. Test on a real phone; fill the screen on tall phones instead of letterboxing (status bar, safe areas); UMP consent form before ads.

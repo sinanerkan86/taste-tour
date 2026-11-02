@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Taste Tour</string>
+    <string name="title_activity_main">Taste Tour</string>
+    <string name="package_name">com.sinanerkan.tastetour</string>
+    <string name="custom_url_scheme">com.sinanerkan.tastetour</string>
+</resources>

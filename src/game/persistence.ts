@@ -1,7 +1,9 @@
+import { Capacitor } from '@capacitor/core';
+import { Preferences } from '@capacitor/preferences';
 import type { EconomyState } from '../core/economy';
 import { createSave, parseSave, serializeSave, type SaveData } from '../core/save';
 
-// Async on purpose: on Android this becomes Capacitor Preferences, which is async.
+// Async on purpose: on Android the store is Capacitor Preferences, which is async.
 export interface KeyValueStore {
   get(key: string): Promise<string | null>;
   set(key: string, value: string): Promise<void>;
@@ -34,6 +36,20 @@ export const localStore: KeyValueStore = {
   },
 };
 
+// Android app storage (SharedPreferences): unlike WebView localStorage, it is not cleared
+// together with the WebView cache.
+export const preferencesStore: KeyValueStore = {
+  async get(key) {
+    return (await Preferences.get({ key })).value;
+  },
+  async set(key, value) {
+    await Preferences.set({ key, value });
+  },
+  async remove(key) {
+    await Preferences.remove({ key });
+  },
+};
+
 const SAVE_KEY = 'taste-tour.save';
 
 export class SaveManager {
@@ -53,4 +69,4 @@ export class SaveManager {
   }
 }
 
-export const saves = new SaveManager();
+export const saves = new SaveManager(Capacitor.isNativePlatform() ? preferencesStore : localStore);

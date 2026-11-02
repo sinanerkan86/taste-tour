@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { PALETTE } from '../config';
+import { saves } from '../persistence';
+import type { RestaurantSceneData } from './RestaurantScene';
 
 // Generates placeholder textures in code, so the prototype needs no image files yet.
 export class BootScene extends Phaser.Scene {
@@ -10,7 +12,14 @@ export class BootScene extends Phaser.Scene {
   create(): void {
     this.makeCoinTexture();
     this.makeParticleTextures();
-    this.scene.start('Restaurant');
+    void this.loadAndStart();
+  }
+
+  private async loadAndStart(): Promise<void> {
+    // Dev-only shortcut for testing: /?reset=1 starts a fresh game.
+    if (import.meta.env.DEV && new URLSearchParams(location.search).has('reset')) await saves.clear();
+    const data: RestaurantSceneData = { save: await saves.load() };
+    this.scene.start('Restaurant', data);
   }
 
   // White shapes, tinted per effect.

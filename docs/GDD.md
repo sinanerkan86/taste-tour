@@ -73,7 +73,8 @@ All numbers live in `src/core/economy/config.ts`. Balance is checked with the si
 - **Upgrade cost:** `cost(level) = baseCost × r^(level-1)`. Sections have r = 1.20–1.22 and dishes r = 1.25. Each section has its own curve, so the bottleneck moves around as the restaurant grows (entrance and waiters early, kitchen and seating later).
 - **Dish unlock costs** are calibrated so that each new dish arrives just as growth from the previous one starts to stall.
 - **Prestige reward:** `stars = floor(√(lifetimeEarnings / 1e12))`, +10% income per star.
-- **Offline earnings:** income/s × time away, capped at 2 hours at first (upgradable later).
+- **Offline earnings:** income/s × time away, capped at 2 hours at first (upgradable later). Applies both when the game was closed and when it was in the background; absences over 1 minute show a "Welcome back" dialog.
+- **Saving:** every 10 s, after each purchase and when the game goes to the background. Saves are repaired on load (missing sections/dishes get starting values), so adding content later does not break old saves.
 - **Big numbers:** plain JS numbers for now; they reach ~1e308, which covers the whole planned content. Switch to `break_infinity.js` only if later cities exceed that. Display: 1.5K, 3.2M, 7.8B, T, then aa, ab, …
 
 ### Simulated pacing (greedy bot, active play, no ads)
@@ -123,7 +124,7 @@ IAP: Remove ads (grants ad rewards without ads), permanent 2x income, starter pa
 1. ~~Concept, name, repo~~
 2. ~~Project skeleton (Vite + Phaser + TS), empty scene~~
 3. ~~Economy simulation script~~
-4. **Prototype:** one restaurant, 2–3 dishes, kitchen + waiters + dining room, staff automation, save/load, offline earnings
+4. ~~**Prototype:** one restaurant, 2–3 dishes, kitchen + waiters + dining room, staff automation, save/load, offline earnings~~
 5. Bottleneck visualization, cashier and dishwashing
 6. Prestige / second city
 7. Rewarded ads (with test ad unit IDs)

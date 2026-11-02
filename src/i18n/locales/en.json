@@ -26,5 +26,12 @@
   "row.hidden": "???",
   "banner.milestone": "{name} x{bonus}!",
   "banner.newDish": "New dish: {name}!",
-  "banner.mastered": "{name} mastered!"
+  "banner.mastered": "{name} mastered!",
+  "offline.title": "Welcome back!",
+  "offline.body": "You were away for {time}.\nYour restaurant kept cooking and earned:",
+  "offline.capped": "(earnings are counted for up to {time})",
+  "offline.collect": "Collect",
+  "time.hm": "{h}h {m}m",
+  "time.ms": "{m}m {s}s",
+  "time.s": "{s}s"
 }

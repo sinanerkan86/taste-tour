@@ -26,5 +26,12 @@
   "row.hidden": "???",
   "banner.milestone": "{name} x{bonus}!",
   "banner.newDish": "Yeni yemek: {name}!",
-  "banner.mastered": "{name} ustalaşıldı!"
+  "banner.mastered": "{name} ustalaşıldı!",
+  "offline.title": "Tekrar hoş geldin!",
+  "offline.body": "{time} uzaktaydın.\nRestoranın çalışmaya devam etti ve kazandı:",
+  "offline.capped": "(en fazla {time} kazanç sayılır)",
+  "offline.collect": "Topla",
+  "time.hm": "{h}sa {m}dk",
+  "time.ms": "{m}dk {s}sn",
+  "time.s": "{s}sn"
 }

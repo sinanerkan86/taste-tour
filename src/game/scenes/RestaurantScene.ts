@@ -6,6 +6,7 @@ import {
   advanceTime,
   buyDish,
   buySectionLevel,
+  earn,
   incomePerSecond,
   milestonesReached,
   newEconomy,
@@ -15,10 +16,13 @@ import {
   type SectionId,
 } from '../../core/economy';
 import { formatNumber } from '../../core/format';
+import { offlineReward, type OfflineReward, type SaveData } from '../../core/save';
 import { t, type TranslationKey } from '../../i18n';
 import { FONT, GAME_WIDTH, LAYOUT, PALETTE, toCss } from '../config';
 import { FX_DEPTH, banner, confetti, floatingText, sparkle } from '../fx';
+import { saves } from '../persistence';
 import { UpgradePanel } from '../ui/UpgradePanel';
+import { WelcomeBackModal } from '../ui/WelcomeBackModal';
 import { ROOM, type Point } from '../view/layout';
 import { RestaurantView } from '../view/RestaurantView';
 
@@ -27,6 +31,13 @@ const PANEL_REFRESH_MS = 100;
 const UI_DEPTH = 10000;
 const HUD_COIN: Point = { x: GAME_WIDTH / 2 - 150, y: 78 };
 const BANNER_Y = 330;
+const AUTOSAVE_MS = 10_000;
+// Shorter absences are paid out silently, as if the game had kept running.
+const WELCOME_BACK_MIN_SECONDS = 60;
+
+export interface RestaurantSceneData {
+  save: SaveData | null;
+}
 
 export class RestaurantScene extends Phaser.Scene {
   private economy!: EconomyState;
@@ -41,8 +52,8 @@ export class RestaurantScene extends Phaser.Scene {
     super('Restaurant');
   }
 
-  create(): void {
-    this.economy = newEconomy();
+  create(data: RestaurantSceneData): void {
+    this.economy = data.save?.economy ?? newEconomy();
     // Dev-only shortcut for testing: /?money=1e6
     if (import.meta.env.DEV) {
       const money = Number(new URLSearchParams(location.search).get('money'));
@@ -59,6 +70,56 @@ export class RestaurantScene extends Phaser.Scene {
     );
     this.panel.setDepth(UI_DEPTH);
     this.refreshUi();
+
+    this.setUpSaving();
+    if (data.save) this.payOffline(offlineReward(this.economy, data.save.savedAt, Date.now()));
+  }
+
+  // Autosave, plus a save whenever the game goes to the background. When it comes back,
+  // the time it spent paused is paid out like offline time.
+  private setUpSaving(): void {
+    const save = () => void saves.save(this.economy);
+    let hiddenAt = 0;
+    const onHidden = () => {
+      hiddenAt = Date.now();
+      save();
+    };
+    const onVisible = () => {
+      if (hiddenAt > 0) this.payOffline(offlineReward(this.economy, hiddenAt, Date.now()));
+      hiddenAt = 0;
+    };
+    this.time.addEvent({ delay: AUTOSAVE_MS, loop: true, callback: save });
+    this.game.events.on(Phaser.Core.Events.HIDDEN, onHidden);
+    this.game.events.on(Phaser.Core.Events.VISIBLE, onVisible);
+    window.addEventListener('pagehide', save);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.game.events.off(Phaser.Core.Events.HIDDEN, onHidden);
+      this.game.events.off(Phaser.Core.Events.VISIBLE, onVisible);
+      window.removeEventListener('pagehide', save);
+    });
+  }
+
+  private payOffline(reward: OfflineReward): void {
+    if (reward.amount <= 0) return;
+    if (reward.secondsAway < WELCOME_BACK_MIN_SECONDS) {
+      earn(this.economy, reward.amount);
+      return;
+    }
+    new WelcomeBackModal(this, reward, UI_DEPTH + 100, () => {
+      earn(this.economy, reward.amount);
+      void saves.save(this.economy);
+      this.celebrateCollect();
+      this.refreshUi();
+    });
+  }
+
+  private celebrateCollect(): void {
+    confetti(this, GAME_WIDTH / 2, BANNER_Y + 200);
+    for (let i = 0; i < 8; i++) {
+      this.time.delayedCall(i * 60, () =>
+        this.flyCoinToHud({ x: GAME_WIDTH / 2 + Phaser.Math.Between(-200, 200), y: Phaser.Math.Between(700, 900) }),
+      );
+    }
   }
 
   // Called every frame; delta is milliseconds since the previous frame.
@@ -103,6 +164,7 @@ export class RestaurantScene extends Phaser.Scene {
   private buySection(id: SectionId): void {
     const before = milestonesReached(this.economy.sectionLevels[id]);
     if (!buySectionLevel(this.economy, id)) return;
+    void saves.save(this.economy);
     this.panel.pulseSection(id);
     this.celebratePurchase();
     if (milestonesReached(this.economy.sectionLevels[id]) > before) {
@@ -115,6 +177,7 @@ export class RestaurantScene extends Phaser.Scene {
   private buyDish(index: number): void {
     const level = this.economy.dishLevels[index];
     if (!buyDish(this.economy, index)) return;
+    void saves.save(this.economy);
     this.panel.pulseDish(index);
     this.celebratePurchase();
     const name = t(`dish.${DISHES[index].id}` as TranslationKey);

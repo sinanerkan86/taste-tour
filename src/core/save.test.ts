@@ -8,8 +8,8 @@ describe('save', () => {
     economy.money = 1234.5;
     economy.sectionLevels.kitchen = 42;
     economy.dishLevels[1] = 7;
-    const parsed = parseSave(serializeSave(createSave(economy, 1000)));
-    expect(parsed).toEqual(createSave(economy, 1000));
+    const parsed = parseSave(serializeSave(createSave(economy, 1000, ['bottleneck'])));
+    expect(parsed).toEqual(createSave(economy, 1000, ['bottleneck']));
   });
 
   it('rejects unusable data', () => {
@@ -30,6 +30,7 @@ describe('save', () => {
     expect(economy.dishLevels).toHaveLength(DISHES.length);
     expect(economy.dishLevels[0]).toBe(3);
     expect(economy.dishLevels[1]).toBe(0);
+    expect(parsed!.seenHints).toEqual([]);
   });
 });
 

@@ -22,6 +22,7 @@ import { t, type TranslationKey } from '../../i18n';
 import { FONT, GAME_WIDTH, LAYOUT, PALETTE, toCss } from '../config';
 import { FX_DEPTH, banner, confetti, floatingText, sparkle } from '../fx';
 import { saves } from '../persistence';
+import { HintBubble } from '../ui/HintBubble';
 import { UpgradePanel } from '../ui/UpgradePanel';
 import { WelcomeBackModal } from '../ui/WelcomeBackModal';
 import { ROOM, type Point } from '../view/layout';
@@ -35,6 +36,11 @@ const BANNER_Y = 330;
 const AUTOSAVE_MS = 10_000;
 // Shorter absences are paid out silently, as if the game had kept running.
 const WELCOME_BACK_MIN_SECONDS = 60;
+// The bottleneck tip appears this long into the first session.
+const BOTTLENECK_HINT_DELAY_MS = 4000;
+const BOTTLENECK_HINT = 'bottleneck';
+// The hint card sits below the marker and its label.
+const HINT_OFFSET_Y = 85;
 
 export interface RestaurantSceneData {
   save: SaveData | null;
@@ -42,6 +48,8 @@ export interface RestaurantSceneData {
 
 export class RestaurantScene extends Phaser.Scene {
   private economy!: EconomyState;
+  private seenHints: string[] = [];
+  private hint: HintBubble | null = null;
   private view!: RestaurantView;
   private panel!: UpgradePanel;
   private moneyText!: Phaser.GameObjects.Text;
@@ -55,6 +63,8 @@ export class RestaurantScene extends Phaser.Scene {
 
   create(data: RestaurantSceneData): void {
     this.economy = data.save?.economy ?? newEconomy();
+    this.seenHints = data.save?.seenHints ?? [];
+    this.hint = null;
     // Dev-only shortcut for testing: /?money=1e6
     if (import.meta.env.DEV) {
       const money = Number(new URLSearchParams(location.search).get('money'));
@@ -62,6 +72,7 @@ export class RestaurantScene extends Phaser.Scene {
     }
     this.view = new RestaurantView(this);
     this.view.onPayment = (amount, at) => this.showPayment(amount, at);
+    this.view.onMarkerTap = (section) => this.focusBottleneck(section);
     this.drawHud();
     this.createTapArea();
     this.panel = new UpgradePanel(
@@ -74,12 +85,34 @@ export class RestaurantScene extends Phaser.Scene {
 
     this.setUpSaving();
     if (data.save) this.payOffline(offlineReward(this.economy, data.save.savedAt, Date.now()));
+    if (!this.seenHints.includes(BOTTLENECK_HINT)) this.time.delayedCall(BOTTLENECK_HINT_DELAY_MS, () => this.showBottleneckHint());
+  }
+
+  private saveGame(): Promise<void> {
+    return saves.save(this.economy, this.seenHints);
+  }
+
+  // Tapping the "!" marker points at the section to upgrade.
+  private focusBottleneck(section: SectionId): void {
+    this.hint?.close();
+    this.panel.focusSection(section);
+  }
+
+  // First-session tip that explains the bottleneck and teaches the marker tap.
+  private showBottleneckHint(): void {
+    const anchor = this.view.markerAnchor;
+    if (!anchor || this.hint) return;
+    this.hint = new HintBubble(this, { x: anchor.x, y: anchor.y + HINT_OFFSET_Y }, t('hint.bottleneck'), FX_DEPTH - 1, () => {
+      this.hint = null;
+      this.seenHints.push(BOTTLENECK_HINT);
+      void this.saveGame();
+    });
   }
 
   // Autosave, plus a save whenever the game goes to the background. When it comes back,
   // the time it spent paused is paid out like offline time.
   private setUpSaving(): void {
-    const save = () => void saves.save(this.economy);
+    const save = () => void this.saveGame();
     let hiddenAt = 0;
     const onHidden = () => {
       hiddenAt = Date.now();
@@ -108,7 +141,7 @@ export class RestaurantScene extends Phaser.Scene {
     }
     new WelcomeBackModal(this, reward, UI_DEPTH + 100, () => {
       earn(this.economy, reward.amount);
-      void saves.save(this.economy);
+      void this.saveGame();
       this.celebrateCollect();
       this.refreshUi();
     });
@@ -166,7 +199,7 @@ export class RestaurantScene extends Phaser.Scene {
   private buySection(id: SectionId): void {
     const before = milestonesReached(this.economy.sectionLevels[id]);
     if (!buySectionLevel(this.economy, id)) return;
-    void saves.save(this.economy);
+    void this.saveGame();
     this.panel.pulseSection(id);
     this.celebratePurchase();
     if (milestonesReached(this.economy.sectionLevels[id]) > before) {
@@ -179,7 +212,7 @@ export class RestaurantScene extends Phaser.Scene {
   private buyDish(index: number): void {
     const level = this.economy.dishLevels[index];
     if (!buyDish(this.economy, index)) return;
-    void saves.save(this.economy);
+    void this.saveGame();
     this.panel.pulseDish(index);
     this.celebratePurchase();
     const name = t(`dish.${DISHES[index].id}` as TranslationKey);

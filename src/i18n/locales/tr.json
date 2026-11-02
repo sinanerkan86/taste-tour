@@ -33,5 +33,6 @@
   "offline.collect": "Topla",
   "time.hm": "{h}sa {m}dk",
   "time.ms": "{m}dk {s}sn",
-  "time.s": "{s}sn"
+  "time.s": "{s}sn",
+  "hint.bottleneck": "Burası darboğazın: en yavaş bölüm kazancını sınırlar. Geliştirmek için ! işaretine dokun."
 }

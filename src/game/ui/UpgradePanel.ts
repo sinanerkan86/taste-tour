@@ -49,6 +49,7 @@ class UpgradeRow extends Phaser.GameObjects.Container {
   private readonly tag: Phaser.GameObjects.Text;
   private readonly icon: Phaser.GameObjects.Arc;
   private readonly iconLetter: Phaser.GameObjects.Text;
+  private readonly glow: Phaser.GameObjects.Graphics;
   readonly button: Button;
   private lastHighlight: boolean | null = null;
 
@@ -80,7 +81,9 @@ class UpgradeRow extends Phaser.GameObjects.Container {
       .text(MARGIN + 112, 22, '', { fontFamily: FONT, fontSize: '24px', color: toCss(PALETTE.muted) })
       .setOrigin(0, 0.5);
     this.button = new Button(scene, MARGIN + width - BUTTON_WIDTH / 2 - 14, 0, BUTTON_WIDTH, 80, onBuy, 'coin');
-    this.add([this.bg, this.icon, this.iconLetter, this.title, this.level, this.tag, this.detail, this.button]);
+    this.glow = scene.add.graphics().setAlpha(0);
+    this.glow.lineStyle(10, PALETTE.saffron, 1).strokeRoundedRect(MARGIN - 4, -ROW_HEIGHT / 2 - 4, width + 8, ROW_HEIGHT + 8, 20);
+    this.add([this.bg, this.icon, this.iconLetter, this.title, this.level, this.tag, this.detail, this.button, this.glow]);
     scene.add.existing(this);
   }
 
@@ -117,6 +120,15 @@ class UpgradeRow extends Phaser.GameObjects.Container {
   // Short flash after a purchase.
   pulse(): void {
     this.scene.tweens.add({ targets: this.icon, scale: 1.25, duration: 90, yoyo: true, ease: 'Quad.easeOut' });
+  }
+
+  // Draws the eye to this row: a blinking outline and a bouncing buy button.
+  flash(): void {
+    this.scene.tweens.killTweensOf([this.glow, this.button]);
+    this.glow.setAlpha(0);
+    this.button.setScale(1);
+    this.scene.tweens.add({ targets: this.glow, alpha: 1, duration: 180, yoyo: true, repeat: 2 });
+    this.scene.tweens.add({ targets: this.button, scale: 1.12, duration: 180, yoyo: true, repeat: 2, ease: 'Quad.easeOut' });
   }
 }
 
@@ -165,6 +177,12 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
 
   pulseSection(id: SectionId): void {
     this.sectionRows[SECTION_IDS.indexOf(id)].pulse();
+  }
+
+  // Switches to the restaurant tab and points at the section's row.
+  focusSection(id: SectionId): void {
+    if (this.tab !== 'restaurant') this.showTab('restaurant');
+    this.sectionRows[SECTION_IDS.indexOf(id)].flash();
   }
 
   pulseDish(index: number): void {

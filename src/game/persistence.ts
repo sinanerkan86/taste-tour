@@ -44,8 +44,8 @@ export class SaveManager {
     return json === null ? null : parseSave(json);
   }
 
-  save(economy: EconomyState): Promise<void> {
-    return this.store.set(SAVE_KEY, serializeSave(createSave(economy, Date.now())));
+  save(economy: EconomyState, seenHints: string[] = []): Promise<void> {
+    return this.store.set(SAVE_KEY, serializeSave(createSave(economy, Date.now(), seenHints)));
   }
 
   clear(): Promise<void> {

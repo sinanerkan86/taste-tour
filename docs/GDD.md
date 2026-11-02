@@ -53,6 +53,8 @@ How the scene shows it: every section's real rate is scaled by the same factor s
 | Cashier | A long line at the register; diners stay seated waiting for it |
 | Dishwashing | A growing dirty plate pile, no clean plates, chefs stand idle |
 
+Guidance: tapping the "!" marker switches to the Restaurant tab and flashes that section's row. Status bubbles explain stalls: "zzz" over staff idle for 4+ s, "no plates" or "pass full" over chefs who have orders but cannot cook, a coin over diners waiting for room in the cashier line. A one-time tip in the first session explains the bottleneck and points at the marker.
+
 Staff on screen: chefs and waiters grow by one every 25 section levels (waiters also when they would otherwise have to run), plus one cashier and one dishwasher.
 
 ## 4. Menu (world cuisine)
@@ -138,7 +140,7 @@ IAP: Remove ads (grants ad rewards without ads), permanent 2x income, starter pa
 2. ~~Project skeleton (Vite + Phaser + TS), empty scene~~
 3. ~~Economy simulation script~~
 4. ~~**Prototype:** one restaurant, 2–3 dishes, kitchen + waiters + dining room, staff automation, save/load, offline earnings~~
-5. Bottleneck visualization, cashier and dishwashing
+5. ~~Bottleneck visualization, cashier and dishwashing~~
 6. Prestige / second city
 7. Rewarded ads (with test ad unit IDs)
 8. Android build with Capacitor, test on phone

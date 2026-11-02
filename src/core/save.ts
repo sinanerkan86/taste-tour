@@ -7,10 +7,12 @@ export interface SaveData {
   // Wall-clock time (ms since epoch) when the save was written.
   savedAt: number;
   economy: EconomyState;
+  // Ids of one-time hints the player has already seen.
+  seenHints: string[];
 }
 
-export function createSave(economy: EconomyState, now: number): SaveData {
-  return { version: SAVE_VERSION, savedAt: now, economy };
+export function createSave(economy: EconomyState, now: number, seenHints: string[] = []): SaveData {
+  return { version: SAVE_VERSION, savedAt: now, economy, seenHints: [...seenHints] };
 }
 
 export function serializeSave(data: SaveData): string {
@@ -51,7 +53,9 @@ export function parseSave(json: string): SaveData | null {
     economy.dishLevels[i] = Math.max(fresh.dishLevels[i], Math.floor(finiteOr(saved.dishLevels?.[i], 0)));
   });
 
-  return { version: SAVE_VERSION, savedAt: finiteOr(data.savedAt, Date.now()), economy };
+  const seenHints = Array.isArray(data.seenHints) ? data.seenHints.filter((id) => typeof id === 'string') : [];
+
+  return { version: SAVE_VERSION, savedAt: finiteOr(data.savedAt, Date.now()), economy, seenHints };
 }
 
 export interface OfflineReward {

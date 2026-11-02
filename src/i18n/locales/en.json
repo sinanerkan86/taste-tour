@@ -33,5 +33,6 @@
   "offline.collect": "Collect",
   "time.hm": "{h}h {m}m",
   "time.ms": "{m}m {s}s",
-  "time.s": "{s}s"
+  "time.s": "{s}s",
+  "hint.bottleneck": "This is your bottleneck: the slowest section limits how much you earn. Tap the ! to upgrade it."
 }

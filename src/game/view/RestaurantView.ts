@@ -46,6 +46,11 @@ const MAX_WAITER_SPEED = 600;
 // A seat is claimed at the door, so the walk there counts toward the stay.
 const DOOR_TO_SEAT_SECONDS = 1.6;
 const STACK_VISIBLE = 10;
+// Staff idle this long get a sleepy "zzz" bubble.
+const IDLE_BUBBLE_SECONDS = 4;
+
+// Small icons over people that explain why they are not working.
+type Status = 'sleep' | 'noPlates' | 'passFull' | 'bill';
 
 export interface ViewState {
   rates: Record<SectionId, number>;
@@ -115,6 +120,13 @@ interface Bubble {
   close: () => void;
 }
 
+interface StatusBubble {
+  status: Status;
+  bubble: Bubble;
+  // Height above the feet; chefs wear tall hats.
+  lift: number;
+}
+
 function staffCount(level: number, max: number): number {
   return Phaser.Math.Clamp(1 + Math.floor(level / LEVELS_PER_STAFF), 1, max);
 }
@@ -170,6 +182,8 @@ export class RestaurantView {
   private readonly waiters: Waiter[] = [];
   private readonly chefs: Chef[] = [];
   private readonly people = new Set<Person>();
+  private readonly statuses = new Map<Person, StatusBubble>();
+  private readonly idleSeconds = new Map<Person, number>();
   private readonly cashier: Person;
   private readonly dishwasher: Person;
   private readonly stacks: Phaser.GameObjects.Graphics;
@@ -203,6 +217,14 @@ export class RestaurantView {
     this.markerLabel = this.marker.getAt(2) as Phaser.GameObjects.Text;
   }
 
+  // Called when the player taps the bottleneck marker.
+  onMarkerTap: (section: SectionId) => void = () => {};
+
+  // Where the bottleneck marker currently points, or null before the first frame.
+  get markerAnchor(): Point | null {
+    return this.markerSection === null ? null : SECTION_ANCHORS[this.markerSection];
+  }
+
   update(state: ViewState, time: number, delta: number): void {
     this.state = state;
     this.flow = computeFlow(state);
@@ -216,6 +238,7 @@ export class RestaurantView {
     this.dispatchWaiters();
     this.serveAtCashier();
     this.washDishes();
+    this.updateStatuses(delta / 1000);
 
     this.animateSteam(time);
     this.people.forEach((p) => p.animate(time));
@@ -416,6 +439,7 @@ export class RestaurantView {
   // --- Cashier ---------------------------------------------------------------------------
 
   private enterCashierLine(checkout: Checkout): void {
+    this.setStatus(checkout.person, null);
     checkout.leaveSeat();
     this.cashierLine.push(checkout);
     void checkout.person.walkTo(CASHIER_LINE[this.cashierLine.length - 1]);
@@ -533,16 +557,89 @@ export class RestaurantView {
     });
   }
 
+  // --- Status bubbles ---------------------------------------------------------------------
+
+  private updateStatuses(dt: number): void {
+    const idle = (person: Person, working: boolean): Status | null => {
+      const seconds = working ? 0 : (this.idleSeconds.get(person) ?? 0) + dt;
+      this.idleSeconds.set(person, seconds);
+      return seconds >= IDLE_BUBBLE_SECONDS ? 'sleep' : null;
+    };
+    const passFull = !this.passTaken.includes(false);
+    for (const chef of this.chefs) {
+      let status: Status | null = null;
+      if (!chef.cooking && this.orders.length > 0) {
+        // Blocked chefs explain why, so the player looks at the right section.
+        if (this.cleanPlates === 0) status = 'noPlates';
+        else if (passFull) status = 'passFull';
+      }
+      const sleepy = idle(chef.person, chef.cooking || status !== null);
+      this.setStatus(chef.person, status ?? sleepy, 215);
+    }
+    for (const waiter of this.waiters) this.setStatus(waiter.person, idle(waiter.person, waiter.busy));
+    this.setStatus(this.cashier, idle(this.cashier, this.cashierBusy || this.cashierLine.length > 0));
+    this.setStatus(this.dishwasher, idle(this.dishwasher, this.washing));
+    for (const checkout of this.checkoutWaiting) this.setStatus(checkout.person, 'bill', 175);
+
+    // Bubbles follow walking staff.
+    this.statuses.forEach(({ bubble, lift }, person) => bubble.container.setPosition(person.x, person.y - lift));
+  }
+
+  private setStatus(person: Person, status: Status | null, lift = 190): void {
+    const current = this.statuses.get(person);
+    if (current?.status === status) return;
+    current?.bubble.close();
+    this.statuses.delete(person);
+    if (status === null) return;
+    const bubble = this.showBubble(person, (g) => this.drawStatusIcon(g, status), 0.75);
+    bubble.container.setPosition(person.x, person.y - lift);
+    this.statuses.set(person, { status, bubble, lift });
+  }
+
+  private drawStatusIcon(g: Phaser.GameObjects.Graphics, status: Status): void {
+    switch (status) {
+      case 'sleep':
+        // "z z Z" drawn as zigzags of growing size.
+        [
+          [-16, 2, 7],
+          [-2, -4, 9],
+          [14, -12, 12],
+        ].forEach(([x, y, size]) => {
+          g.lineStyle(4, 0x5a7fa0, 1).beginPath();
+          g.moveTo(x - size / 2, y - size / 2).lineTo(x + size / 2, y - size / 2);
+          g.lineTo(x - size / 2, y + size / 2).lineTo(x + size / 2, y + size / 2).strokePath();
+        });
+        break;
+      case 'noPlates':
+        g.fillStyle(0xffffff, 1).fillEllipse(0, -2, 44, 16);
+        g.lineStyle(2, 0xc9c1b4, 1).strokeEllipse(0, -2, 44, 16);
+        g.lineStyle(5, PALETTE.pomegranate, 1).lineBetween(-18, -20, 18, 14);
+        break;
+      case 'passFull':
+        for (let i = 0; i < 3; i++) {
+          g.fillStyle(0xffffff, 1).fillEllipse(-4, 10 - i * 9, 38, 12);
+          g.lineStyle(2, 0xc9c1b4, 1).strokeEllipse(-4, 10 - i * 9, 38, 12);
+        }
+        g.fillStyle(PALETTE.pomegranate, 1).fillRoundedRect(17, -20, 7, 20, 3).fillCircle(20.5, 6, 4);
+        break;
+      case 'bill':
+        g.fillStyle(PALETTE.saffron, 1).fillCircle(0, -4, 17);
+        g.fillStyle(PALETTE.saffronDark, 1).fillCircle(0, -4, 11);
+        g.fillStyle(PALETTE.saffron, 1).fillRect(-3, -12, 6, 16);
+        break;
+    }
+  }
+
   // --- Bubbles and marker ----------------------------------------------------------------
 
-  private showBubble(person: Person, drawContent: (g: Phaser.GameObjects.Graphics) => void): Bubble {
+  private showBubble(person: Person, drawContent: (g: Phaser.GameObjects.Graphics) => void, scale = 1): Bubble {
     const back = this.scene.add.graphics();
     back.fillStyle(0xffffff, 1).fillRoundedRect(-32, -30, 64, 52, 16);
     back.fillTriangle(-8, 20, 8, 20, 0, 34);
     const content = this.scene.add.graphics();
     drawContent(content);
     const container = this.scene.add.container(person.x, person.y - 190, [back, content]).setDepth(5000).setScale(0);
-    this.scene.tweens.add({ targets: container, scale: 1, duration: 220, ease: 'Back.easeOut' });
+    this.scene.tweens.add({ targets: container, scale, duration: 220, ease: 'Back.easeOut' });
     return {
       container,
       close: () => {
@@ -585,6 +682,12 @@ export class RestaurantView {
       })
       .setOrigin(0.5);
     const marker = this.scene.add.container(0, 0, [circle, mark, label]).setDepth(6000).setVisible(false);
+    // Generous hit area so the marker is easy to tap on a phone.
+    marker.setSize(140, 150).setInteractive({ useHandCursor: true });
+    marker.on('pointerdown', (_: Phaser.Input.Pointer, __: number, ___: number, event: Phaser.Types.Input.EventData) => {
+      event.stopPropagation();
+      if (this.markerSection) this.onMarkerTap(this.markerSection);
+    });
     this.scene.tweens.add({ targets: circle, scale: 1.15, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     return marker;
   }
@@ -607,6 +710,8 @@ export class RestaurantView {
   }
 
   private removePerson(person: Person): void {
+    this.setStatus(person, null);
+    this.idleSeconds.delete(person);
     this.people.delete(person);
     person.destroy();
   }

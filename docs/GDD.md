@@ -1,6 +1,6 @@
 # Taste Tour: Idle Restaurant — Game Design Document (GDD)
 
-> Status: Draft v0.1 (2026-11-02). Decisions may change through discussion; this document is updated when they do.
+> Status: Draft v0.2 (2026-11-02). Decisions may change through discussion; this document is updated when they do.
 
 ## 1. Overview
 
@@ -43,10 +43,13 @@ The restaurant's actual throughput = the throughput of the **slowest link** in t
 
 ## 4. Menu (world cuisine)
 
-Dishes unlock in order. Each dish has a **price** and a **cooking time**; dish upgrades raise the price.
-Expensive dish = more income but longer cooking time → another balance decision.
+- **Taste tour:** every customer orders one serving of *each* dish on the menu, so the bill per customer is the sum of all dish prices. A new dish always raises income, which keeps the model easy to understand.
+- Dishes unlock strictly in order; each dish is leveled separately (price ×level, ×2 at milestones).
+- A dish is **mastered** at level 100 and stops leveling. Growth then has to come from the next dish, which prevents one cheap dish from making newer dishes pointless.
+- Cooking time is visual only (animation length); it does not affect the economy. The kitchen's capacity is set by its own upgrades.
 
-Example unlock order (not final): Döner → Pizza → Taco → Burger → Ramen → Sushi → Paella → …
+Unlock order for Istanbul (not final): Döner → Pizza → Taco → Burger → Ramen → Sushi → Paella.
+Each next dish is worth ~8× the previous one.
 
 ## 5. Restaurant growth (visual stages)
 
@@ -60,15 +63,31 @@ The scene changes visually at each stage.
 - Each city has its own decor, color palette, local dishes (and later its own music).
 - New cities = ready-made content for future updates.
 
-## 7. Economy math (initial skeleton)
+## 7. Economy math
 
-- **Upgrade cost:** `cost(n) = base × r^n`, r ≈ 1.07–1.15 (per section)
-- **Income:** linear in level; ×2 jumps at **milestones** (10, 25, 50, 100, …)
-- **Prestige reward:** `stars = floor(√(lifetimeEarnings / constant))`; each star gives a permanent % income bonus
-- **Target pacing:** first prestige ~1–2 hours; later cycles get progressively longer
-- **Big numbers:** `break_infinity.js`; display as 1.5K, 3.2M, 7.8B, T, then aa, ab, …
-- **Offline earnings:** computed from timestamps, capped (e.g. 2 hours at first, upgradable)
-- Balancing is done with a **simulation script** independent of game code.
+All numbers live in `src/core/economy/config.ts`. Balance is checked with the simulation (`npm run sim`, or `/sim.html` on the dev server for charts).
+
+- **Income/s** = `min(section rates) × bill per customer × (1 + 0.1 × stars)`
+- **Section rate** = `baseRate × level × 1.5^milestones`. **Dish price** = `basePrice × level × 2^milestones`. Milestones: 10, 25, 50, 75, 100, 150, 200, …
+- **Upgrade cost:** `cost(level) = baseCost × r^(level-1)`. Sections have r = 1.20–1.22 and dishes r = 1.25. Each section has its own curve, so the bottleneck moves around as the restaurant grows (entrance and waiters early, kitchen and seating later).
+- **Dish unlock costs** are calibrated so that each new dish arrives just as growth from the previous one starts to stall.
+- **Prestige reward:** `stars = floor(√(lifetimeEarnings / 1e12))`, +10% income per star.
+- **Offline earnings:** income/s × time away, capped at 2 hours at first (upgradable later).
+- **Big numbers:** plain JS numbers for now; they reach ~1e308, which covers the whole planned content. Switch to `break_infinity.js` only if later cities exceed that. Display: 1.5K, 3.2M, 7.8B, T, then aa, ab, …
+
+### Simulated pacing (greedy bot, active play, no ads)
+
+| Cycle | Duration | Stars after | Dishes unlocked at (min) |
+|---|---|---|---|
+| 1 | 1h 19m | 10 | pizza 3, taco 14, burger 28, ramen 40, sushi 50, paella 60 |
+| 2 | 1h 16m | 30 | everything ~2× faster |
+| 3 | 1h 23m | 70 | |
+| 4 | 1h 52m | 150 | |
+| 5 | 2h 59m | 310 | |
+
+The bot franchises when the new stars would at least double its star bonus. Cycles get progressively longer from the 3rd one on.
+
+**Known issue:** in later cycles all dishes unlock quickly and the rest of the cycle is a long plateau. The fix belongs to roadmap item 6: each new city brings its own dishes and bigger numbers.
 
 ## 8. Rewarded ad placements
 
@@ -102,7 +121,7 @@ IAP: Remove ads (grants ad rewards without ads), permanent 2x income, starter pa
 
 1. ~~Concept, name, repo~~
 2. ~~Project skeleton (Vite + Phaser + TS), empty scene~~
-3. Economy simulation script
+3. ~~Economy simulation script~~
 4. **Prototype:** one restaurant, 2–3 dishes, kitchen + waiters + dining room, staff automation, save/load, offline earnings
 5. Bottleneck visualization, cashier and dishwashing
 6. Prestige / second city

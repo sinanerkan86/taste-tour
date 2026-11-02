@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Taste Tour: Balance Report</title>
+    <style>
+      :root {
+        --bg: #fbf6ee;
+        --panel: #ffffff;
+        --ink: #2b1d14;
+        --muted: #7a6656;
+        --line: #eadfce;
+        --accent: #c0392b;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 'Segoe UI', system-ui, sans-serif; }
+      main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+      h1 { font-size: 24px; margin: 0 0 4px; }
+      h2 { font-size: 16px; margin: 0 0 12px; }
+      .sub { color: var(--muted); margin: 0 0 20px; }
+      .controls { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; margin-bottom: 20px; }
+      label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+      select { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
+      .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+      .kpi, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+      .kpi .v { font-size: 22px; font-weight: 600; }
+      .kpi .l { color: var(--muted); font-size: 12px; }
+      .panel { margin-bottom: 20px; }
+      .chart { position: relative; height: 340px; }
+      .chart.short { height: 240px; }
+      .table-wrap { overflow-x: auto; }
+      table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+      th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+      th:first-child, td:first-child { text-align: left; }
+      th { color: var(--muted); font-weight: 600; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Taste Tour: Balance Report</h1>
+      <p class="sub">A greedy bot plays the economy in <code>src/core/economy/config.ts</code>, always buying whatever pays for itself fastest. Edit the config and this page reloads.</p>
+      <div class="controls">
+        <label>Income boost (ads)
+          <select id="boost">
+            <option value="1">None</option>
+            <option value="2">2x Rush always on</option>
+          </select>
+        </label>
+        <label>Bot franchises when the star bonus grows
+          <select id="gain">
+            <option value="1.5">1.5x</option>
+            <option value="2" selected>2x</option>
+            <option value="3">3x</option>
+          </select>
+        </label>
+        <label>Cycles
+          <select id="cycles">
+            <option value="3">3</option>
+            <option value="5" selected>5</option>
+            <option value="8">8</option>
+          </select>
+        </label>
+      </div>
+      <div class="kpis" id="kpis"></div>
+      <section class="panel">
+        <h2>Income per second over active play time</h2>
+        <div class="chart"><canvas id="income"></canvas></div>
+      </section>
+      <section class="panel">
+        <h2>Which section is the bottleneck (share of time)</h2>
+        <div class="chart short"><canvas id="bottleneck"></canvas></div>
+      </section>
+      <section class="panel">
+        <h2>Cycles</h2>
+        <div class="table-wrap"><table id="cycles-table"></table></div>
+      </section>
+      <section class="panel">
+        <h2>Dish unlock time within each cycle</h2>
+        <div class="table-wrap"><table id="dishes-table"></table></div>
+      </section>
+    </main>
+    <script type="module" src="/tools/sim/page.ts"></script>
+  </body>
+</html>

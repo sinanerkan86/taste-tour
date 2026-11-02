@@ -29,11 +29,13 @@ Full design: [docs/GDD.md](docs/GDD.md). Keep the GDD up to date when design dec
 ## Tech stack
 
 - TypeScript + Phaser 3 + Vite; Android packaging via Capacitor (`android/` folder is generated later with `npx cap add android`)
-- Big numbers: `break_infinity.js`
+- Big numbers: plain JS numbers for now (enough up to ~1e308); `break_infinity.js` only if later content needs it
 - Ads: `@capacitor-community/admob` (test ad unit IDs only during development)
 - Economy balance is tuned with a simulation script separate from game code
 - Game logic (economy/simulation) lives in pure TypeScript modules independent of Phaser, so it is easy to test and simulate
 
 ## Status
 
-Project skeleton is in place (`npm run dev`, Phaser 3.90 placeholder scene in `src/game`, pure logic goes in `src/core`). Next step is roadmap item 3 in the GDD (economy simulation script).
+- `npm run dev`: game at `/`, balance report at `/sim.html`. `npm run sim`: balance tables in the terminal. `npm test`: unit tests (vitest) for `src/core`.
+- Economy model and tuned numbers are in `src/core/economy` (see GDD section 7). Phaser code is in `src/game` (placeholder scene for now).
+- Next step is roadmap item 4 in the GDD (playable prototype).

@@ -15,11 +15,17 @@ export const ROOM = {
 
 export const KITCHEN = { left: 560, right: 1060, counterY: 470 } as const;
 export const DISHPIT = { left: 20, right: 250, counterY: 470 } as const;
+export const DISHWASHER: Point = { x: 130, y: 452 };
+// Dirty plates pile up left of the sink, clean ones stack on the right.
+export const DIRTY_STACK: Point = { x: DISHPIT.left + 32, y: DISHPIT.counterY - 82 };
+export const CLEAN_STACK: Point = { x: DISHPIT.right - 34, y: DISHPIT.counterY - 82 };
 
 export const DOOR: Point = { x: 40, y: 830 };
 export const OUTSIDE: Point = { x: -80, y: 830 };
 export const CASHIER_DESK: Point = { x: 170, y: 640 };
-export const CASHIER_SPOT: Point = { x: 170, y: 735 };
+export const CASHIER_STAFF: Point = { x: 170, y: 625 };
+// Customers line up to pay from the front of the desk toward the tables.
+export const CASHIER_LINE: Point[] = [0, 1, 2, 3, 4, 5].map((i) => ({ x: 170 + i * 52, y: 740 + (i % 2) * 14 }));
 export const WAITER_HOME: Point = { x: 470, y: 560 };
 
 // Where finished plates wait for a waiter, along the kitchen counter's front edge.

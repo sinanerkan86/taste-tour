@@ -42,6 +42,19 @@ The restaurant's actual throughput = the throughput of the **slowest link** in t
 - The bottleneck is visible: growing queue, piling dishes, angry customer faces, plates waiting to be served.
 - The UI subtly highlights the bottleneck section (a hint for new players).
 
+How the scene shows it: every section's real rate is scaled by the same factor so that the bottleneck runs at the visible customer rate (at most 1.2 customers/s on screen) and every other section keeps its slack. Customers arrive about 30% faster than the restaurant can serve, so work piles up right in front of the bottleneck:
+
+| Bottleneck | What the player sees |
+|---|---|
+| Entrance | A calm, half-empty room; staff idle |
+| Dining room | Few open tables (closed ones are dimmed), a line at the door, customers turned away |
+| Kitchen | Every seat taken, order bubbles turn red and shake |
+| Waiters | Finished plates pile up on the pass |
+| Cashier | A long line at the register; diners stay seated waiting for it |
+| Dishwashing | A growing dirty plate pile, no clean plates, chefs stand idle |
+
+Staff on screen: chefs and waiters grow by one every 25 section levels (waiters also when they would otherwise have to run), plus one cashier and one dishwasher.
+
 ## 4. Menu (world cuisine)
 
 - **Taste tour:** every customer orders one serving of *each* dish on the menu, so the bill per customer is the sum of all dish prices. A new dish always raises income, which keeps the model easy to understand.

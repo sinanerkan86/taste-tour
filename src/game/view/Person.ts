@@ -1,14 +1,20 @@
 import Phaser from 'phaser';
 import type { Point } from './layout';
 
-export type PersonKind = 'customer' | 'waiter' | 'chef';
+export type PersonKind = 'customer' | 'waiter' | 'chef' | 'cashier' | 'dishwasher';
 
 const SKIN_TONES = [0xf6d2b0, 0xe8b48c, 0xc98e66, 0x9c6644, 0x6e4630];
 const SHIRT_COLORS = [0xc0392b, 0x1f6f8b, 0x4a8c3a, 0xe08e0b, 0x7b4fa0, 0x2f8fb0, 0xd35d8a, 0x5f6b73];
 const HAIR_COLORS = [0x2b1d14, 0x5a3a24, 0x8c5a2b, 0xd9a21b, 0x1c1c1c];
 const BOW_TIE = 0xc0392b;
+const STAFF_SHIRTS: Record<Exclude<PersonKind, 'customer'>, number> = {
+  waiter: 0xffffff,
+  chef: 0xffffff,
+  cashier: 0xf3e3c3,
+  dishwasher: 0x9ec9d9,
+};
 
-const WALK_SPEED = 260; // pixels per second
+export const WALK_SPEED = 260; // pixels per second
 const BOB_HEIGHT = 7;
 
 // A simple vector character. The container's origin is at the feet, so depth = y sorts correctly.
@@ -17,13 +23,16 @@ export class Person extends Phaser.GameObjects.Container {
   // Things carried in front of the body (plates).
   readonly hands: Phaser.GameObjects.Container;
   private walking = false;
+  private move?: { tween: Phaser.Tweens.Tween; done: () => void };
   private phase = Math.random() * Math.PI * 2;
+  // Working staff wobble in place (stirring, scrubbing, counting money).
+  busy = false;
 
   constructor(scene: Phaser.Scene, x: number, y: number, kind: PersonKind) {
     super(scene, x, y);
     const skin = Phaser.Utils.Array.GetRandom(SKIN_TONES);
     const hair = Phaser.Utils.Array.GetRandom(HAIR_COLORS);
-    const shirt = kind === 'customer' ? Phaser.Utils.Array.GetRandom(SHIRT_COLORS) : 0xffffff;
+    const shirt = kind === 'customer' ? Phaser.Utils.Array.GetRandom(SHIRT_COLORS) : STAFF_SHIRTS[kind];
 
     const shadow = scene.add.ellipse(0, 0, 54, 14, 0x000000, 0.18);
     const g = scene.add.graphics();
@@ -32,12 +41,16 @@ export class Person extends Phaser.GameObjects.Container {
     g.fillRoundedRect(-18, -34, 14, 34, 5).fillRoundedRect(4, -34, 14, 34, 5);
     // Torso.
     g.fillStyle(shirt, 1).fillRoundedRect(-26, -86, 52, 58, 16);
-    if (kind === 'waiter') {
+    if (kind === 'waiter' || kind === 'cashier') {
       g.fillStyle(0x2b2b3a, 1).fillRoundedRect(-22, -62, 44, 34, 8);
       g.fillStyle(BOW_TIE, 1).fillTriangle(-10, -84, -10, -74, 0, -79).fillTriangle(10, -84, 10, -74, 0, -79);
     }
     if (kind === 'chef') {
       g.fillStyle(0xe8e2d6, 1).fillRoundedRect(-20, -64, 40, 36, 8);
+    }
+    if (kind === 'dishwasher') {
+      // Rubber apron.
+      g.fillStyle(0xf4b400, 1).fillRoundedRect(-20, -70, 40, 42, 8);
     }
     // Head.
     g.fillStyle(skin, 1).fillCircle(0, -108, 24);
@@ -58,26 +71,43 @@ export class Person extends Phaser.GameObjects.Container {
     scene.add.existing(this);
   }
 
-  // Walk to a point; resolves when arrived.
-  walkTo(target: Point): Promise<void> {
+  get isWalking(): boolean {
+    return this.walking;
+  }
+
+  // Walk to a point; resolves when arrived. A new walk replaces the current one, which then
+  // resolves where the person stopped.
+  walkTo(target: Point, speed = WALK_SPEED): Promise<void> {
+    this.stopWalking();
     const distance = Phaser.Math.Distance.Between(this.x, this.y, target.x, target.y);
     if (distance < 1) return Promise.resolve();
     this.walking = true;
     this.figure.scaleX = target.x < this.x ? -1 : 1;
     return new Promise((resolve) => {
-      this.scene.tweens.add({
+      const tween = this.scene.tweens.add({
         targets: this,
         x: target.x,
         y: target.y,
-        duration: (distance / WALK_SPEED) * 1000,
+        duration: (distance / speed) * 1000,
         onUpdate: () => this.setDepth(this.y),
-        onComplete: () => {
-          this.walking = false;
-          this.figure.y = 0;
-          resolve();
-        },
+        onComplete: () => this.endWalk(false),
       });
+      this.move = { tween, done: resolve };
     });
+  }
+
+  stopWalking(): void {
+    this.endWalk(true);
+  }
+
+  private endWalk(interrupted: boolean): void {
+    const move = this.move;
+    if (!move) return;
+    this.move = undefined;
+    if (interrupted) move.tween.stop();
+    this.walking = false;
+    this.figure.y = 0;
+    move.done();
   }
 
   face(direction: -1 | 1): void {
@@ -96,6 +126,13 @@ export class Person extends Phaser.GameObjects.Container {
     } else {
       this.figure.scaleY = 1 + Math.sin(time * 0.003 + this.phase) * 0.015;
     }
+    this.figure.angle = this.busy && !this.walking ? Math.sin(time * 0.02 + this.phase) * 4 : 0;
+  }
+
+  destroy(fromScene?: boolean): void {
+    this.move?.tween.stop();
+    this.move = undefined;
+    super.destroy(fromScene);
   }
 }
 

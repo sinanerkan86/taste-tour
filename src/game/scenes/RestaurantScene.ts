@@ -10,6 +10,7 @@ import {
   incomePerSecond,
   milestonesReached,
   newEconomy,
+  sectionRates,
   tap,
   throughput,
   type EconomyState,
@@ -128,10 +129,11 @@ export class RestaurantScene extends Phaser.Scene {
     const flow = throughput(this.economy);
     this.view.update(
       {
+        rates: sectionRates(this.economy),
+        levels: this.economy.sectionLevels,
         customersPerSecond: flow.customersPerSecond,
         incomePerSecond: incomePerSecond(this.economy),
         bottleneck: flow.bottleneck,
-        kitchenLevel: this.economy.sectionLevels.kitchen,
         menu: this.economy.dishLevels.flatMap((level, i) => (level > 0 ? [i] : [])),
       },
       time,

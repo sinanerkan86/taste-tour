@@ -2,9 +2,15 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, PALETTE } from '../config';
 import { CASHIER_DESK, DISHPIT, DOOR, KITCHEN, ROOM, SEAT_OFFSET_X, STOVES, TABLES } from './layout';
 
+export interface RoomArt {
+  // One per seat, in seat order: table index * 2, left chair first.
+  chairs: Phaser.GameObjects.Graphics[];
+  tables: Phaser.GameObjects.Graphics[];
+}
+
 // Static background art. Characters are drawn on top with depth = their y position,
 // so furniture that people walk behind gets the same treatment.
-export function drawRoom(scene: Phaser.Scene): void {
+export function drawRoom(scene: Phaser.Scene): RoomArt {
   const g = scene.add.graphics().setDepth(-1000);
 
   // Back wall with a tiled band.
@@ -19,11 +25,18 @@ export function drawRoom(scene: Phaser.Scene): void {
   }
 
   drawKitchenBack(g);
-  drawDishpit(g);
+  drawFaucet(g);
+  drawDishpitCounter(scene);
   drawDoor(g);
   drawCashierDesk(scene);
-  TABLES.forEach((t) => drawTable(scene, t.x, t.y));
+  const art: RoomArt = { chairs: [], tables: [] };
+  TABLES.forEach((t) => {
+    const { chairs, table } = drawTable(scene, t.x, t.y);
+    art.chairs.push(...chairs);
+    art.tables.push(table);
+  });
   drawKitchenCounter(scene);
+  return art;
 }
 
 function drawKitchenBack(g: Phaser.GameObjects.Graphics): void {
@@ -51,19 +64,19 @@ function drawKitchenCounter(scene: Phaser.Scene): void {
   g.fillStyle(0xe8e2d6, 1).fillRect(KITCHEN.left - 10, KITCHEN.counterY - 8, width + 20, 16);
 }
 
-function drawDishpit(g: Phaser.GameObjects.Graphics): void {
+function drawFaucet(g: Phaser.GameObjects.Graphics): void {
+  // Part of the background so the dishwasher stands in front of it.
+  g.fillStyle(0xd0d0d0, 1).fillRect(DISHPIT.left + 140, DISHPIT.counterY - 130, 10, 60);
+  g.fillRect(DISHPIT.left + 110, DISHPIT.counterY - 130, 40, 10);
+}
+
+function drawDishpitCounter(scene: Phaser.Scene): void {
+  // Above the dishwasher so it hides their legs. The plate stacks are drawn by the view.
+  const g = scene.add.graphics().setDepth(DISHPIT.counterY);
   const width = DISHPIT.right - DISHPIT.left;
   g.fillStyle(0x7f98a6, 1).fillRect(DISHPIT.left, DISHPIT.counterY - 70, width, 70);
   g.fillStyle(0xa9bfcb, 1).fillRect(DISHPIT.left, DISHPIT.counterY - 76, width, 12);
-  g.fillStyle(0x5f7886, 1).fillRoundedRect(DISHPIT.left + 40, DISHPIT.counterY - 72, 110, 22, 6);
-  // Faucet.
-  g.fillStyle(0xd0d0d0, 1).fillRect(DISHPIT.left + 90, DISHPIT.counterY - 120, 10, 50);
-  g.fillRect(DISHPIT.left + 90, DISHPIT.counterY - 120, 40, 10);
-  // Stack of clean plates.
-  for (let i = 0; i < 5; i++) {
-    g.fillStyle(0xffffff, 1).fillEllipse(DISHPIT.right - 45, DISHPIT.counterY - 84 - i * 8, 56, 14);
-    g.lineStyle(2, 0xc9c1b4, 1).strokeEllipse(DISHPIT.right - 45, DISHPIT.counterY - 84 - i * 8, 56, 14);
-  }
+  g.fillStyle(0x5f7886, 1).fillRoundedRect(DISHPIT.left + 66, DISHPIT.counterY - 72, 90, 22, 6);
 }
 
 function drawDoor(g: Phaser.GameObjects.Graphics): void {
@@ -81,15 +94,21 @@ function drawCashierDesk(scene: Phaser.Scene): void {
   g.fillStyle(0x7fd1a6, 1).fillRect(CASHIER_DESK.x - 20, CASHIER_DESK.y - 52, 40, 14);
 }
 
-function drawTable(scene: Phaser.Scene, x: number, y: number): void {
+function drawTable(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+): { chairs: Phaser.GameObjects.Graphics[]; table: Phaser.GameObjects.Graphics } {
   // Chairs sit behind the table top; the table itself is above seated customers' legs.
-  const chairs = scene.add.graphics().setDepth(y - 30);
-  [-1, 1].forEach((side) => {
-    chairs.fillStyle(0x6b3f22, 1).fillRoundedRect(x + side * SEAT_OFFSET_X - 24, y - 70, 48, 70, 8);
+  const chairs = [-1, 1].map((side) => {
+    const chair = scene.add.graphics().setDepth(y - 30);
+    chair.fillStyle(0x6b3f22, 1).fillRoundedRect(x + side * SEAT_OFFSET_X - 24, y - 70, 48, 70, 8);
+    return chair;
   });
   const table = scene.add.graphics().setDepth(y + 1);
   table.fillStyle(0x000000, 0.15).fillEllipse(x, y + 46, 150, 26);
   table.fillStyle(0x7a4a2a, 1).fillRect(x - 8, y, 16, 44);
   table.fillStyle(PALETTE.cream, 1).fillRoundedRect(x - 72, y - 14, 144, 26, 10);
   table.fillStyle(PALETTE.pomegranate, 1).fillRect(x - 72, y + 2, 144, 10);
+  return { chairs, table };
 }

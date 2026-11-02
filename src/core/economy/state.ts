@@ -67,3 +67,10 @@ export function earn(state: EconomyState, amount: number): void {
   state.runEarnings += amount;
   state.lifetimeEarnings += amount;
 }
+
+// Earn the income of `seconds` of play. Returns the amount earned.
+export function advanceTime(state: EconomyState, seconds: number): number {
+  const amount = incomePerSecond(state) * seconds;
+  earn(state, amount);
+  return amount;
+}

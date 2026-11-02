@@ -9,6 +9,11 @@ export function milestonesReached(level: number): number {
   return count;
 }
 
+// The next milestone level above `level`, or null past the last one.
+export function nextMilestone(level: number): number | null {
+  return MILESTONES.find((m) => m > level) ?? null;
+}
+
 // Output that grows linearly with level and jumps by `milestoneBonus` at each milestone.
 export function scaledValue(base: number, level: number, milestoneBonus: number): number {
   if (level <= 0) return 0;

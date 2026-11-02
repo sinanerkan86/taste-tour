@@ -6,11 +6,13 @@ function letterSuffix(index: number): string {
   return String.fromCharCode(a + Math.floor(index / 26)) + String.fromCharCode(a + (index % 26));
 }
 
-// 1234 -> "1.23K", 5.6e15 -> "5.60aa"
-export function formatNumber(value: number): string {
+// 1234 -> "1.23K", 5.6e15 -> "5.60aa". Values below 10 keep `smallDecimals` decimals.
+export function formatNumber(value: number, smallDecimals = 1): string {
   if (!Number.isFinite(value)) return 'inf';
-  if (value < 0) return `-${formatNumber(-value)}`;
-  if (value < 1000) return value < 10 && value % 1 !== 0 ? value.toFixed(1) : Math.floor(value).toString();
+  if (value < 0) return `-${formatNumber(-value, smallDecimals)}`;
+  if (value < 1000) {
+    return value < 10 && value % 1 !== 0 ? value.toFixed(smallDecimals) : Math.floor(value).toString();
+  }
   let power = Math.floor(Math.log10(value) / 3);
   let scaled = value / 1000 ** power;
   // Rounding can push 999.96 up to "1000"; move to the next suffix instead.

@@ -37,5 +37,9 @@ Full design: [docs/GDD.md](docs/GDD.md). Keep the GDD up to date when design dec
 ## Status
 
 - `npm run dev`: game at `/`, balance report at `/sim.html`. `npm run sim`: balance tables in the terminal. `npm test`: unit tests (vitest) for `src/core`.
-- Economy model and tuned numbers are in `src/core/economy` (see GDD section 7). Phaser code is in `src/game` (placeholder scene for now).
-- Next step is roadmap item 4 in the GDD (playable prototype).
+- Economy model and tuned numbers are in `src/core/economy` (see GDD section 7). Phaser code is in `src/game` (logical resolution 1080x1920).
+- Roadmap item 4 (playable prototype) is split into sub-steps:
+  - [x] 4a. Economy wired into the game: HUD (money, income/s), upgrade panel with Restaurant/Menu tabs, bottleneck marker, passive income. EN/TR strings in `src/i18n`. Dev shortcut: `/?money=1e6`.
+  - [ ] 4b. Living restaurant scene: customers, waiters and chefs animated at the economy's rate; bottleneck visible as a queue.
+  - [ ] 4c. Tap interaction (early boost) and juice.
+  - [ ] 4d. Save/load and offline earnings.

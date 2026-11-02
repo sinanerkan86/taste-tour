@@ -1,130 +1,159 @@
 import Phaser from 'phaser';
-import { GAME_HEIGHT, GAME_WIDTH, PALETTE, toCss } from '../config';
+import {
+  advanceTime,
+  buyDish,
+  buySectionLevel,
+  incomePerSecond,
+  newEconomy,
+  type EconomyState,
+  type SectionId,
+} from '../../core/economy';
+import { formatNumber } from '../../core/format';
+import { t } from '../../i18n';
+import { FONT, GAME_WIDTH, LAYOUT, PALETTE, toCss } from '../config';
+import { UpgradePanel } from '../ui/UpgradePanel';
 
-const FONT = '"Trebuchet MS", "Segoe UI", sans-serif';
+const PANEL_REFRESH_MS = 100;
+const EARNINGS_POPUP_MS = 1000;
 
-// Placeholder scene: proves rendering, input, tweens and the update loop all work.
 export class RestaurantScene extends Phaser.Scene {
-  private money = 0;
+  private economy!: EconomyState;
+  private panel!: UpgradePanel;
   private moneyText!: Phaser.GameObjects.Text;
-  private steam!: Phaser.GameObjects.Ellipse[];
+  private incomeText!: Phaser.GameObjects.Text;
+  private steam: Phaser.GameObjects.Ellipse[] = [];
   private elapsed = 0;
+  private sincePanelRefresh = 0;
+  private sincePopup = 0;
+  private earnedSincePopup = 0;
 
   constructor() {
     super('Restaurant');
   }
 
   create(): void {
+    this.economy = newEconomy();
+    // Dev-only shortcut for testing: /?money=1e6
+    if (import.meta.env.DEV) {
+      const money = Number(new URLSearchParams(location.search).get('money'));
+      if (money > 0) this.economy.money = money;
+    }
     this.drawRoom();
     this.drawHud();
-    this.drawStove();
-    this.drawServeButton();
+    this.panel = new UpgradePanel(
+      this,
+      (id) => this.buySection(id),
+      (index) => this.buyDish(index),
+    );
+    this.refreshUi();
   }
 
   // Called every frame; delta is milliseconds since the previous frame.
   update(_time: number, delta: number): void {
+    this.earnedSincePopup += advanceTime(this.economy, delta / 1000);
     this.elapsed += delta / 1000;
+    this.animateSteam();
+
+    this.sincePopup += delta;
+    if (this.sincePopup >= EARNINGS_POPUP_MS) {
+      this.sincePopup = 0;
+      this.showEarningsPopup(this.earnedSincePopup);
+      this.earnedSincePopup = 0;
+    }
+
+    this.sincePanelRefresh += delta;
+    if (this.sincePanelRefresh >= PANEL_REFRESH_MS) {
+      this.sincePanelRefresh = 0;
+      this.refreshUi();
+    } else {
+      this.moneyText.setText(formatNumber(this.economy.money, 0));
+    }
+  }
+
+  private buySection(id: SectionId): void {
+    if (!buySectionLevel(this.economy, id)) return;
+    this.panel.pulseSection(id);
+    this.refreshUi();
+  }
+
+  private buyDish(index: number): void {
+    if (!buyDish(this.economy, index)) return;
+    this.panel.pulseDish(index);
+    this.refreshUi();
+  }
+
+  private refreshUi(): void {
+    this.moneyText.setText(formatNumber(this.economy.money, 0));
+    this.incomeText.setText(t('hud.perSecond', { amount: formatNumber(incomePerSecond(this.economy)) }));
+    this.panel.refresh(this.economy);
+  }
+
+  private drawHud(): void {
+    this.add.rectangle(0, 0, GAME_WIDTH, LAYOUT.hudHeight, PALETTE.pomegranate).setOrigin(0);
+    this.add.rectangle(0, LAYOUT.hudHeight, GAME_WIDTH, 8, PALETTE.pomegranateDark).setOrigin(0);
+    this.add.image(GAME_WIDTH / 2 - 150, 78, 'coin').setScale(1.1);
+    this.moneyText = this.add
+      .text(GAME_WIDTH / 2 - 100, 78, '0', {
+        fontFamily: FONT,
+        fontSize: '72px',
+        fontStyle: 'bold',
+        color: toCss(PALETTE.cream),
+      })
+      .setOrigin(0, 0.5);
+    this.incomeText = this.add
+      .text(GAME_WIDTH / 2, 150, '', { fontFamily: FONT, fontSize: '36px', fontStyle: 'bold', color: toCss(PALETTE.saffron) })
+      .setOrigin(0.5);
+  }
+
+  private drawRoom(): void {
+    const top = LAYOUT.hudHeight;
+    const floorTop = 640;
+    this.add.rectangle(0, top, GAME_WIDTH, floorTop - top, PALETTE.wall).setOrigin(0);
+    for (let i = 0, x = 0; x < GAME_WIDTH; i++, x += 60) {
+      this.add.rectangle(x, floorTop - 80, 60, 80, i % 2 === 0 ? PALETTE.tileBlue : 0x2f8fb0).setOrigin(0);
+    }
+    for (let i = 0, y = floorTop; y < LAYOUT.panelTop; i++, y += 70) {
+      this.add.rectangle(0, y, GAME_WIDTH, 70, i % 2 === 0 ? PALETTE.floor : PALETTE.floorDark).setOrigin(0);
+    }
+    // Placeholder stove until the living scene arrives.
+    const cx = GAME_WIDTH / 2;
+    this.add.rectangle(cx, 600, 390, 160, PALETTE.ink);
+    this.add.circle(cx - 60, 525, 38, 0x555555);
+    this.add.circle(cx + 60, 525, 38, 0x555555);
+    this.add.rectangle(cx, 495, 180, 60, 0x8c8c8c);
+    this.steam = Array.from({ length: 5 }, () => this.add.ellipse(cx, 450, 60, 45, 0xffffff, 0.6));
+  }
+
+  private animateSteam(): void {
+    const cx = GAME_WIDTH / 2;
     this.steam.forEach((puff, i) => {
       const t = (this.elapsed * 0.6 + i / this.steam.length) % 1;
-      puff.y = 560 - t * 120;
-      puff.x = 360 + Math.sin((this.elapsed + i) * 2) * 10;
+      puff.y = 460 - t * 180;
+      puff.x = cx + Math.sin((this.elapsed + i) * 2) * 15;
       puff.setAlpha(0.6 * (1 - t));
       puff.setScale(0.6 + t);
     });
   }
 
-  private drawRoom(): void {
-    this.add.rectangle(0, 0, GAME_WIDTH, 700, PALETTE.wall).setOrigin(0);
-    // Tile band along the wall.
-    for (let x = 0; x < GAME_WIDTH; x += 40) {
-      const color = (x / 40) % 2 === 0 ? PALETTE.tileBlue : 0x2f8fb0;
-      this.add.rectangle(x, 640, 40, 60, color).setOrigin(0);
-    }
-    // Wooden floor planks.
-    for (let i = 0, y = 700; y < GAME_HEIGHT; i++, y += 60) {
-      const color = i % 2 === 0 ? PALETTE.floor : PALETTE.floorDark;
-      this.add.rectangle(0, y, GAME_WIDTH, 60, color).setOrigin(0);
-    }
-  }
-
-  private drawHud(): void {
-    this.add.rectangle(0, 0, GAME_WIDTH, 120, PALETTE.pomegranate).setOrigin(0);
-    this.add
-      .text(GAME_WIDTH / 2, 40, 'TASTE TOUR', {
-        fontFamily: FONT,
-        fontSize: '40px',
-        fontStyle: 'bold',
-        color: toCss(PALETTE.cream),
-      })
-      .setOrigin(0.5);
-    this.add.image(GAME_WIDTH / 2 - 70, 90, 'coin').setScale(0.6);
-    this.moneyText = this.add
-      .text(GAME_WIDTH / 2 - 45, 90, '0', {
-        fontFamily: FONT,
-        fontSize: '32px',
-        fontStyle: 'bold',
-        color: toCss(PALETTE.saffron),
-      })
-      .setOrigin(0, 0.5);
-  }
-
-  private drawStove(): void {
-    this.add.rectangle(360, 640, 260, 110, PALETTE.ink).setOrigin(0.5);
-    this.add.circle(320, 590, 26, 0x555555);
-    this.add.circle(400, 590, 26, 0x555555);
-    this.add.rectangle(360, 570, 120, 40, 0x8c8c8c).setOrigin(0.5);
-    this.steam = Array.from({ length: 5 }, () => this.add.ellipse(360, 540, 40, 30, 0xffffff, 0.6));
-  }
-
-  private drawServeButton(): void {
-    const button = this.add.container(GAME_WIDTH / 2, 1050);
-    const shadow = this.add.rectangle(0, 8, 320, 110, 0x7a241b).setOrigin(0.5);
-    const face = this.add.rectangle(0, 0, 320, 110, PALETTE.pomegranate).setOrigin(0.5);
-    const label = this.add
-      .text(0, 0, 'SERVE!', { fontFamily: FONT, fontSize: '44px', fontStyle: 'bold', color: '#ffffff' })
-      .setOrigin(0.5);
-    button.add([shadow, face, label]);
-    button.setSize(320, 110).setInteractive({ useHandCursor: true });
-
-    button.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      this.tweens.add({ targets: button, scale: 0.92, duration: 60, yoyo: true, ease: 'Quad.easeOut' });
-      this.earn(1, pointer.x, pointer.y);
-    });
-  }
-
-  private earn(amount: number, x: number, y: number): void {
-    this.money += amount;
-    this.moneyText.setText(String(this.money));
-    this.tweens.add({ targets: this.moneyText, scale: 1.25, duration: 80, yoyo: true });
-
-    // Coin flies to the HUD counter.
-    const coin = this.add.image(x, y, 'coin');
-    this.tweens.add({
-      targets: coin,
-      x: GAME_WIDTH / 2 - 70,
-      y: 90,
-      scale: 0.6,
-      duration: 500,
-      ease: 'Cubic.easeIn',
-      onComplete: () => coin.destroy(),
-    });
-
-    // Floating "+1" label.
+  private showEarningsPopup(amount: number): void {
+    if (amount <= 0) return;
+    const x = GAME_WIDTH / 2 + Phaser.Math.Between(-260, 260);
+    const y = Phaser.Math.Between(720, 900);
     const popup = this.add
-      .text(x, y - 40, `+${amount}`, {
+      .text(x, y, `+${formatNumber(amount)}`, {
         fontFamily: FONT,
-        fontSize: '36px',
+        fontSize: '48px',
         fontStyle: 'bold',
         color: toCss(PALETTE.saffron),
         stroke: toCss(PALETTE.ink),
-        strokeThickness: 6,
+        strokeThickness: 8,
       })
       .setOrigin(0.5);
     this.tweens.add({
       targets: popup,
-      y: y - 140,
+      y: y - 160,
       alpha: 0,
-      duration: 700,
+      duration: 1100,
       ease: 'Quad.easeOut',
       onComplete: () => popup.destroy(),
     });

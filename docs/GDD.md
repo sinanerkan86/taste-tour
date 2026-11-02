@@ -78,7 +78,7 @@ The scene changes visually at each stage.
 - **When:** the franchise opens once the city's whole menu is unlocked (a clear goal per city). Staying longer still earns more stars, but less and less.
 - **Stars** come from the current run only: `stars = floor((run reputation / 1.5e11)^(1/3))`, where reputation is the run's earnings measured in the city's cost scale. An on-pace city gives about 10 stars.
 - City order: Istanbul → Rome → Tokyo → New York → Mexico City → Bangkok, then the list starts over with bigger numbers.
-- Each city has its own 7-dish world menu that opens with the local specialty, and (later) its own decor, color palette and music.
+- Each city has its own 7-dish world menu that opens with the local specialty, its own color palette (wall, tiles, floor, table cloths) and a framed poster of its landmark on the wall: mosque (Istanbul), Colosseum (Rome), torii gate and mountain (Tokyo), skyline (New York), stepped pyramid (Mexico City), temple spires (Bangkok). City music comes later.
 - New cities = ready-made content for future updates.
 - **In the game:** the HUD shows the city and the Chef Stars. When the menu is complete a "Franchise" button appears in the HUD with the stars on offer (it keeps counting up while the player stays). Its dialog shows the stars to gain, the income bonus before → after, and that money, sections and dishes start over. Confirming fades to the new city, which greets the player with a banner.
 
@@ -143,7 +143,7 @@ IAP: Remove ads (grants ad rewards without ads), permanent 2x income, starter pa
 3. ~~Economy simulation script~~
 4. ~~**Prototype:** one restaurant, 2–3 dishes, kitchen + waiters + dining room, staff automation, save/load, offline earnings~~
 5. ~~Bottleneck visualization, cashier and dishwashing~~
-6. Prestige / second city
+6. ~~Prestige / franchise to new cities~~
 7. Rewarded ads (with test ad unit IDs)
 8. Android build with Capacitor, test on phone
 9. Localization (EN/TR), store assets, Play Store release

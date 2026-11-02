@@ -46,7 +46,8 @@ Full design: [docs/GDD.md](docs/GDD.md). Keep the GDD up to date when design dec
 - Roadmap item 5 (bottleneck visualization, cashier and dishwashing) is done:
   - [x] 5a. Scene becomes a pipeline: each section works at its own (scaled) capacity, so work piles up in front of the real bottleneck. Symptoms: door queue / customers turned away (seating), long waits (kitchen), plates piling on the pass (waiters), cashier line (cashier), dirty plate pile and no clean plates (dishwashing). Cashier and dishwasher staff on screen; open seats grow with the dining room level.
   - [x] 5b. Bottleneck guidance: tapping the "!" marker jumps to that section's row in the panel; status bubbles (zzz for idle staff, "no plates" / "pass full" over blocked chefs, a coin over diners waiting to pay); a first-time hint explaining the bottleneck (seen hints are stored in the save as `seenHints`).
-- Roadmap item 6 (prestige / franchise to new cities) is split into sub-steps:
+- Roadmap item 6 (prestige / franchise to new cities) is done:
   - [x] 6a. Core: cities (`CITIES` in config, each with its own 7-dish menu on shared `DISH_TIERS`), city price/cost scaling, franchise rules (`canFranchise`, `prestige` moves to the next city), stars from run reputation (cube root), save fields `city` and `runReputation`, sim reports per city. EN/TR names for all cities and dishes.
   - [x] 6b. Franchise flow in the game: stars and city name in the HUD, a Franchise button that appears when the menu is complete, a dialog showing stars to gain, the bonus and the next city, then a fresh restaurant in the new city.
-  - [ ] 6c. City look: each city gets its own palette and decor (wall, tiles, floor, sign) and a welcome banner on arrival.
+  - [x] 6c. City look: each city has its own palette (wall, tiles, floor, table cloths, door mat) and a framed landmark poster on the wall (`src/game/view/themes.ts`). Dev: `/?city=3` shows another city's look and prices.
+- Next: roadmap item 7 (rewarded ads with test ad unit IDs).

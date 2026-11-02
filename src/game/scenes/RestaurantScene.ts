@@ -32,6 +32,7 @@ import { UpgradePanel } from '../ui/UpgradePanel';
 import { WelcomeBackModal } from '../ui/WelcomeBackModal';
 import { ROOM, type Point } from '../view/layout';
 import { RestaurantView } from '../view/RestaurantView';
+import { cityTheme } from '../view/themes';
 
 const PANEL_REFRESH_MS = 100;
 // HUD and panel draw above everything in the restaurant scene.
@@ -80,12 +81,15 @@ export class RestaurantScene extends Phaser.Scene {
     this.seenHints = data.save?.seenHints ?? [];
     this.hint = null;
     this.franchiseReady = null;
-    // Dev-only shortcut for testing: /?money=1e6
+    // Dev-only shortcuts for testing: /?money=1e6 and /?city=2 (look and prices of another city)
     if (import.meta.env.DEV) {
-      const money = Number(new URLSearchParams(location.search).get('money'));
+      const params = new URLSearchParams(location.search);
+      const money = Number(params.get('money'));
       if (money > 0) this.economy.money = money;
+      const city = Number(params.get('city'));
+      if (Number.isInteger(city) && city > 0 && !data.arrived) this.economy.city = city;
     }
-    this.view = new RestaurantView(this);
+    this.view = new RestaurantView(this, cityTheme(cityConfig(this.economy.city).id));
     this.view.onPayment = (amount, at) => this.showPayment(amount, at);
     this.view.onMarkerTap = (section) => this.focusBottleneck(section);
     this.drawHud();

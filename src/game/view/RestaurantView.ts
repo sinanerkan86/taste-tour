@@ -24,6 +24,7 @@ import {
 } from './layout';
 import { Person, createPlate } from './Person';
 import { drawRoom } from './room';
+import type { CityTheme } from './themes';
 
 // The scene shows at most this many customers per second; above it, each visible customer
 // stands for several real ones (their payment popup shows the combined amount).
@@ -200,8 +201,11 @@ export class RestaurantView {
   private state: ViewState | null = null;
   private flow: Flow | null = null;
 
-  constructor(private readonly scene: Phaser.Scene) {
-    const art = drawRoom(scene);
+  constructor(
+    private readonly scene: Phaser.Scene,
+    theme: CityTheme,
+  ) {
+    const art = drawRoom(scene, theme);
     this.tables = art.tables;
     this.seats = TABLES.flatMap((table, i) =>
       ([-1, 1] as const).map((side, s) => ({ table, side, chair: art.chairs[i * 2 + s], open: true, occupant: null })),

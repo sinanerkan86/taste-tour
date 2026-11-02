@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, PALETTE } from '../config';
-import { CASHIER_DESK, DISHPIT, DOOR, KITCHEN, ROOM, SEAT_OFFSET_X, STOVES, TABLES } from './layout';
+import { CASHIER_DESK, DISHPIT, DOOR, KITCHEN, POSTER, ROOM, SEAT_OFFSET_X, STOVES, TABLES } from './layout';
+import type { CityTheme } from './themes';
 
 export interface RoomArt {
   // One per seat, in seat order: table index * 2, left chair first.
@@ -10,28 +11,29 @@ export interface RoomArt {
 
 // Static background art. Characters are drawn on top with depth = their y position,
 // so furniture that people walk behind gets the same treatment.
-export function drawRoom(scene: Phaser.Scene): RoomArt {
+export function drawRoom(scene: Phaser.Scene, theme: CityTheme): RoomArt {
   const g = scene.add.graphics().setDepth(-1000);
 
   // Back wall with a tiled band.
-  g.fillStyle(PALETTE.wall, 1).fillRect(0, ROOM.top, GAME_WIDTH, ROOM.wallBottom - ROOM.top);
+  g.fillStyle(theme.wall, 1).fillRect(0, ROOM.top, GAME_WIDTH, ROOM.wallBottom - ROOM.top);
   for (let i = 0, x = 0; x < GAME_WIDTH; i++, x += 45) {
-    g.fillStyle(i % 2 === 0 ? PALETTE.tileBlue : 0x2f8fb0, 1).fillRect(x, ROOM.wallBottom - 150, 45, 45);
+    g.fillStyle(i % 2 === 0 ? theme.tileA : theme.tileB, 1).fillRect(x, ROOM.wallBottom - 150, 45, 45);
   }
+  drawPoster(g, theme);
 
   // Wooden floor.
   for (let i = 0, y = ROOM.wallBottom; y < ROOM.bottom; i++, y += 60) {
-    g.fillStyle(i % 2 === 0 ? PALETTE.floor : PALETTE.floorDark, 1).fillRect(0, y, GAME_WIDTH, 60);
+    g.fillStyle(i % 2 === 0 ? theme.floor : theme.floorDark, 1).fillRect(0, y, GAME_WIDTH, 60);
   }
 
-  drawKitchenBack(g);
+  drawKitchenBack(g, theme);
   drawFaucet(g);
   drawDishpitCounter(scene);
-  drawDoor(g);
-  drawCashierDesk(scene);
+  drawDoor(g, theme);
+  drawCashierDesk(scene, theme);
   const art: RoomArt = { chairs: [], tables: [] };
   TABLES.forEach((t) => {
-    const { chairs, table } = drawTable(scene, t.x, t.y);
+    const { chairs, table } = drawTable(scene, t.x, t.y, theme);
     art.chairs.push(...chairs);
     art.tables.push(table);
   });
@@ -39,11 +41,20 @@ export function drawRoom(scene: Phaser.Scene): RoomArt {
   return art;
 }
 
-function drawKitchenBack(g: Phaser.GameObjects.Graphics): void {
+// A framed picture of the city's landmark between the dish pit and the kitchen.
+function drawPoster(g: Phaser.GameObjects.Graphics, theme: CityTheme): void {
+  const { x, y, width, height } = POSTER;
+  g.fillStyle(0x000000, 0.15).fillRoundedRect(x - width / 2 + 4, y - height / 2 + 6, width, height, 8);
+  g.fillStyle(0x6b3f22, 1).fillRoundedRect(x - width / 2, y - height / 2, width, height, 8);
+  g.fillStyle(theme.sky, 1).fillRect(x - width / 2 + 10, y - height / 2 + 10, width - 20, height - 20);
+  theme.landmark(g, x, y);
+}
+
+function drawKitchenBack(g: Phaser.GameObjects.Graphics, theme: CityTheme): void {
   // Range hood and back shelf.
   g.fillStyle(0xd9d2c5, 1).fillRect(KITCHEN.left, ROOM.top + 20, KITCHEN.right - KITCHEN.left, 70);
   g.fillStyle(0xbfb7a8, 1).fillRect(KITCHEN.left, ROOM.top + 90, KITCHEN.right - KITCHEN.left, 10);
-  g.fillStyle(PALETTE.floorDark, 1).fillRect(KITCHEN.left + 20, ROOM.top + 150, KITCHEN.right - KITCHEN.left - 40, 12);
+  g.fillStyle(theme.floorDark, 1).fillRect(KITCHEN.left + 20, ROOM.top + 150, KITCHEN.right - KITCHEN.left - 40, 12);
   // Jars on the shelf.
   [0xc0392b, 0xf4b400, 0x4a8c3a, 0x1f6f8b, 0xe08e0b].forEach((color, i) => {
     g.fillStyle(color, 1).fillRoundedRect(KITCHEN.left + 50 + i * 90, ROOM.top + 112, 36, 38, 6);
@@ -79,15 +90,15 @@ function drawDishpitCounter(scene: Phaser.Scene): void {
   g.fillStyle(0x5f7886, 1).fillRoundedRect(DISHPIT.left + 66, DISHPIT.counterY - 72, 90, 22, 6);
 }
 
-function drawDoor(g: Phaser.GameObjects.Graphics): void {
+function drawDoor(g: Phaser.GameObjects.Graphics, theme: CityTheme): void {
   // Open doorway on the left wall with a welcome mat.
   g.fillStyle(0x5a3a24, 1).fillRect(0, DOOR.y - 170, 22, 190);
-  g.fillStyle(PALETTE.pomegranate, 1).fillRoundedRect(DOOR.x - 20, DOOR.y + 6, 120, 30, 8);
+  g.fillStyle(theme.accent, 1).fillRoundedRect(DOOR.x - 20, DOOR.y + 6, 120, 30, 8);
 }
 
-function drawCashierDesk(scene: Phaser.Scene): void {
+function drawCashierDesk(scene: Phaser.Scene, theme: CityTheme): void {
   const g = scene.add.graphics().setDepth(CASHIER_DESK.y + 40);
-  g.fillStyle(PALETTE.floorDark, 1).fillRoundedRect(CASHIER_DESK.x - 90, CASHIER_DESK.y - 10, 180, 60, 10);
+  g.fillStyle(theme.floorDark, 1).fillRoundedRect(CASHIER_DESK.x - 90, CASHIER_DESK.y - 10, 180, 60, 10);
   g.fillStyle(0x6b3f22, 1).fillRect(CASHIER_DESK.x - 90, CASHIER_DESK.y - 16, 180, 14);
   // Register.
   g.fillStyle(0x3a3a3a, 1).fillRoundedRect(CASHIER_DESK.x - 30, CASHIER_DESK.y - 60, 60, 46, 6);
@@ -98,6 +109,7 @@ function drawTable(
   scene: Phaser.Scene,
   x: number,
   y: number,
+  theme: CityTheme,
 ): { chairs: Phaser.GameObjects.Graphics[]; table: Phaser.GameObjects.Graphics } {
   // Chairs sit behind the table top; the table itself is above seated customers' legs.
   const chairs = [-1, 1].map((side) => {
@@ -109,6 +121,6 @@ function drawTable(
   table.fillStyle(0x000000, 0.15).fillEllipse(x, y + 46, 150, 26);
   table.fillStyle(0x7a4a2a, 1).fillRect(x - 8, y, 16, 44);
   table.fillStyle(PALETTE.cream, 1).fillRoundedRect(x - 72, y - 14, 144, 26, 10);
-  table.fillStyle(PALETTE.pomegranate, 1).fillRect(x - 72, y + 2, 144, 10);
+  table.fillStyle(theme.accent, 1).fillRect(x - 72, y + 2, 144, 10);
   return { chairs, table };
 }

@@ -20,6 +20,9 @@ export const DISHWASHER: Point = { x: 130, y: 452 };
 export const DIRTY_STACK: Point = { x: DISHPIT.left + 32, y: DISHPIT.counterY - 82 };
 export const CLEAN_STACK: Point = { x: DISHPIT.right - 34, y: DISHPIT.counterY - 82 };
 
+// City landmark poster on the wall between the dish pit and the kitchen.
+export const POSTER = { x: 405, y: 262, width: 240, height: 110 } as const;
+
 export const DOOR: Point = { x: 40, y: 830 };
 export const OUTSIDE: Point = { x: -80, y: 830 };
 export const CASHIER_DESK: Point = { x: 170, y: 640 };

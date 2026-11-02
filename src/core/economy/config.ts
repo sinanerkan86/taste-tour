@@ -98,6 +98,20 @@ export const TAP = {
   billFraction: 0.25,
 };
 
+// Rewards for watching a rewarded ad.
+export const ADS = {
+  // Rush: income is multiplied by this while rush time is left.
+  rushMultiplier: 2,
+  rushSeconds: 4 * 60 * 60,
+  // Rush time stacks up to this much.
+  rushMaxSeconds: 12 * 60 * 60,
+  // Time skip: earn this many seconds of income at once, then wait for the cooldown.
+  timeSkipSeconds: 60 * 60,
+  timeSkipCooldownSeconds: 30 * 60,
+  // Offline earnings collected with an ad are multiplied by this.
+  offlineMultiplier: 2,
+};
+
 export const OFFLINE = {
   // Offline earnings are capped to this many seconds at first.
   baseCapSeconds: 2 * 60 * 60,

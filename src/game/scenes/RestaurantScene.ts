@@ -1,30 +1,38 @@
 import Phaser from 'phaser';
 import {
+  ADS,
   DISH_MAX_LEVEL,
   MILESTONE_BONUS,
+  activateRush,
   advanceTime,
   buyDish,
   buySectionLevel,
+  canActivateRush,
   canFranchise,
   cityConfig,
   earn,
   incomePerSecond,
   milestonesReached,
+  passTime,
   newEconomy,
   pendingStars,
   prestige,
   sectionRates,
   tap,
   throughput,
+  timeSkipAmount,
+  useTimeSkip,
   type EconomyState,
   type SectionId,
 } from '../../core/economy';
 import { formatNumber } from '../../core/format';
 import { createSave, offlineReward, type OfflineReward, type SaveData } from '../../core/save';
-import { t, type TranslationKey } from '../../i18n';
+import { t, tDuration, type TranslationKey } from '../../i18n';
+import { ads, type AdPlacement } from '../ads/AdService';
 import { FONT, GAME_WIDTH, LAYOUT, PALETTE, toCss } from '../config';
 import { FX_DEPTH, banner, confetti, floatingText, sparkle } from '../fx';
 import { saves } from '../persistence';
+import { AdOfferModal } from '../ui/AdOfferModal';
 import { BUTTON_STYLES, Button } from '../ui/Button';
 import { FranchiseModal } from '../ui/FranchiseModal';
 import { HintBubble } from '../ui/HintBubble';
@@ -39,6 +47,8 @@ const PANEL_REFRESH_MS = 100;
 const UI_DEPTH = 10000;
 const HUD_COIN: Point = { x: GAME_WIDTH / 2 - 150, y: 78 };
 const HUD_MARGIN = 30;
+// Rewarded ad buttons sit on the floor in the bottom right corner of the room.
+const AD_BUTTON = { width: 150, height: 80, y: 925, gap: 15 };
 const BANNER_Y = 330;
 const AUTOSAVE_MS = 10_000;
 // Shorter absences are paid out silently, as if the game had kept running.
@@ -67,6 +77,10 @@ export class RestaurantScene extends Phaser.Scene {
   private starsText!: Phaser.GameObjects.Text;
   private franchiseButton!: Button;
   private franchiseCaption!: Phaser.GameObjects.Text;
+  private rushButton!: Button;
+  private rushCaption!: Phaser.GameObjects.Text;
+  private timeSkipButton!: Button;
+  private timeSkipCaption!: Phaser.GameObjects.Text;
   // Null until the first UI refresh, so a loaded game does not announce the franchise again.
   private franchiseReady: boolean | null = null;
   private hudCoin!: Phaser.GameObjects.Image;
@@ -94,6 +108,7 @@ export class RestaurantScene extends Phaser.Scene {
     this.view.onMarkerTap = (section) => this.focusBottleneck(section);
     this.drawHud();
     this.createTapArea();
+    this.createAdButtons();
     this.panel = new UpgradePanel(
       this,
       (id) => this.buySection(id),
@@ -189,17 +204,100 @@ export class RestaurantScene extends Phaser.Scene {
   }
 
   private payOffline(reward: OfflineReward): void {
+    // The clock kept running for Rush and cooldowns, whether or not anything was earned.
+    passTime(this.economy, reward.secondsAway);
     if (reward.amount <= 0) return;
     if (reward.secondsAway < WELCOME_BACK_MIN_SECONDS) {
       earn(this.economy, reward.amount);
       return;
     }
-    new WelcomeBackModal(this, reward, UI_DEPTH + 100, () => {
-      earn(this.economy, reward.amount);
-      void this.saveGame();
-      this.celebrateCollect();
-      this.refreshUi();
-    });
+    new WelcomeBackModal(
+      this,
+      reward,
+      UI_DEPTH + 100,
+      (multiplier) => {
+        earn(this.economy, reward.amount * multiplier);
+        void this.saveGame();
+        this.celebrateCollect();
+        this.refreshUi();
+      },
+      () => ads.showRewarded('offlineDouble'),
+    );
+  }
+
+  private createAdButtons(): void {
+    const caption = (x: number) =>
+      this.add
+        .text(x, AD_BUTTON.y + AD_BUTTON.height / 2 + 22, '', {
+          fontFamily: FONT,
+          fontSize: '26px',
+          fontStyle: 'bold',
+          color: toCss(PALETTE.cream),
+          stroke: toCss(PALETTE.ink),
+          strokeThickness: 6,
+        })
+        .setOrigin(0.5)
+        .setDepth(UI_DEPTH);
+    const skipX = GAME_WIDTH - HUD_MARGIN - AD_BUTTON.width / 2;
+    const rushX = skipX - AD_BUTTON.width - AD_BUTTON.gap;
+    this.rushButton = new Button(this, rushX, AD_BUTTON.y, AD_BUTTON.width, AD_BUTTON.height, () => this.offerRush(), 'ad');
+    this.rushButton.setLabel(`${ADS.rushMultiplier}x`).setDepth(UI_DEPTH);
+    this.rushCaption = caption(rushX);
+    this.timeSkipButton = new Button(this, skipX, AD_BUTTON.y, AD_BUTTON.width, AD_BUTTON.height, () => this.offerTimeSkip(), 'ad');
+    this.timeSkipButton.setLabel(t('ads.timeSkipLabel', { hours: ADS.timeSkipSeconds / 3600 })).setDepth(UI_DEPTH);
+    this.timeSkipCaption = caption(skipX);
+  }
+
+  private refreshAdButtons(): void {
+    const rush = this.economy.rushSeconds;
+    this.rushButton.setButtonStyle(canActivateRush(this.economy) ? BUTTON_STYLES.buy : BUTTON_STYLES.disabled, canActivateRush(this.economy));
+    this.rushCaption.setText(rush > 0 ? tDuration(rush) : t('ads.rushCaption'));
+    this.rushCaption.setColor(toCss(rush > 0 ? PALETTE.saffron : PALETTE.cream));
+    const cooldown = this.economy.timeSkipCooldown;
+    this.timeSkipButton.setButtonStyle(cooldown > 0 ? BUTTON_STYLES.disabled : BUTTON_STYLES.buy, cooldown <= 0);
+    this.timeSkipCaption.setText(cooldown > 0 ? tDuration(cooldown) : t('ads.timeSkipCaption'));
+  }
+
+  private offerRush(): void {
+    if (!canActivateRush(this.economy)) return;
+    const offer = {
+      title: t('ads.rushTitle'),
+      body: t('ads.rushBody', { hours: ADS.rushSeconds / 3600, max: ADS.rushMaxSeconds / 3600 }),
+      reward: `${ADS.rushMultiplier}x`,
+    };
+    new AdOfferModal(this, offer, UI_DEPTH + 100, () =>
+      this.watchAd('rush', () => {
+        activateRush(this.economy);
+        this.celebrate(t('banner.rush', { multiplier: ADS.rushMultiplier }), PALETTE.success);
+      }),
+    );
+  }
+
+  private offerTimeSkip(): void {
+    if (this.economy.timeSkipCooldown > 0) return;
+    const offer = {
+      title: t('ads.timeSkipTitle'),
+      body: t('ads.timeSkipBody', { hours: ADS.timeSkipSeconds / 3600 }),
+      reward: `+${formatNumber(timeSkipAmount(this.economy))}`,
+      rewardIcon: 'coin',
+    };
+    new AdOfferModal(this, offer, UI_DEPTH + 100, () =>
+      this.watchAd('timeSkip', () => {
+        const amount = useTimeSkip(this.economy);
+        if (amount <= 0) return;
+        floatingText(this, GAME_WIDTH / 2, BANNER_Y + 120, `+${formatNumber(amount)}`, PALETTE.saffron, 64);
+        this.celebrateCollect();
+      }),
+    );
+  }
+
+  // Plays a rewarded ad and grants the reward only if it was watched to the end.
+  private async watchAd(placement: AdPlacement, grant: () => void): Promise<void> {
+    const watched = await ads.showRewarded(placement);
+    if (!watched || !this.sys.isActive()) return;
+    grant();
+    void this.saveGame();
+    this.refreshUi();
   }
 
   private celebrateCollect(): void {
@@ -320,10 +418,16 @@ export class RestaurantScene extends Phaser.Scene {
 
   private refreshUi(): void {
     this.moneyText.setText(formatNumber(this.economy.money, 0));
-    this.incomeText.setText(t('hud.perSecond', { amount: formatNumber(incomePerSecond(this.economy)) }));
+    const income = formatNumber(incomePerSecond(this.economy));
+    this.incomeText.setText(
+      this.economy.rushSeconds > 0
+        ? t('hud.perSecondRush', { amount: income, multiplier: ADS.rushMultiplier })
+        : t('hud.perSecond', { amount: income }),
+    );
     this.starsText.setText(formatNumber(this.economy.stars, 0));
     this.panel.refresh(this.economy);
     this.refreshFranchise();
+    this.refreshAdButtons();
   }
 
   // The franchise button appears once the whole menu is unlocked and shows the stars on offer.

@@ -46,7 +46,3 @@ export function cityPriceScale(city: number): number {
 export function cityCostScale(city: number): number {
   return cityPriceScale(city) * starMultiplier(CITY.expectedStarsPerCity * city);
 }
-
-export function offlineEarnings(incomePerSecond: number, secondsAway: number, capSeconds: number): number {
-  return incomePerSecond * Math.min(Math.max(secondsAway, 0), capSeconds);
-}

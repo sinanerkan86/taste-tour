@@ -118,6 +118,8 @@ If the bot stays 1.5× longer per city it collects 15 stars per city (Istanbul 2
 | Wandering customer / VIP tourist | Randomly appearing customer, big tip for watching an ad |
 | Staff discount | Hire the next staff member cheaper by watching an ad |
 
+Implemented (7a): Rush gives 2x income for 4 hours per ad and stacks up to 12 hours; its time keeps running while the player is away, so offline earnings use the boosted rate only for the Rush part. Time skip pays one hour of current income at once and then has a 30 minute cooldown. The welcome-back dialog offers "Collect 2x". Every ad starts from a dialog that shows the reward, and a skipped ad gives nothing. Rush time and the cooldown carry over through a franchise. Numbers live in `ADS` in the economy config.
+
 IAP: Remove ads (grants ad rewards without ads), permanent 2x income, starter packs.
 
 ## 9. Visual direction

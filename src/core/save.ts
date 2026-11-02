@@ -3,9 +3,8 @@ import {
   OFFLINE,
   SECTION_IDS,
   cityCostScale,
-  incomePerSecond,
+  earningsOver,
   newEconomy,
-  offlineEarnings,
   type EconomyState,
 } from './economy';
 
@@ -59,6 +58,8 @@ export function parseSave(json: string): SaveData | null {
     city,
     sectionLevels: { ...fresh.sectionLevels },
     dishLevels: [...fresh.dishLevels],
+    rushSeconds: Math.max(0, finiteOr(saved.rushSeconds, 0)),
+    timeSkipCooldown: Math.max(0, finiteOr(saved.timeSkipCooldown, 0)),
   };
   for (const id of SECTION_IDS) {
     economy.sectionLevels[id] = Math.max(1, Math.floor(finiteOr(saved.sectionLevels?.[id], 1)));
@@ -89,5 +90,6 @@ export function offlineReward(
 ): OfflineReward {
   const secondsAway = Math.max(0, (now - awaySince) / 1000);
   const seconds = Math.min(secondsAway, capSeconds);
-  return { seconds, secondsAway, amount: offlineEarnings(incomePerSecond(economy), secondsAway, capSeconds) };
+  // Rush keeps running while the player is away.
+  return { seconds, secondsAway, amount: earningsOver(economy, seconds) };
 }

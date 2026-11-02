@@ -1,6 +1,6 @@
-import { DISH_MAX_LEVEL, DISH_TIERS, SECTIONS, type SectionId } from './config';
+import { ADS, DISH_MAX_LEVEL, DISH_TIERS, SECTIONS, type SectionId } from './config';
 import { cityCostScale, levelCost, starsForReputation } from './formulas';
-import { newEconomy, type EconomyState } from './state';
+import { earn, earningsOver, newEconomy, type EconomyState } from './state';
 
 export function sectionUpgradeCost(state: EconomyState, id: SectionId): number {
   const cfg = SECTIONS[id];
@@ -53,5 +53,32 @@ export function canFranchise(state: EconomyState): boolean {
 
 // Franchise: sell the restaurant and start over in the next city, keeping the stars.
 export function prestige(state: EconomyState): EconomyState {
-  return newEconomy(state.stars + pendingStars(state), state.lifetimeEarnings, state.city + 1);
+  const next = newEconomy(state.stars + pendingStars(state), state.lifetimeEarnings, state.city + 1);
+  // Ad rewards were earned by the player, not the restaurant, so they move along.
+  next.rushSeconds = state.rushSeconds;
+  next.timeSkipCooldown = state.timeSkipCooldown;
+  return next;
+}
+
+// Rush (rewarded ad): adds boosted time, up to the cap.
+export function activateRush(state: EconomyState): void {
+  state.rushSeconds = Math.min(state.rushSeconds + ADS.rushSeconds, ADS.rushMaxSeconds);
+}
+
+export function canActivateRush(state: EconomyState): boolean {
+  return state.rushSeconds + ADS.rushSeconds <= ADS.rushMaxSeconds;
+}
+
+// What a time skip (rewarded ad) pays right now.
+export function timeSkipAmount(state: EconomyState): number {
+  return earningsOver(state, ADS.timeSkipSeconds);
+}
+
+// Pays a time skip unless it is cooling down. Returns the amount earned (0 if refused).
+export function useTimeSkip(state: EconomyState): number {
+  if (state.timeSkipCooldown > 0) return 0;
+  const amount = timeSkipAmount(state);
+  earn(state, amount);
+  state.timeSkipCooldown = ADS.timeSkipCooldownSeconds;
+  return amount;
 }

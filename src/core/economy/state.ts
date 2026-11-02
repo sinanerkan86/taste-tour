@@ -1,4 +1,4 @@
-import { DISH_TIERS, MILESTONE_BONUS, SECTION_IDS, SECTIONS, TAP, type SectionId } from './config';
+import { ADS, DISH_TIERS, MILESTONE_BONUS, SECTION_IDS, SECTIONS, TAP, type SectionId } from './config';
 import { cityCostScale, cityPriceScale, scaledValue, starMultiplier } from './formulas';
 
 export interface EconomyState {
@@ -15,6 +15,9 @@ export interface EconomyState {
   sectionLevels: Record<SectionId, number>;
   // Level per dish in menu order (DISH_TIERS); 0 means not on the menu yet.
   dishLevels: number[];
+  // Seconds of Rush (ad boost) left, and seconds until the next time skip. Both survive a franchise.
+  rushSeconds: number;
+  timeSkipCooldown: number;
 }
 
 export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomyState {
@@ -28,6 +31,8 @@ export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomySt
     city,
     sectionLevels,
     dishLevels: DISH_TIERS.map((d) => (d.unlockCost === 0 ? 1 : 0)),
+    rushSeconds: 0,
+    timeSkipCooldown: 0,
   };
 }
 
@@ -68,8 +73,25 @@ export function throughput(state: EconomyState): Throughput {
   return { customersPerSecond: rates[bottleneck], bottleneck };
 }
 
-export function incomePerSecond(state: EconomyState): number {
+// Income without the Rush boost.
+export function baseIncomePerSecond(state: EconomyState): number {
   return throughput(state).customersPerSecond * billPerCustomer(state) * starMultiplier(state.stars);
+}
+
+export function incomePerSecond(state: EconomyState): number {
+  return baseIncomePerSecond(state) * (state.rushSeconds > 0 ? ADS.rushMultiplier : 1);
+}
+
+// Income over the next `seconds`, counting Rush only for the part of it that Rush still covers.
+export function earningsOver(state: EconomyState, seconds: number): number {
+  const boosted = Math.min(Math.max(seconds, 0), state.rushSeconds);
+  return baseIncomePerSecond(state) * (Math.max(seconds, 0) + boosted * (ADS.rushMultiplier - 1));
+}
+
+// Runs down timed effects (Rush, time skip cooldown).
+export function passTime(state: EconomyState, seconds: number): void {
+  state.rushSeconds = Math.max(0, state.rushSeconds - seconds);
+  state.timeSkipCooldown = Math.max(0, state.timeSkipCooldown - seconds);
 }
 
 export function earn(state: EconomyState, amount: number): void {
@@ -88,7 +110,8 @@ export function tap(state: EconomyState): number {
 
 // Earn the income of `seconds` of play. Returns the amount earned.
 export function advanceTime(state: EconomyState, seconds: number): number {
-  const amount = incomePerSecond(state) * seconds;
+  const amount = earningsOver(state, seconds);
   earn(state, amount);
+  passTime(state, seconds);
   return amount;
 }

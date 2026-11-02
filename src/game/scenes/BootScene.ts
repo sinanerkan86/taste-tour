@@ -12,6 +12,7 @@ export class BootScene extends Phaser.Scene {
   create(): void {
     this.makeCoinTexture();
     this.makeStarTexture();
+    this.makeAdTexture();
     this.makeParticleTextures();
     void this.loadAndStart();
   }
@@ -31,6 +32,15 @@ export class BootScene extends Phaser.Scene {
     g.clear();
     g.fillStyle(0xffffff, 1).fillRect(0, 0, 14, 8);
     g.generateTexture('confetti', 14, 8);
+    g.destroy();
+  }
+
+  // Marks buttons that play a rewarded ad: a small screen with a play triangle.
+  private makeAdTexture(): void {
+    const g = this.make.graphics({}, false);
+    g.fillStyle(PALETTE.ink, 1).fillRoundedRect(2, 2, 44, 34, 8);
+    g.fillStyle(0xffffff, 1).fillTriangle(18, 10, 18, 28, 33, 19);
+    g.generateTexture('ad', 48, 40);
     g.destroy();
   }
 

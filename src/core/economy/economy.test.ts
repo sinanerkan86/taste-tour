@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ADS,
   DISH_MAX_LEVEL,
   DISH_TIERS,
+  activateRush,
+  advanceTime,
+  baseIncomePerSecond,
+  canActivateRush,
+  timeSkipAmount,
+  useTimeSkip,
   SECTION_IDS,
   buyDish,
   canFranchise,
@@ -15,7 +22,6 @@ import {
   levelCost,
   milestonesReached,
   newEconomy,
-  offlineEarnings,
   pendingStars,
   prestige,
   scaledValue,
@@ -58,10 +64,6 @@ describe('formulas', () => {
     expect(cityConfig(CITIES.length + 1).id).toBe(CITIES[1].id);
   });
 
-  it('caps offline earnings', () => {
-    expect(offlineEarnings(5, 100, 60)).toBe(300);
-    expect(offlineEarnings(5, -10, 60)).toBe(0);
-  });
 });
 
 describe('economy state', () => {
@@ -160,5 +162,42 @@ describe('actions', () => {
     state.money = 0;
     tap(state);
     expect(state.runReputation).toBeCloseTo(state.runEarnings / cityCostScale(2));
+  });
+});
+
+describe('ad rewards', () => {
+  it('doubles income during Rush and stacks Rush up to the cap', () => {
+    const state = newEconomy();
+    const base = incomePerSecond(state);
+    activateRush(state);
+    expect(incomePerSecond(state)).toBeCloseTo(base * ADS.rushMultiplier);
+    activateRush(state);
+    activateRush(state);
+    expect(state.rushSeconds).toBe(ADS.rushMaxSeconds);
+    expect(canActivateRush(state)).toBe(false);
+  });
+
+  it('only boosts the part of a stretch of time that Rush covers', () => {
+    const state = newEconomy();
+    const base = baseIncomePerSecond(state);
+    state.rushSeconds = 10;
+    expect(advanceTime(state, 30)).toBeCloseTo(base * (30 + 10));
+    expect(state.rushSeconds).toBe(0);
+  });
+
+  it('pays a time skip once per cooldown', () => {
+    const state = newEconomy();
+    const expected = timeSkipAmount(state);
+    expect(useTimeSkip(state)).toBeCloseTo(expected);
+    expect(useTimeSkip(state)).toBe(0);
+    advanceTime(state, ADS.timeSkipCooldownSeconds);
+    expect(useTimeSkip(state)).toBeGreaterThan(0);
+  });
+
+  it('keeps Rush across a franchise', () => {
+    const state = newEconomy();
+    activateRush(state);
+    state.runReputation = PRESTIGE.starDivisor * 8000;
+    expect(prestige(state).rushSeconds).toBe(ADS.rushSeconds);
   });
 });

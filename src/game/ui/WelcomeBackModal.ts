@@ -1,78 +1,63 @@
 import Phaser from 'phaser';
-import { OFFLINE } from '../../core/economy';
+import { ADS, OFFLINE } from '../../core/economy';
 import { formatNumber } from '../../core/format';
 import type { OfflineReward } from '../../core/save';
 import { t, tDuration } from '../../i18n';
-import { FONT, GAME_HEIGHT, GAME_WIDTH, PALETTE, toCss } from '../config';
+import { PALETTE } from '../config';
 import { BUTTON_STYLES, Button } from './Button';
+import { createModalCard, modalText } from './modalCard';
 
 const CARD_WIDTH = 860;
 const CARD_HEIGHT = 640;
+const BUTTON_WIDTH = 370;
 
-// Blocks the game until the player collects what the restaurant earned while they were away.
+// Blocks the game until the player collects what the restaurant earned while they were away,
+// either as is or multiplied by watching a rewarded ad.
 export class WelcomeBackModal extends Phaser.GameObjects.Container {
-  constructor(scene: Phaser.Scene, reward: OfflineReward, depth: number, onCollect: () => void) {
+  private busy = false;
+
+  constructor(
+    scene: Phaser.Scene,
+    reward: OfflineReward,
+    depth: number,
+    onCollect: (multiplier: number) => void,
+    watchAd: () => Promise<boolean>,
+  ) {
     super(scene, 0, 0);
-    const dim = scene.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.55).setOrigin(0).setInteractive();
+    const card = createModalCard(scene, CARD_WIDTH, CARD_HEIGHT, t('offline.title'));
+    const { cx, top } = card;
+    const cy = top + CARD_HEIGHT / 2;
 
-    const cx = GAME_WIDTH / 2;
-    const cy = GAME_HEIGHT / 2 - 80;
-    const card = scene.add.graphics();
-    card.fillStyle(PALETTE.ink, 0.35).fillRoundedRect(cx - CARD_WIDTH / 2, cy - CARD_HEIGHT / 2 + 12, CARD_WIDTH, CARD_HEIGHT, 40);
-    card.fillStyle(PALETTE.cream, 1).fillRoundedRect(cx - CARD_WIDTH / 2, cy - CARD_HEIGHT / 2, CARD_WIDTH, CARD_HEIGHT, 40);
-    card.fillStyle(PALETTE.pomegranate, 1).fillRoundedRect(cx - CARD_WIDTH / 2, cy - CARD_HEIGHT / 2, CARD_WIDTH, 130, {
-      tl: 40,
-      tr: 40,
-      bl: 0,
-      br: 0,
-    });
-
-    const title = scene.add
-      .text(cx, cy - CARD_HEIGHT / 2 + 65, t('offline.title'), {
-        fontFamily: FONT,
-        fontSize: '60px',
-        fontStyle: 'bold',
-        color: toCss(PALETTE.cream),
-      })
-      .setOrigin(0.5);
-    const body = scene.add
-      .text(cx, cy - 120, t('offline.body', { time: tDuration(reward.secondsAway) }), {
-        fontFamily: FONT,
-        fontSize: '36px',
-        color: toCss(PALETTE.ink),
-        align: 'center',
-        lineSpacing: 10,
-      })
-      .setOrigin(0.5);
-
-    const amount = scene.add
-      .text(cx + 40, cy + 20, formatNumber(reward.amount), {
-        fontFamily: FONT,
-        fontSize: '96px',
-        fontStyle: 'bold',
-        color: toCss(PALETTE.saffronDark),
-      })
-      .setOrigin(0.5);
+    const body = modalText(scene, card, CARD_WIDTH, cy - 120, t('offline.body', { time: tDuration(reward.secondsAway) }), 36, PALETTE.ink);
+    const amount = modalText(scene, card, CARD_WIDTH, cy + 20, formatNumber(reward.amount), 96, PALETTE.saffronDark, true);
+    amount.setX(cx + 40);
     const coin = scene.add.image(amount.x - amount.width / 2 - 50, cy + 20, 'coin').setScale(1.3);
 
-    const children: Phaser.GameObjects.GameObject[] = [dim, card, title, body, coin, amount];
+    const children: Phaser.GameObjects.GameObject[] = [...card.objects, body, coin, amount];
     if (reward.secondsAway > reward.seconds) {
-      const capped = scene.add
-        .text(cx, cy + 105, t('offline.capped', { time: tDuration(OFFLINE.baseCapSeconds) }), {
-          fontFamily: FONT,
-          fontSize: '28px',
-          color: toCss(PALETTE.muted),
-        })
-        .setOrigin(0.5);
-      children.push(capped);
+      children.push(
+        modalText(scene, card, CARD_WIDTH, cy + 105, t('offline.capped', { time: tDuration(OFFLINE.baseCapSeconds) }), 28, PALETTE.muted),
+      );
     }
 
-    const button = new Button(scene, cx, cy + CARD_HEIGHT / 2 - 100, 460, 120, () => {
+    const buttonY = top + CARD_HEIGHT - 100;
+    const collect = new Button(scene, cx - BUTTON_WIDTH / 2 - 15, buttonY, BUTTON_WIDTH, 120, () => {
+      if (this.busy) return;
       this.destroy();
-      onCollect();
+      onCollect(1);
     });
-    button.setLabel(t('offline.collect')).setButtonStyle(BUTTON_STYLES.buy);
-    children.push(button);
+    collect.setLabel(t('offline.collect')).setButtonStyle(BUTTON_STYLES.primary);
+    const double = new Button(
+      scene,
+      cx + BUTTON_WIDTH / 2 + 15,
+      buttonY,
+      BUTTON_WIDTH,
+      120,
+      () => void this.collectWithAd(onCollect, watchAd),
+      'ad',
+    );
+    double.setLabel(t('offline.collectMore', { multiplier: ADS.offlineMultiplier })).setButtonStyle(BUTTON_STYLES.buy);
+    children.push(collect, double);
 
     this.add(children);
     this.setDepth(depth);
@@ -82,5 +67,16 @@ export class WelcomeBackModal extends Phaser.GameObjects.Container {
     this.setAlpha(0);
     scene.tweens.add({ targets: this, alpha: 1, duration: 200 });
     scene.tweens.add({ targets: amount, scale: { from: 0.6, to: 1 }, duration: 450, ease: 'Back.easeOut' });
+  }
+
+  // A skipped ad leaves the dialog open so the player can still collect normally.
+  private async collectWithAd(onCollect: (multiplier: number) => void, watchAd: () => Promise<boolean>): Promise<void> {
+    if (this.busy) return;
+    this.busy = true;
+    const watched = await watchAd();
+    this.busy = false;
+    if (!watched || !this.active) return;
+    this.destroy();
+    onCollect(ADS.offlineMultiplier);
   }
 }

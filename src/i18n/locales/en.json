@@ -85,5 +85,17 @@
   "franchise.confirm": "Open in {city}",
   "franchise.cancel": "Not yet",
   "banner.franchiseReady": "Franchise ready!",
-  "banner.newCity": "Welcome to {city}!"
+  "banner.newCity": "Welcome to {city}!",
+  "offline.collectMore": "Collect {multiplier}x",
+  "hud.perSecondRush": "+{amount}/s · {multiplier}x",
+  "ads.watch": "Watch ad",
+  "ads.noThanks": "No thanks",
+  "ads.rushTitle": "Rush hour!",
+  "ads.rushBody": "Watch a short ad to double your income for {hours} hours. Rush time adds up, to at most {max} hours.",
+  "ads.rushCaption": "Rush",
+  "ads.timeSkipTitle": "Time skip",
+  "ads.timeSkipBody": "Watch a short ad and collect {hours}h of earnings right now.",
+  "ads.timeSkipLabel": "+{hours}h",
+  "ads.timeSkipCaption": "Time skip",
+  "banner.rush": "Rush! {multiplier}x income"
 }

@@ -8,7 +8,7 @@ Full design: [docs/GDD.md](docs/GDD.md). Keep the GDD up to date when design dec
 - **Talk to the user in Turkish.**
 - **No Turkish anywhere in the code**: identifiers, comments, log messages, file names, and string literals are all English. The only exception is the Turkish translation file(s) used for in-game localization (e.g. `locales/tr.json`).
 - **Commits carry no AI attribution**: no `Co-Authored-By` trailer, no "Generated with Claude" line, no mention of Claude/AI in commit messages or PR bodies. Commits read as if the user wrote them. Commit messages are in English.
-- Commit or push only when the user asks.
+- Commit only when the user asks. Every commit goes directly on `main` and is pushed immediately (no feature branches or PRs).
 
 ## User and way of working
 
@@ -36,4 +36,4 @@ Full design: [docs/GDD.md](docs/GDD.md). Keep the GDD up to date when design dec
 
 ## Status
 
-Repo contains only docs; next step is roadmap item 2 in the GDD (project skeleton).
+Project skeleton is in place (`npm run dev`, Phaser 3.90 placeholder scene in `src/game`, pure logic goes in `src/core`). Next step is roadmap item 3 in the GDD (economy simulation script).

@@ -101,7 +101,7 @@ IAP: Remove ads (grants ad rewards without ads), permanent 2x income, starter pa
 ## 11. Roadmap
 
 1. ~~Concept, name, repo~~
-2. Project skeleton (Vite + Phaser + TS), empty scene
+2. ~~Project skeleton (Vite + Phaser + TS), empty scene~~
 3. Economy simulation script
 4. **Prototype:** one restaurant, 2–3 dishes, kitchen + waiters + dining room, staff automation, save/load, offline earnings
 5. Bottleneck visualization, cashier and dishwashing

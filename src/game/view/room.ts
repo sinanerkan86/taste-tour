@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, PALETTE } from '../config';
-import { CASHIER_DESK, DISHPIT, DOOR, KITCHEN, POSTER, ROOM, SEAT_OFFSET_X, STOVES, TABLES } from './layout';
+import { CASHIER_DESK, DISHPIT, DOOR, KITCHEN, POSTER, ROOM, SEAT_OFFSET_X, STOVES, TABLES, depthScale } from './layout';
 import {
   type Ctx,
   ART_RES,
@@ -31,13 +31,8 @@ const BG_BOTTOM = ROOM.bottom + ROOM_MARGIN;
 const TILE = 45;
 const TILE_TOP = ROOM.wallBottom - 150;
 const BASEBOARD = 16;
-const PLANK_ROW = 60;
 const WINDOW = { left: 40, right: 230, top: 222, bottom: 306 } as const;
 const SCONCES = [268, 542];
-const PLANTS = [
-  { x: 1034, y: 640, scale: 1 },
-  { x: 48, y: 566, scale: 0.85 },
-];
 const WARM_LIGHT = 0xffd99a;
 
 // The room is painted once per city: a background texture behind everyone, and furniture as
@@ -61,15 +56,17 @@ export function drawRoom(scene: Phaser.Scene, theme: CityTheme): RoomArt {
   addArt(scene, DISHPIT.left - 6, DISHPIT.counterY - 82, dishpit, 0, 0).setDepth(DISHPIT.counterY);
   const desk = paintTexture(scene, `${key}-desk`, 200, 124, (ctx) => paintCashierDesk(ctx, theme));
   addArt(scene, CASHIER_DESK.x, CASHIER_DESK.y, desk, 100, 64).setDepth(CASHIER_DESK.y + 40);
-  PLANTS.forEach((p) => addArt(scene, p.x, p.y, paintTexture(scene, 'plant', 110, 150, paintPlant), 55, 146).setScale(p.scale / ART_RES).setDepth(p.y));
 
   const tableKey = paintTexture(scene, `${key}-table`, 180, 100, (ctx) => paintTable(ctx, theme));
   const chairKey = paintTexture(scene, 'chair', 64, 92, paintChair);
   const art: RoomArt = { chairs: [], tables: [] };
   TABLES.forEach((t) => {
     // Chairs sit behind the table top; the table itself is above seated customers' legs.
-    [-1, 1].forEach((side) => art.chairs.push(addArt(scene, t.x + side * SEAT_OFFSET_X, t.y, chairKey, 32, 80).setDepth(t.y - 30)));
-    art.tables.push(addArt(scene, t.x, t.y, tableKey, 90, 46).setDepth(t.y + 1));
+    const scale = depthScale(t.y) / ART_RES;
+    [-1, 1].forEach((side) =>
+      art.chairs.push(addArt(scene, t.x + side * SEAT_OFFSET_X, t.y, chairKey, 32, 80).setDepth(t.y - 30).setScale(scale)),
+    );
+    art.tables.push(addArt(scene, t.x, t.y, tableKey, 90, 46).setDepth(t.y + 1).setScale(scale));
   });
   return art;
 }
@@ -381,67 +378,100 @@ function paintFaucet(ctx: Ctx): void {
   ctx.fill();
 }
 
+// Floor boards run toward the viewer and narrow toward a vanishing point above the room, so
+// the floor reads as a surface going back into the picture.
+const VANISH = { x: GAME_WIDTH / 2, y: -700 };
+const BOARD_WIDTH = 96; // at the bottom edge of the painted floor
+const BOARD_LENGTH = 150; // at the bottom edge; shorter farther back
+
 function paintFloor(ctx: Ctx, theme: CityTheme): void {
   const random = seeded(7);
-  for (let row = 0, y = ROOM.wallBottom; y < BG_BOTTOM; row++, y += PLANK_ROW) {
-    let x = row % 2 === 0 ? -random() * 120 : -random() * 60 - 60;
-    while (x < GAME_WIDTH) {
-      const length = 170 + random() * 110;
-      const base = row % 2 === 0 ? theme.floor : theme.floorDark;
-      const tone = (random() - 0.5) * 0.12;
-      ctx.fillStyle = vGradient(ctx, y, y + PLANK_ROW, [
-        [0, css(base, tone + 0.06)],
-        [1, css(base, tone - 0.06)],
+  const depth = (y: number) => (y - VANISH.y) / (BG_BOTTOM - VANISH.y);
+  // x of a board edge (given by its x at the bottom) at height y.
+  const edgeX = (bottomX: number, y: number) => VANISH.x + (bottomX - VANISH.x) * depth(y);
+  const top = ROOM.wallBottom;
+  for (let i = 0, bx = -1400; bx < GAME_WIDTH + 1400; i++, bx += BOARD_WIDTH) {
+    const left = bx;
+    const right = bx + BOARD_WIDTH;
+    if (edgeX(right, top) < 0 && edgeX(right, BG_BOTTOM) < 0) continue;
+    if (edgeX(left, top) > GAME_WIDTH && edgeX(left, BG_BOTTOM) > GAME_WIDTH) continue;
+    const base = i % 2 === 0 ? theme.floor : theme.floorDark;
+    let y = top - random() * BOARD_LENGTH * depth(top);
+    while (y < BG_BOTTOM) {
+      const y0 = Math.max(y, top);
+      const y1 = Math.min(y + BOARD_LENGTH * depth(y) * (0.8 + random() * 0.6), BG_BOTTOM);
+      const tone = (random() - 0.5) * 0.14;
+      ctx.fillStyle = hGradient(ctx, edgeX(left, y1), edgeX(right, y1), [
+        [0, css(base, tone + 0.07)],
+        [1, css(base, tone - 0.05)],
       ]);
-      ctx.fillRect(x, y, length, PLANK_ROW);
-      // Wood grain.
-      ctx.strokeStyle = css(base, -0.3, 0.12);
-      ctx.lineWidth = 1.5;
-      for (let i = 0; i < 3; i++) {
-        const gy = y + 12 + i * 16 + random() * 6;
+      ctx.beginPath();
+      ctx.moveTo(edgeX(left, y0), y0);
+      ctx.lineTo(edgeX(right, y0), y0);
+      ctx.lineTo(edgeX(right, y1), y1);
+      ctx.lineTo(edgeX(left, y1), y1);
+      ctx.closePath();
+      ctx.fill();
+      // Grain along the board.
+      ctx.strokeStyle = css(base, -0.3, 0.1);
+      ctx.lineWidth = 1.2;
+      for (let g = 0; g < 2; g++) {
+        const f = 0.3 + g * 0.35 + random() * 0.1;
         ctx.beginPath();
-        ctx.moveTo(x + 8, gy);
-        ctx.bezierCurveTo(x + length * 0.3, gy - 4, x + length * 0.6, gy + 5, x + length - 8, gy);
+        ctx.moveTo(edgeX(left + BOARD_WIDTH * f, y0), y0 + 3);
+        ctx.lineTo(edgeX(left + BOARD_WIDTH * (f + 0.04), y1), y1 - 3);
         ctx.stroke();
       }
-      // Seam between planks.
+      // Board end.
       ctx.fillStyle = 'rgba(40,20,8,0.3)';
-      ctx.fillRect(x + length - 2, y, 2, PLANK_ROW);
-      x += length;
+      ctx.fillRect(edgeX(left, y1), y1 - 1.5, edgeX(right, y1) - edgeX(left, y1), 1.5 + depth(y1));
+      y = y1;
     }
-    // Bevel along each row.
-    ctx.fillStyle = 'rgba(255,240,220,0.14)';
-    ctx.fillRect(0, y, GAME_WIDTH, 2);
-    ctx.fillStyle = 'rgba(40,20,8,0.28)';
-    ctx.fillRect(0, y + PLANK_ROW - 2, GAME_WIDTH, 2);
+    // Seams along the board: a dark gap and a lit edge.
+    ctx.strokeStyle = 'rgba(40,20,8,0.35)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(edgeX(right, top), top);
+    ctx.lineTo(edgeX(right, BG_BOTTOM), BG_BOTTOM);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,240,220,0.12)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(edgeX(left, top) + 1.5, top);
+    ctx.lineTo(edgeX(left, BG_BOTTOM) + 2, BG_BOTTOM);
+    ctx.stroke();
   }
   // Far floor is darker, near floor brighter; the wall casts a soft shadow onto it.
   ctx.fillStyle = vGradient(ctx, ROOM.wallBottom, BG_BOTTOM, [
-    [0, 'rgba(20,10,0,0.25)'],
-    [0.25, 'rgba(20,10,0,0.05)'],
-    [0.6, 'rgba(255,240,220,0.04)'],
+    [0, 'rgba(20,10,0,0.32)'],
+    [0.3, 'rgba(20,10,0,0.06)'],
+    [0.6, 'rgba(255,240,220,0.05)'],
     [1, 'rgba(20,10,0,0.25)'],
   ]);
   ctx.fillRect(0, ROOM.wallBottom, GAME_WIDTH, BG_BOTTOM - ROOM.wallBottom);
   ctx.fillStyle = vGradient(ctx, ROOM.wallBottom, ROOM.wallBottom + 60, [
-    [0, 'rgba(20,10,0,0.35)'],
+    [0, 'rgba(20,10,0,0.4)'],
     [1, 'rgba(20,10,0,0)'],
   ]);
   ctx.fillRect(0, ROOM.wallBottom, GAME_WIDTH, 60);
-  // Warm pools of light around the tables, and a sheen on the polished wood.
+  // Warm pools of light around the tables, flattened by the perspective.
   TABLES.forEach((t) => {
-    ctx.fillStyle = radial(ctx, t.x, t.y + 20, 0, 190, [
-      [0, rgba(WARM_LIGHT, 0.22)],
+    ctx.save();
+    ctx.translate(t.x, t.y + 20);
+    ctx.scale(1, 0.6);
+    ctx.fillStyle = radial(ctx, 0, 0, 0, 200, [
+      [0, rgba(WARM_LIGHT, 0.26)],
       [1, rgba(WARM_LIGHT, 0)],
     ]);
-    ctx.fillRect(t.x - 190, t.y - 170, 380, 380);
+    ctx.fillRect(-200, -200, 400, 400);
+    ctx.restore();
   });
   // Darker edges keep the eye in the middle of the room.
   ctx.fillStyle = hGradient(ctx, 0, GAME_WIDTH, [
-    [0, 'rgba(20,10,0,0.22)'],
+    [0, 'rgba(20,10,0,0.25)'],
     [0.15, 'rgba(20,10,0,0)'],
     [0.85, 'rgba(20,10,0,0)'],
-    [1, 'rgba(20,10,0,0.22)'],
+    [1, 'rgba(20,10,0,0.25)'],
   ]);
   ctx.fillRect(0, ROOM.wallBottom, GAME_WIDTH, BG_BOTTOM - ROOM.wallBottom);
 }
@@ -488,9 +518,8 @@ function paintDoor(ctx: Ctx, theme: CityTheme): void {
 }
 
 function paintFurnitureShadows(ctx: Ctx): void {
-  TABLES.forEach((t) => floorShadow(ctx, t.x + 6, t.y + 46, 100, 24, 0.38));
+  TABLES.forEach((t) => floorShadow(ctx, t.x + 6, t.y + 46 * depthScale(t.y), 100 * depthScale(t.y), 24 * depthScale(t.y), 0.38));
   floorShadow(ctx, CASHIER_DESK.x + 8, CASHIER_DESK.y + 54, 118, 20, 0.35);
-  PLANTS.forEach((p) => floorShadow(ctx, p.x + 4, p.y, 44 * p.scale, 12 * p.scale, 0.35));
   // Contact shadows in front of the counters.
   [
     [KITCHEN.left - 10, KITCHEN.right + 10],
@@ -774,7 +803,7 @@ function paintChair(ctx: Ctx): void {
 }
 
 // Texture origin is the bottom middle of the pot (55, 146).
-function paintPlant(ctx: Ctx): void {
+export function paintPlant(ctx: Ctx): void {
   ctx.translate(55, 146);
   const random = seeded(3);
   // Leaves, darker at the back.

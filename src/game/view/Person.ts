@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { CELL, PEOPLE_TEXTURE, ensurePeopleAtlas, type Part } from './characterArt';
-import type { Point } from './layout';
+import { depthScale, type Point } from './layout';
 import { ART_RES, type Ctx, addArt, ellipse, paintTexture, radial } from './paint';
 
 export type PersonKind = 'customer' | 'waiter' | 'chef' | 'cashier' | 'dishwasher' | 'vip';
@@ -34,6 +34,7 @@ const OUTFITS: Partial<Record<PersonKind, { body?: Part; head?: Part }>> = {
 
 export const WALK_SPEED = 165; // pixels per second, unhurried so the scene stays calm
 const BOB_HEIGHT = 7;
+const BLINK_MS = 140;
 
 // A painted character built from atlas parts (see characterArt.ts). The container's origin is at
 // the feet, so depth = y sorts correctly.
@@ -44,6 +45,8 @@ export class Person extends Phaser.GameObjects.Container {
   private walking = false;
   private move?: { tween: Phaser.Tweens.Tween; done: () => void };
   private phase = Math.random() * Math.PI * 2;
+  private readonly eyelids: Phaser.GameObjects.Image;
+  private nextBlink = 1000 + Math.random() * 4000;
   // Working staff wobble in place (stirring, scrubbing, counting money).
   busy = false;
 
@@ -75,7 +78,8 @@ export class Person extends Phaser.GameObjects.Container {
     if (hairStyle === 'long') body.push(part('hairLong', hair));
     if (hairStyle === 'bob') body.push(part('hairBob', hair));
     if (hairStyle === 'ponytail') body.push(part('hairPonytail', hair));
-    body.push(part('head', skin), part('shine'), part(female ? 'faceFemale' : 'faceMale'));
+    this.eyelids = part('eyelids', skin).setVisible(false);
+    body.push(part('head', skin), part('shine'), part(female ? 'faceFemale' : 'faceMale'), this.eyelids);
     body.push(part(female ? 'hairTop' : 'hairShort', hair));
     if (hairStyle === 'bun') body.push(part('hairBun', hair));
     if (outfit.head) body.push(part(outfit.head));
@@ -83,7 +87,7 @@ export class Person extends Phaser.GameObjects.Container {
     this.hands = scene.add.container(0, -62);
     this.figure = scene.add.container(0, 0, [...body, this.hands]);
     this.add([shadow, this.figure]);
-    this.setDepth(y);
+    this.setDepth(y).setScale(depthScale(y));
     scene.add.existing(this);
   }
 
@@ -143,6 +147,16 @@ export class Person extends Phaser.GameObjects.Container {
       this.figure.scaleY = 1 + Math.sin(time * 0.003 + this.phase) * 0.015;
     }
     this.figure.angle = this.busy && !this.walking ? Math.sin(time * 0.011 + this.phase) * 3 : 0;
+    this.setScale(depthScale(this.y));
+    this.blink(time);
+  }
+
+  // Eyes close for a moment every few seconds.
+  private blink(time: number): void {
+    if (time < this.nextBlink) return;
+    const closed = time < this.nextBlink + BLINK_MS;
+    this.eyelids.setVisible(closed);
+    if (!closed) this.nextBlink = time + 2500 + Math.random() * 4000;
   }
 
   destroy(fromScene?: boolean): void {

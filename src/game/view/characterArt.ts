@@ -20,6 +20,7 @@ export type Part =
   | 'head'
   | 'faceMale'
   | 'faceFemale'
+  | 'eyelids'
   | 'shine'
   | 'hairShort'
   | 'hairTop'
@@ -45,6 +46,7 @@ const PAINTERS: Record<Part, (ctx: Ctx) => void> = {
   head: paintHead,
   faceMale: (ctx) => paintFace(ctx, false),
   faceFemale: (ctx) => paintFace(ctx, true),
+  eyelids: paintEyelids,
   shine: paintShine,
   hairShort: paintHairShort,
   hairTop: paintHairTop,
@@ -236,7 +238,7 @@ function paintHead(ctx: Ctx): void {
   ctx.fillRect(-7, -90, 14, 8);
   ctx.fillStyle = 'rgba(0,0,0,0.22)';
   ctx.fillRect(-7, -90, 14, 4);
-  [-23, 23].forEach((x) => {
+  [-24, 24].forEach((x) => {
     ctx.fillStyle = radial(ctx, x, -106, 0, 7, [
       [0, MID],
       [1, DARK],
@@ -245,67 +247,86 @@ function paintHead(ctx: Ctx): void {
     ctx.arc(x, -106, 6, 0, Math.PI * 2);
     ctx.fill();
   });
-  ctx.fillStyle = radial(ctx, 0, -108, 0, 25, [
+  ctx.fillStyle = radial(ctx, 0, -108, 0, 26, [
     [0, LIT],
-    [0.65, '#ececec'],
+    [0.7, '#efefef'],
     [1, DARK],
-  ], -7, -116);
+  ], -7, -117);
   ctx.beginPath();
-  ctx.arc(0, -108, 24, 0, Math.PI * 2);
+  ctx.arc(0, -108, 25, 0, Math.PI * 2);
   ctx.fill();
   outline(ctx);
 }
 
+const EYE_Y = -106;
+const EYE_X = 9;
+
+// A friendly face: big glossy eyes, raised soft brows, an open smile and rosy cheeks.
 function paintFace(ctx: Ctx, female: boolean): void {
-  // Eyes with a glint.
-  [-8, 8].forEach((x) => {
-    ctx.fillStyle = '#2b1d14';
-    ellipse(ctx, x, -107, 3.4, 4.2);
+  ctx.lineCap = 'round';
+  [-EYE_X, EYE_X].forEach((x) => {
+    ctx.fillStyle = vGradient(ctx, EYE_Y - 5.5, EYE_Y + 5.5, [
+      [0, '#1c120c'],
+      [1, '#4a3020'],
+    ]);
+    ellipse(ctx, x, EYE_Y, 4.3, 5.6);
     ctx.fill();
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.arc(x + 1.2, -108.6, 1.3, 0, Math.PI * 2);
+    ctx.arc(x + 1.4, EYE_Y - 2, 1.8, 0, Math.PI * 2);
     ctx.fill();
-  });
-  // Rosy cheeks.
-  [-14, 14].forEach((x) => {
-    ctx.fillStyle = radial(ctx, x, -99, 0, 6, [
-      [0, 'rgba(240,110,110,0.45)'],
-      [1, 'rgba(240,110,110,0)'],
-    ]);
-    ctx.fillRect(x - 6, -105, 12, 12);
-  });
-  ctx.lineCap = 'round';
-  if (female) {
-    ctx.strokeStyle = '#2b1d14';
-    ctx.lineWidth = 1.8;
-    [
-      [-11, -110, -14.5, -113],
-      [11, -110, 14.5, -113],
-    ].forEach(([x0, y0, x1, y1]) => {
-      ctx.beginPath();
-      ctx.moveTo(x0, y0);
-      ctx.lineTo(x1, y1);
-      ctx.stroke();
-    });
-    ctx.strokeStyle = '#b03a48';
-    ctx.lineWidth = 3;
-  } else {
-    ctx.strokeStyle = '#4a2a1a';
+    ctx.beginPath();
+    ctx.arc(x - 1.3, EYE_Y + 2.2, 0.8, 0, Math.PI * 2);
+    ctx.fill();
+    // Brows arch upward, which reads as cheerful rather than cross.
+    ctx.strokeStyle = 'rgba(60,38,25,0.7)';
     ctx.lineWidth = 2;
-  }
+    ctx.beginPath();
+    ctx.arc(x, EYE_Y - 4, 6, Math.PI * 1.25, Math.PI * 1.75);
+    ctx.stroke();
+  });
+  [-15, 15].forEach((x) => {
+    ctx.fillStyle = radial(ctx, x, -98, 0, 7, [
+      [0, 'rgba(245,110,110,0.5)'],
+      [1, 'rgba(245,110,110,0)'],
+    ]);
+    ctx.fillRect(x - 7, -105, 14, 14);
+  });
+  // Open smile.
+  ctx.fillStyle = female ? '#b8384c' : '#7a2e24';
   ctx.beginPath();
-  ctx.arc(0, -101, 6, 0.3, Math.PI - 0.3);
-  ctx.stroke();
+  ctx.moveTo(-6.5, -99.5);
+  ctx.quadraticCurveTo(0, -98, 6.5, -99.5);
+  ctx.quadraticCurveTo(0, -89, -6.5, -99.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#f08a8a';
+  ellipse(ctx, 0, -94.5, 3, 1.6);
+  ctx.fill();
+}
+
+// Closed eyes, tinted with the skin color and shown for a moment when the character blinks.
+function paintEyelids(ctx: Ctx): void {
+  ctx.lineCap = 'round';
+  [-EYE_X, EYE_X].forEach((x) => {
+    ctx.fillStyle = '#f2f2f2';
+    ellipse(ctx, x, EYE_Y, 5.6, 6.8);
+    ctx.fill();
+    ctx.strokeStyle = '#3a2418';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, EYE_Y - 1, 4.5, Math.PI * 0.15, Math.PI * 0.85);
+    ctx.stroke();
+  });
 }
 
 // Soft highlight on the forehead, drawn untinted over the head.
 function paintShine(ctx: Ctx): void {
-  ctx.fillStyle = radial(ctx, -8, -118, 0, 10, [
-    [0, 'rgba(255,255,255,0.35)'],
+  ctx.fillStyle = radial(ctx, -9, -119, 0, 10, [
+    [0, 'rgba(255,255,255,0.32)'],
     [1, 'rgba(255,255,255,0)'],
   ]);
-  ctx.fillRect(-20, -130, 24, 24);
+  ctx.fillRect(-21, -131, 24, 24);
 }
 
 function hairFill(ctx: Ctx, top: number, bottom: number): CanvasGradient {
@@ -325,32 +346,31 @@ function hairShine(ctx: Ctx, y: number): void {
   ctx.stroke();
 }
 
+// Hairlines are smooth arcs that stay above the brows, so they never read as a frown.
 function paintHairShort(ctx: Ctx): void {
-  ctx.fillStyle = hairFill(ctx, -134, -108);
+  ctx.fillStyle = hairFill(ctx, -136, -104);
   ctx.beginPath();
-  ctx.moveTo(-25, -106);
-  ctx.quadraticCurveTo(-28, -134, 0, -135);
-  ctx.quadraticCurveTo(28, -134, 25, -106);
-  ctx.quadraticCurveTo(20, -118, 6, -120);
-  ctx.quadraticCurveTo(-12, -122, -20, -114);
-  ctx.quadraticCurveTo(-22, -110, -25, -106);
+  ctx.moveTo(-26, -102);
+  ctx.bezierCurveTo(-31, -146, 31, -146, 26, -102);
+  ctx.quadraticCurveTo(24, -117, 15, -122);
+  ctx.quadraticCurveTo(2, -128, -11, -123);
+  ctx.quadraticCurveTo(-22, -119, -26, -102);
   ctx.closePath();
   ctx.fill();
   outline(ctx, 1.2);
-  hairShine(ctx, -134);
+  hairShine(ctx, -136);
 }
 
 function paintHairTop(ctx: Ctx): void {
-  // Fuller hair with a side-swept fringe and strands down by the ears.
-  ctx.fillStyle = hairFill(ctx, -136, -96);
+  // Fuller hair with a soft side-swept fringe and strands down by the ears.
+  ctx.fillStyle = hairFill(ctx, -137, -96);
   ctx.beginPath();
-  ctx.moveTo(-27, -96);
-  ctx.quadraticCurveTo(-31, -136, 0, -137);
-  ctx.quadraticCurveTo(31, -136, 27, -96);
-  ctx.lineTo(22, -98);
-  ctx.quadraticCurveTo(22, -114, 12, -120);
-  ctx.quadraticCurveTo(-6, -112, -18, -118);
-  ctx.quadraticCurveTo(-22, -110, -22, -98);
+  ctx.moveTo(-28, -96);
+  ctx.bezierCurveTo(-33, -148, 33, -148, 28, -96);
+  ctx.lineTo(24, -100);
+  ctx.quadraticCurveTo(23, -114, 16, -121);
+  ctx.quadraticCurveTo(3, -127, -9, -122);
+  ctx.quadraticCurveTo(-21, -117, -23, -100);
   ctx.closePath();
   ctx.fill();
   outline(ctx, 1.2);

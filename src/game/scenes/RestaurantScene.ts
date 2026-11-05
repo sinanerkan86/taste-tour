@@ -9,9 +9,11 @@ import {
   buySectionLevels,
   canActivateRush,
   canFranchise,
+  currentGoal,
   cityConfig,
   earn,
   incomePerSecond,
+  menuSize,
   milestonesReached,
   nextVipGap,
   passTime,
@@ -37,11 +39,14 @@ import { saves } from '../persistence';
 import { AdOfferModal } from '../ui/AdOfferModal';
 import { BUTTON_STYLES, Button } from '../ui/Button';
 import { FranchiseModal } from '../ui/FranchiseModal';
+import { DISH_COLORS } from '../colors';
+import { GoalBar } from '../ui/GoalBar';
 import { HintBubble } from '../ui/HintBubble';
 import { UpgradePanel } from '../ui/UpgradePanel';
 import { WelcomeBackModal } from '../ui/WelcomeBackModal';
 import { ROOM, type Point } from '../view/layout';
 import { RestaurantView } from '../view/RestaurantView';
+import { Decor } from '../view/decor';
 import { ROOM_MARGIN, RoomCamera } from '../view/RoomCamera';
 import { cityTheme } from '../view/themes';
 
@@ -57,6 +62,8 @@ const MARKER_ARROW = { inset: 62, radius: 34 };
 // World pixels the marker must be inside the view to count as visible.
 const MARKER_VISIBLE_MARGIN = 50;
 const PAN_MS = 450;
+// The goal card sits this far below the top of the restaurant view.
+const GOAL_BAR_Y = 50;
 const BANNER_Y = 330;
 const AUTOSAVE_MS = 10_000;
 // Shorter absences are paid out silently, as if the game had kept running.
@@ -79,6 +86,8 @@ export class RestaurantScene extends Phaser.Scene {
   private seenHints: string[] = [];
   private hint: HintBubble | null = null;
   private view!: RestaurantView;
+  private decor!: Decor;
+  private decorShown = false;
   private panel!: UpgradePanel;
   private moneyText!: Phaser.GameObjects.Text;
   private incomeText!: Phaser.GameObjects.Text;
@@ -99,6 +108,7 @@ export class RestaurantScene extends Phaser.Scene {
   // dialogs by a second camera that covers the whole screen. Depth decides which is which.
   private room!: RoomCamera;
   private uiCamera!: Phaser.Cameras.Scene2D.Camera;
+  private goalBar!: GoalBar;
   private markerArrow!: Phaser.GameObjects.Container;
   private markerArrowTip!: Phaser.GameObjects.Triangle;
 
@@ -122,7 +132,9 @@ export class RestaurantScene extends Phaser.Scene {
       if (params.has('vip')) this.vipCountdown = 1;
     }
     this.setUpCameras();
-    this.view = new RestaurantView(this, cityTheme(cityConfig(this.economy.city).id));
+    const theme = cityTheme(cityConfig(this.economy.city).id);
+    this.view = new RestaurantView(this, theme);
+    this.decor = new Decor(this, theme);
     this.view.onPayment = (amount, at) => this.showPayment(amount, at);
     this.view.onMarkerTap = (section) => this.focusBottleneck(section);
     this.view.onVipTap = (at) => this.offerVip(at);
@@ -136,6 +148,7 @@ export class RestaurantScene extends Phaser.Scene {
     );
     this.panel.setDepth(UI_DEPTH);
     this.createMarkerArrow();
+    this.goalBar = new GoalBar(this, GAME_WIDTH / 2, ROOM.top + GOAL_BAR_Y, () => this.followGoal()).setDepth(FX_DEPTH - 3);
     this.layout();
     this.refreshUi();
 
@@ -577,6 +590,30 @@ export class RestaurantScene extends Phaser.Scene {
     this.panel.refresh(this.economy);
     this.refreshFranchise();
     this.refreshAdButtons();
+    this.refreshGoal();
+    // New decor pops in when a dish unlocks; a loaded game shows its decor right away.
+    this.decor.setStage(menuSize(this.economy), this.decorShown);
+    this.decorShown = true;
+  }
+
+  private refreshGoal(): void {
+    const goal = currentGoal(this.economy);
+    if (goal.kind === 'unlockDish') {
+      const dish = t(`dish.${cityConfig(this.economy.city).dishes[goal.dish]}` as TranslationKey);
+      this.goalBar.render({ label: t('goal.unlockDish', { dish }), progress: goal.progress, iconColor: DISH_COLORS[goal.dish] });
+    } else if (goal.kind === 'franchise') {
+      this.goalBar.render({ label: t('goal.franchise', { city: this.cityName(this.economy.city + 1) }), progress: 1, iconColor: null });
+    } else {
+      this.goalBar.render({ label: t('goal.firstStar'), progress: goal.progress, iconColor: null });
+    }
+  }
+
+  // Tapping the goal card goes to where the goal is done.
+  private followGoal(): void {
+    const goal = currentGoal(this.economy);
+    if (goal.kind === 'unlockDish') this.panel.focusDish(goal.dish);
+    else if (goal.kind === 'franchise') this.openFranchise();
+    else this.focusBottleneck(throughput(this.economy).bottleneck);
   }
 
   // The franchise button appears once the whole menu is unlocked and shows the stars on offer.

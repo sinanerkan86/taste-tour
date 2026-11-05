@@ -19,6 +19,8 @@ import {
   cityPriceScale,
   CITIES,
   buySectionLevel,
+  currentGoal,
+  menuSize,
   buySectionLevels,
   buyDishLevels,
   dishBuyPlan,
@@ -257,5 +259,19 @@ describe('ad rewards', () => {
     activateRush(state);
     state.runReputation = PRESTIGE.starDivisor * 8000;
     expect(prestige(state).rushSeconds).toBe(ADS.rushSeconds);
+  });
+});
+
+describe('goals', () => {
+  it('points at the next dish, then the first star, then the franchise', () => {
+    const state = newEconomy();
+    expect(currentGoal(state)).toEqual({ kind: 'unlockDish', dish: 1, progress: 0 });
+    state.money = dishCost(state, 1) / 2;
+    expect(currentGoal(state).progress).toBeCloseTo(0.5);
+    state.dishLevels = state.dishLevels.map(() => 1);
+    expect(menuSize(state)).toBe(DISH_TIERS.length);
+    expect(currentGoal(state).kind).toBe('firstStar');
+    state.runReputation = PRESTIGE.starDivisor;
+    expect(currentGoal(state)).toEqual({ kind: 'franchise', progress: 1 });
   });
 });

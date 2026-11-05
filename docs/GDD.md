@@ -71,8 +71,23 @@ Each next dish is worth ~8× the previous one.
 
 ## 5. Restaurant growth (visual stages)
 
-Street stall → small diner → restaurant → two floors → large venue with a terrace.
-The scene changes visually at each stage.
+Within each city the restaurant gets cozier with every dish on the menu, so each unlock is also something to see. A new piece pops in with a sparkle:
+
+| Dishes on the menu | New decor |
+|---|---|
+| 2 | Warm string lights along the top of the wall |
+| 3 | Potted plants by the walls |
+| 4 | A patterned rug in the city's accent color under the dining room |
+| 5 | A chalkboard menu on the wall |
+| 6 | Candles flickering on every table |
+| 7 | A red carpet and brass posts with velvet ropes at the entrance |
+
+A franchise starts the new city plain again, so the growth is felt in every city.
+Later ideas: bigger rooms (second floor, terrace) as their own upgrades.
+
+### Goal bar
+
+A small card under the HUD always names the next goal with a progress bar: the next dish (money / unlock cost), then the first Chef Star (run reputation / star threshold), then "ready to open in <next city>". Tapping it goes where the goal is done: the dish row in the Menu tab, the bottleneck section, or the franchise dialog.
 
 ## 6. Prestige: Franchise
 

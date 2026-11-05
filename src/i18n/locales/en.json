@@ -1,6 +1,9 @@
 {
   "tab.restaurant": "Restaurant",
   "tab.menu": "Menu",
+  "goal.unlockDish": "Next dish: {dish}",
+  "goal.firstStar": "Earn your first Chef Star",
+  "goal.franchise": "Ready to open in {city}!",
   "buy.amount": "x{amount}",
   "buy.max": "Max",
   "row.levelGain": "Lv {level} (+{gain})",

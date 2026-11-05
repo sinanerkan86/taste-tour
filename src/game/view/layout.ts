@@ -14,6 +14,13 @@ export const ROOM = {
   bottom: 1010,
 } as const;
 
+// People and furniture farther back (higher on screen) are drawn a little smaller, which gives
+// the room depth.
+export function depthScale(y: number): number {
+  const t = (y - ROOM.wallBottom) / (ROOM.bottom - ROOM.wallBottom);
+  return Math.min(1.12, Math.max(0.8, 0.86 + t * 0.22));
+}
+
 export const KITCHEN = { left: 560, right: 1060, counterY: 470 } as const;
 export const DISHPIT = { left: 20, right: 250, counterY: 470 } as const;
 export const DISHWASHER: Point = { x: 130, y: 452 };

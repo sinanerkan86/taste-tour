@@ -218,6 +218,12 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     this.sectionRows[SECTION_IDS.indexOf(id)].flash();
   }
 
+  // Switches to the menu tab and points at the dish's row.
+  focusDish(index: number): void {
+    if (this.tab !== 'menu') this.showTab('menu');
+    this.dishRows[index].flash();
+  }
+
   pulseDish(index: number): void {
     this.dishRows[index].pulse();
   }

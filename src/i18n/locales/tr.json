@@ -1,6 +1,9 @@
 {
   "tab.restaurant": "Restoran",
   "tab.menu": "Menü",
+  "goal.unlockDish": "Sıradaki yemek: {dish}",
+  "goal.firstStar": "İlk Şef Yıldızını kazan",
+  "goal.franchise": "{city} şubesi hazır!",
   "buy.amount": "x{amount}",
   "buy.max": "Maks",
   "row.levelGain": "Sv {level} (+{gain})",

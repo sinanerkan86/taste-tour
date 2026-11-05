@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { FONT, GAME_WIDTH, PALETTE, toCss } from '../config';
 import type { Point } from '../view/layout';
+import { wrapStyle } from './style';
 
 const CARD_WIDTH = 660;
 const PADDING = 28;
@@ -22,7 +23,7 @@ export class HintBubble extends Phaser.GameObjects.Container {
         color: toCss(PALETTE.ink),
         align: 'center',
         lineSpacing: 6,
-        wordWrap: { width: CARD_WIDTH - PADDING * 2 },
+        wordWrap: wrapStyle(CARD_WIDTH - PADDING * 2),
       })
       .setOrigin(0.5, 0);
     const height = label.height + PADDING * 2;

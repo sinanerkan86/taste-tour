@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { FONT, GAME_HEIGHT, GAME_WIDTH, MAX_GAME_HEIGHT, toCss } from '../config';
 import { ART_RES, css, paintTexture, roundRect, vGradient } from '../view/paint';
-import { outlined } from './style';
+import { outlined, wrapStyle } from './style';
 
 const RADIUS = 40;
 const HEADER_HEIGHT = 130;
@@ -85,7 +85,7 @@ export function modalText(
       color: toCss(color),
       align: 'center',
       lineSpacing: 10,
-      wordWrap: { width: width - 100 },
+      wordWrap: wrapStyle(width - 100),
     })
     .setOrigin(0.5);
 }

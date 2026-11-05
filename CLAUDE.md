@@ -22,7 +22,7 @@ Full design: [docs/GDD.md](docs/GDD.md). Keep the GDD up to date when design dec
 - Name: **Taste Tour: Idle Restaurant** (repo: `sinanerkan86/taste-tour`, private)
 - Theme: grow a single restaurant + world-cuisine menu; prestige = franchise in another city
 - Core mechanic: **bottleneck** between restaurant sections (the slowest link sets income)
-- Market: global first; English + Turkish localization from the start
+- Market: global first; English, Turkish, French and Simplified Chinese (`src/i18n/locales`; the i18n test checks every locale has every key)
 - Monetization: rewarded ads + IAP only; no forced interstitials at launch
 - Visuals: living restaurant scene, warm colors, vector style, lots of "juice"
 
@@ -60,5 +60,7 @@ Full design: [docs/GDD.md](docs/GDD.md). Keep the GDD up to date when design dec
   - [x] Goal bar (`src/core/economy/goals.ts`, `src/game/ui/GoalBar.ts`) and decor that grows with the menu (`src/game/view/decor.ts`, GDD section 5).
   - [x] Section looks that improve at levels 25/50/100 (`src/game/view/sectionLooks.ts`, staff outfits via `Person.setStyle`), painted panel icons (`src/game/ui/icons.ts`), locked dishes shown in order, settings (`src/game/settings.ts`: buy amount, sound, music) with a gear dialog, synthesized sound and music (`src/game/audio.ts`).
   - [x] 8c. Tested on a real phone (Xiaomi, USB debugging; `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`).
+  - [x] Language setting (English / Türkçe / Français / 中文; `settings.language`, null follows the device): choosing one restarts the restaurant scene with the current game. Chinese has no spaces, so wrapped texts use `wrapStyle()` from `src/game/ui/style.ts`; Fredoka has no CJK glyphs and falls back to the system font. Button labels shrink to fit.
   - [x] World tour map (`src/game/scenes/WorldMapScene.ts`, opened from the city pill; back button closes it) and the glossy interface style (`src/game/ui/style.ts`, Fredoka font from `@fontsource/fredoka`, loaded before the game starts in `src/main.ts`).
-- Before release (roadmap item 9): a settings entry that opens `AdMob.showPrivacyOptionsForm()` so players can change consent, real AdMob app and ad unit IDs, app icon and splash.
+- AdMob: app "Taste Tour: Idle Restaurant" (`ca-app-pub-6709000702163453~3727619210`) with one rewarded ad unit per placement (`src/game/ads/adUnits.ts`). Only the store build uses them: `npm run android:aab` builds with `vite build --mode release` (`.env.release` sets `VITE_ADS_RELEASE=1`) and the release build type gets the real app ID through `manifestPlaceholders` in `android/app/build.gradle`. Debug APKs always use Google's test app and test ad unit.
+- Before release (roadmap item 9): a settings entry that opens `AdMob.showPrivacyOptionsForm()` so players can change consent, release signing for the AAB, app icon and splash; add the Play Store link in AdMob after publishing.

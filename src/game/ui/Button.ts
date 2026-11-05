@@ -62,14 +62,16 @@ export class Button extends Phaser.GameObjects.Container {
 
   setLabel(text: string, showIcon = true): this {
     if (this.label.text !== text) this.label.setText(text);
+    const gap = 10;
+    const iconWidth = this.icon && showIcon ? this.icon.displayWidth + gap : 0;
+    // Long labels (some languages) shrink to fit inside the face.
+    this.label.setScale(Math.min(1, (this.buttonWidth - 32 - iconWidth) / this.label.width));
     // Center icon + label together.
     if (this.icon) {
       this.icon.setVisible(showIcon);
-      const gap = 10;
-      const iconWidth = showIcon ? this.icon.displayWidth + gap : 0;
-      const left = -(iconWidth + this.label.width) / 2;
+      const left = -(iconWidth + this.label.displayWidth) / 2;
       this.icon.x = left + this.icon.displayWidth / 2;
-      this.label.x = left + iconWidth + this.label.width / 2;
+      this.label.x = left + iconWidth + this.label.displayWidth / 2;
     }
     return this;
   }

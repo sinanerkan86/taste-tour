@@ -6,10 +6,8 @@ import {
 } from '@capacitor-community/admob';
 import type { PluginListenerHandle } from '@capacitor/core';
 import type { AdPlacement, AdService } from './AdService';
+import { RELEASE_ADS, rewardedAdUnit } from './adUnits';
 
-// Google's sample rewarded ad unit for Android: always serves test ads. Real ad unit IDs
-// (one per placement) replace this only for the store release.
-const TEST_REWARDED_AD_ID = 'ca-app-pub-3940256099942544/5224354917';
 // Build with VITE_ADS_DEBUG_EEA=1 to see the consent form as a player in the EU would.
 const DEBUG_EEA = import.meta.env.VITE_ADS_DEBUG_EEA === '1';
 
@@ -35,10 +33,10 @@ export class AdMobAdService implements AdService {
     }
   }
 
-  async showRewarded(_placement: AdPlacement): Promise<boolean> {
+  async showRewarded(placement: AdPlacement): Promise<boolean> {
     try {
       await this.init();
-      await AdMob.prepareRewardVideoAd({ adId: TEST_REWARDED_AD_ID, isTesting: true });
+      await AdMob.prepareRewardVideoAd({ adId: rewardedAdUnit(placement), isTesting: !RELEASE_ADS });
       return await this.playLoadedAd();
     } catch (error) {
       // No fill, no network, or the SDK refused: the player simply gets no reward.

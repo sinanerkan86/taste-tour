@@ -11,7 +11,8 @@
     "sim": "tsx tools/sim/cli.ts",
     "test": "vitest run",
     "android:sync": "npm run build && cap sync android",
-    "android:apk": "npm run android:sync && cd android && .\\gradlew.bat assembleDebug"
+    "android:apk": "npm run android:sync && cd android && .\\gradlew.bat assembleDebug",
+    "android:aab": "tsc --noEmit && vite build --mode release && cap sync android && cd android && .\\gradlew.bat bundleRelease"
   },
   "dependencies": {
     "@capacitor-community/admob": "^8.2.1",

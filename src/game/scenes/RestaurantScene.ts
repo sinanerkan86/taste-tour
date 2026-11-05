@@ -92,6 +92,8 @@ export interface RestaurantSceneData {
   save: SaveData | null;
   // Set when the scene restarts right after a franchise.
   arrived?: boolean;
+  // Set when the scene restarts after a language change: the settings dialog opens again.
+  reopenSettings?: boolean;
 }
 
 export class RestaurantScene extends Phaser.Scene {
@@ -170,6 +172,7 @@ export class RestaurantScene extends Phaser.Scene {
     if (data.save) this.payOffline(offlineReward(this.economy, data.save.savedAt, Date.now()));
     if (!this.seenHints.includes(BOTTLENECK_HINT)) this.time.delayedCall(BOTTLENECK_HINT_DELAY_MS, () => this.showBottleneckHint());
     if (data.arrived) this.welcomeToCity();
+    if (data.reopenSettings) this.openSettings();
   }
 
   private cityName(city: number): string {
@@ -211,6 +214,17 @@ export class RestaurantScene extends Phaser.Scene {
     this.time.delayedCall(FRANCHISE_FADE_MS, () =>
       this.celebrate(t('banner.newCity', { city: this.cityName(this.economy.city) }), PALETTE.tileBlue),
     );
+  }
+
+  private openSettings(): void {
+    new SettingsModal(this, UI_DEPTH + 100, () => this.restartInNewLanguage());
+  }
+
+  // Every text is created in create(), so a new language simply restarts the scene with the game as it is.
+  private restartInNewLanguage(): void {
+    const save = createSave(this.economy, Date.now(), this.seenHints);
+    void this.saveGame();
+    this.scene.restart({ save, reopenSettings: true } satisfies RestaurantSceneData);
   }
 
   private saveGame(): Promise<void> {
@@ -719,7 +733,7 @@ export class RestaurantScene extends Phaser.Scene {
       audio.unlock();
       audio.play('click');
       this.tweens.add({ targets: gear, angle: gear.angle + 90, duration: 250, ease: 'Quad.easeOut' });
-      new SettingsModal(this, UI_DEPTH + 100);
+      this.openSettings();
     });
 
     // Right: franchise button, hidden until the menu is complete.

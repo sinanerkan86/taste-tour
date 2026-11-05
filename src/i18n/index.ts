@@ -1,21 +1,41 @@
 import en from './locales/en.json';
+import fr from './locales/fr.json';
 import tr from './locales/tr.json';
+import zh from './locales/zh.json';
 
 export type TranslationKey = keyof typeof en;
-type Locale = 'en' | 'tr';
+export type Locale = 'en' | 'tr' | 'fr' | 'zh';
 
-// tr must define every key en defines.
-const LOCALES: Record<Locale, Record<TranslationKey, string>> = { en, tr };
+// Every locale must define every key en defines (checked by the i18n test).
+const LOCALES: Record<Locale, Record<TranslationKey, string>> = { en, tr, fr, zh };
 
-function detectLocale(): Locale {
-  const lang = typeof navigator === 'undefined' ? 'en' : navigator.language.toLowerCase();
-  return lang.startsWith('tr') ? 'tr' : 'en';
+// Languages offered in the settings, each named in its own language.
+export const LANGUAGES: { id: Locale; name: string }[] = [
+  { id: 'en', name: 'English' },
+  { id: 'tr', name: 'Türkçe' },
+  { id: 'fr', name: 'Français' },
+  { id: 'zh', name: '中文' },
+];
+
+export function isLocale(value: unknown): value is Locale {
+  return LANGUAGES.some((language) => language.id === value);
 }
 
-let current: Locale = detectLocale();
+// The device language when the game supports it, else English.
+export function deviceLocale(): Locale {
+  const lang = typeof navigator === 'undefined' ? 'en' : navigator.language.toLowerCase();
+  const short = lang.slice(0, 2);
+  return isLocale(short) ? short : 'en';
+}
+
+let current: Locale = deviceLocale();
 
 export function setLocale(locale: Locale): void {
   current = locale;
+}
+
+export function getLocale(): Locale {
+  return current;
 }
 
 // Localized duration: 3725 -> "1h 2m" / "1sa 2dk"

@@ -6,7 +6,7 @@
 
 - **Genre:** Idle / tycoon, restaurant management
 - **Platform:** Android (Google Play), iOS possible later
-- **Target market:** Global (priority: US/Europe); languages: English + Turkish from the start
+- **Target market:** Global (priority: US/Europe); languages: English, Turkish, French and Simplified Chinese (the device language by default, changeable in the settings)
 - **Monetization:** Rewarded ads (main revenue) + in-app purchases ("Remove ads", permanent 2x). **No** forced (interstitial) ads at launch.
 - **One-liner:** Grow a single restaurant from a street stall into a huge venue, unlock dishes from world cuisines, break bottlenecks, and open franchises in cities around the world.
 
@@ -206,7 +206,7 @@ IAP: Remove ads (grants ad rewards without ads), permanent 2x income, starter pa
 6. ~~Prestige / franchise to new cities~~
 7. ~~Rewarded ads (with test ad unit IDs)~~
 8. Android build with Capacitor, test on phone (emulator build, full screen and consent form done; real phone test left)
-9. Localization (EN/TR), store assets, Play Store release
+9. Localization (EN/TR/FR/ZH done), store assets, Play Store release
 
 ## 12. Open questions
 

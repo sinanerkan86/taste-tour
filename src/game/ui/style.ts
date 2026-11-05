@@ -208,3 +208,35 @@ export function paintHudAwning(scene: Phaser.Scene): string {
     ctx.restore();
   });
 }
+
+// Chinese and Japanese characters can break anywhere; everything else breaks at spaces.
+// Tokens: one CJK character, a run of spaces, or a run of anything else (a word).
+const WRAP_TOKENS = /[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef]|\s+|[^\s\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef]+/g;
+// Punctuation that must not start a line.
+const NO_LINE_START = /^[\uff0c\u3002\uff01\uff1f\u3001\uff1a\uff1b\uff09\u300d\u300f\u201d\u2019!?,.:;)]/;
+
+// Word wrapping for Phaser text that also breaks Chinese text, which has no spaces.
+export function wrapStyle(width: number): Phaser.Types.GameObjects.Text.TextWordWrap {
+  return {
+    width,
+    callback: (text: string, textObject: Phaser.GameObjects.Text) => {
+      const ctx = textObject.context;
+      return text.split('\n').flatMap((paragraph) => {
+        const tokens = paragraph.match(WRAP_TOKENS) ?? [''];
+        const lines: string[] = [];
+        let line = '';
+        for (const token of tokens) {
+          const candidate = line + token;
+          if (line.trim() !== '' && ctx.measureText(candidate).width > width && !/^\s+$/.test(token) && !NO_LINE_START.test(token)) {
+            lines.push(line.trimEnd());
+            line = token.trimStart();
+          } else {
+            line = candidate;
+          }
+        }
+        lines.push(line.trimEnd());
+        return lines;
+      });
+    },
+  };
+}

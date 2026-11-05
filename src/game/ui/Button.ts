@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { type Sfx, audio } from '../audio';
 import { FONT, PALETTE, toCss } from '../config';
 
 export interface ButtonStyle {
@@ -23,6 +24,8 @@ export class Button extends Phaser.GameObjects.Container {
   private readonly icon?: Phaser.GameObjects.Image;
   private style: ButtonStyle = BUTTON_STYLES.buy;
   private enabled = true;
+  // Played on a press while enabled; null for silence.
+  sound: Sfx | null = 'click';
 
   constructor(
     scene: Phaser.Scene,
@@ -48,6 +51,8 @@ export class Button extends Phaser.GameObjects.Container {
     this.setSize(w, h).setInteractive({ useHandCursor: true });
     this.on('pointerdown', () => {
       if (!this.enabled) return;
+      audio.unlock();
+      if (this.sound) audio.play(this.sound);
       scene.tweens.add({ targets: this, scale: 0.93, duration: 60, yoyo: true, ease: 'Quad.easeOut' });
       onClick();
     });

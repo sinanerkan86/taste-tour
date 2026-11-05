@@ -7,6 +7,7 @@ import {
   SECTION_IDS,
   cityConfig,
   dishBuyPlan,
+  dishCost,
   dishPrice,
   nextLockedDish,
   nextMilestone,
@@ -22,6 +23,9 @@ import { t, type TranslationKey } from '../../i18n';
 import { FONT, GAME_WIDTH, LAYOUT, PALETTE, toCss } from '../config';
 import { DISH_COLORS, SECTION_COLORS } from '../colors';
 import { BUTTON_STYLES, Button } from './Button';
+import { dishIcon, lockIcon, sectionIcon } from './icons';
+import { ART_RES } from '../view/paint';
+import { saveSettings, settings } from '../settings';
 
 const MARGIN = 24;
 const ROW_HEIGHT = 100;
@@ -30,8 +34,6 @@ const TAB_HEIGHT = 90;
 const BUTTON_WIDTH = 270;
 const AMOUNT_WIDTH = 150;
 
-// The chosen buy amount outlives the panel, so it survives a franchise (scene restart).
-let buyAmount: BuyAmount = 1;
 
 
 type Tab = 'restaurant' | 'menu';
@@ -45,7 +47,10 @@ interface RowView {
   affordable: boolean;
   buyable: boolean;
   highlight: boolean;
-  dimmed: boolean;
+  // Texture key of the row's badge.
+  icon: string;
+  // Not available yet: faded, with a padlock over the badge.
+  locked: boolean;
 }
 
 class UpgradeRow extends Phaser.GameObjects.Container {
@@ -54,20 +59,18 @@ class UpgradeRow extends Phaser.GameObjects.Container {
   private readonly level: Phaser.GameObjects.Text;
   private readonly detail: Phaser.GameObjects.Text;
   private readonly tag: Phaser.GameObjects.Text;
-  private readonly icon: Phaser.GameObjects.Arc;
-  private readonly iconLetter: Phaser.GameObjects.Text;
+  private readonly icon: Phaser.GameObjects.Image;
+  private readonly lock: Phaser.GameObjects.Image;
   private readonly glow: Phaser.GameObjects.Graphics;
   readonly button: Button;
   private lastHighlight: boolean | null = null;
 
-  constructor(scene: Phaser.Scene, y: number, color: number, onBuy: () => void) {
+  constructor(scene: Phaser.Scene, y: number, onBuy: () => void) {
     super(scene, 0, y);
     const width = GAME_WIDTH - MARGIN * 2;
     this.bg = scene.add.graphics();
-    this.icon = scene.add.circle(MARGIN + 56, 0, 36, color);
-    this.iconLetter = scene.add
-      .text(MARGIN + 56, 0, '', { fontFamily: FONT, fontSize: '36px', fontStyle: 'bold', color: '#ffffff' })
-      .setOrigin(0.5);
+    this.icon = scene.add.image(MARGIN + 56, 0, '__DEFAULT').setScale(1 / ART_RES);
+    this.lock = scene.add.image(MARGIN + 80, 22, lockIcon(scene)).setScale(1 / ART_RES).setVisible(false);
     this.title = scene.add
       .text(MARGIN + 112, -20, '', { fontFamily: FONT, fontSize: '32px', fontStyle: 'bold', color: toCss(PALETTE.ink) })
       .setOrigin(0, 0.5);
@@ -88,23 +91,26 @@ class UpgradeRow extends Phaser.GameObjects.Container {
       .text(MARGIN + 112, 22, '', { fontFamily: FONT, fontSize: '24px', color: toCss(PALETTE.muted) })
       .setOrigin(0, 0.5);
     this.button = new Button(scene, MARGIN + width - BUTTON_WIDTH / 2 - 14, 0, BUTTON_WIDTH, 80, onBuy, 'coin');
+    this.button.sound = 'buy';
     this.glow = scene.add.graphics().setAlpha(0);
     this.glow.lineStyle(10, PALETTE.saffron, 1).strokeRoundedRect(MARGIN - 4, -ROW_HEIGHT / 2 - 4, width + 8, ROW_HEIGHT + 8, 20);
-    this.add([this.bg, this.icon, this.iconLetter, this.title, this.level, this.tag, this.detail, this.button, this.glow]);
+    this.add([this.bg, this.icon, this.lock, this.title, this.level, this.tag, this.detail, this.button, this.glow]);
     scene.add.existing(this);
   }
 
   render(view: RowView): void {
-    if (this.title.text !== view.title) {
-      this.title.setText(view.title);
-      this.iconLetter.setText(view.dimmed ? '?' : view.title.charAt(0).toUpperCase());
-    }
+    if (this.title.text !== view.title) this.title.setText(view.title);
+    if (this.icon.texture.key !== view.icon) this.icon.setTexture(view.icon);
+    this.lock.setVisible(view.locked);
+    if (view.locked) this.icon.setTint(0xbbbbbb);
+    else this.icon.clearTint();
     this.level.setText(view.level);
     this.level.x = this.title.x + this.title.width + 12;
     this.tag.setVisible(view.highlight);
     this.tag.x = this.level.x + this.level.width + (view.level ? 12 : 0);
     this.detail.setText(view.detail);
-    this.setAlpha(view.dimmed ? 0.55 : 1);
+    this.title.setAlpha(view.locked ? 0.6 : 1);
+    this.icon.setAlpha(view.locked ? 0.7 : 1);
 
     this.button.setVisible(view.buyable || view.buttonLabel !== '');
     this.button.setLabel(view.buttonLabel, view.buttonIcon);
@@ -185,9 +191,9 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
 
     const rowY = (i: number) => 20 + TAB_HEIGHT + 24 + ROW_HEIGHT / 2 + i * (ROW_HEIGHT + ROW_GAP);
     this.sectionRows = SECTION_IDS.map(
-      (id, i) => new UpgradeRow(scene, rowY(i), SECTION_COLORS[id], () => onBuySection(id)),
+      (id, i) => new UpgradeRow(scene, rowY(i), () => onBuySection(id)),
     );
-    this.dishRows = DISH_TIERS.map((_, i) => new UpgradeRow(scene, rowY(i), DISH_COLORS[i], () => onBuyDish(i)));
+    this.dishRows = DISH_TIERS.map((_, i) => new UpgradeRow(scene, rowY(i), () => onBuyDish(i)));
     this.add([...this.sectionRows, ...this.dishRows]);
 
     this.showTab('restaurant');
@@ -195,17 +201,18 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
   }
 
   get buyAmount(): BuyAmount {
-    return buyAmount;
+    return settings.buyAmount;
   }
 
   private cycleAmount(): void {
-    buyAmount = BUY_AMOUNTS[(BUY_AMOUNTS.indexOf(buyAmount) + 1) % BUY_AMOUNTS.length];
+    settings.buyAmount = BUY_AMOUNTS[(BUY_AMOUNTS.indexOf(settings.buyAmount) + 1) % BUY_AMOUNTS.length];
+    saveSettings();
     this.showAmount();
     if (this.lastState) this.refresh(this.lastState);
   }
 
   private showAmount(): void {
-    this.amountButton.setLabel(buyAmount === 'max' ? t('buy.max') : t('buy.amount', { amount: buyAmount }), false);
+    this.amountButton.setLabel(settings.buyAmount === 'max' ? t('buy.max') : t('buy.amount', { amount: settings.buyAmount }), false);
   }
 
   pulseSection(id: SectionId): void {
@@ -249,7 +256,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     const { bottleneck } = throughput(state);
     SECTION_IDS.forEach((id, i) => {
       const level = state.sectionLevels[id];
-      const { levels, cost } = sectionBuyPlan(state, id, buyAmount);
+      const { levels, cost } = sectionBuyPlan(state, id, settings.buyAmount);
       this.sectionRows[i].render({
         title: t(`section.${id}` as TranslationKey),
         level: levelText(level, levels),
@@ -259,7 +266,8 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
         affordable: state.money >= cost,
         buyable: true,
         highlight: id === bottleneck,
-        dimmed: false,
+        icon: sectionIcon(this.scene, id, SECTION_COLORS[id]),
+        locked: false,
       });
     });
   }
@@ -269,9 +277,10 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     const city = cityConfig(state.city);
     DISH_TIERS.forEach((_, i) => {
       const level = state.dishLevels[i];
-      const { levels, cost } = dishBuyPlan(state, i, buyAmount);
+      const { levels, cost } = dishBuyPlan(state, i, settings.buyAmount);
       const row = this.dishRows[i];
       const title = t(`dish.${city.dishes[i]}` as TranslationKey);
+      const icon = dishIcon(this.scene, city.dishes[i], DISH_COLORS[i]);
       if (level > 0) {
         const mastered = level >= DISH_MAX_LEVEL;
         row.render({
@@ -285,7 +294,8 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
           affordable: state.money >= cost,
           buyable: !mastered,
           highlight: false,
-          dimmed: false,
+          icon,
+          locked: false,
         });
       } else if (i === nextLocked) {
         row.render({
@@ -297,19 +307,23 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
           affordable: state.money >= cost,
           buyable: true,
           highlight: false,
-          dimmed: false,
+          icon,
+          locked: false,
         });
       } else {
+        // Shown ahead of time so the player sees what is coming, but bought strictly in order.
+        const previous = t(`dish.${city.dishes[i - 1]}` as TranslationKey);
         row.render({
-          title: t('row.hidden'),
+          title,
           level: '',
-          detail: '',
-          buttonLabel: '',
-          buttonIcon: false,
+          detail: t('row.unlockAfter', { dish: previous }),
+          buttonLabel: formatNumber(dishCost(state, i)),
+          buttonIcon: true,
           affordable: false,
           buyable: false,
           highlight: false,
-          dimmed: true,
+          icon,
+          locked: true,
         });
       }
     });

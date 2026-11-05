@@ -33,7 +33,12 @@ export type Part =
   | 'toque'
   | 'rubberApron'
   | 'sash'
-  | 'sunHat';
+  | 'sunHat'
+  | 'bowTie'
+  | 'tailcoat'
+  | 'waistApron'
+  | 'neckerchief'
+  | 'tallToque';
 
 const PAINTERS: Record<Part, (ctx: Ctx) => void> = {
   shadow: paintShadow,
@@ -60,6 +65,11 @@ const PAINTERS: Record<Part, (ctx: Ctx) => void> = {
   rubberApron: paintRubberApron,
   sash: paintSash,
   sunHat: paintSunHat,
+  bowTie: paintBowTie,
+  tailcoat: paintTailcoat,
+  waistApron: paintWaistApron,
+  neckerchief: paintNeckerchief,
+  tallToque: (ctx) => paintToque(ctx, 22),
 };
 
 // Grey ramps: lit side, middle, shadow side.
@@ -431,7 +441,9 @@ function paintVest(ctx: Ctx): void {
     ctx.arc(0, y, 1.8, 0, Math.PI * 2);
     ctx.fill();
   });
-  // Bow tie.
+}
+
+function paintBowTie(ctx: Ctx): void {
   ctx.fillStyle = vGradient(ctx, -86, -74, [
     [0, '#e05a4a'],
     [1, '#8e2318'],
@@ -470,7 +482,10 @@ function paintChefApron(ctx: Ctx): void {
   );
 }
 
-function paintToque(ctx: Ctx): void {
+// extra: how much taller the hat is (the tall one for head chefs).
+function paintToque(ctx: Ctx, extra = 0): void {
+  ctx.save();
+  ctx.translate(0, -extra);
   ctx.fillStyle = vGradient(ctx, -170, -124, [
     [0, '#ffffff'],
     [1, '#d9d4ca'],
@@ -480,7 +495,7 @@ function paintToque(ctx: Ctx): void {
   ctx.arc(0, -157, 15, 0, Math.PI * 2);
   ctx.arc(12, -150, 13, 0, Math.PI * 2);
   ctx.fill();
-  roundRect(ctx, -17, -150, 34, 24, 5);
+  roundRect(ctx, -17, -150, 34, 24 + extra, 5);
   ctx.fill();
   ctx.strokeStyle = 'rgba(0,0,0,0.12)';
   ctx.lineWidth = 1.5;
@@ -490,6 +505,7 @@ function paintToque(ctx: Ctx): void {
     ctx.lineTo(x, -128);
     ctx.stroke();
   });
+  ctx.restore();
   ctx.fillStyle = vGradient(ctx, -132, -124, [
     [0, '#ece7dd'],
     [1, '#bdb6a8'],
@@ -574,4 +590,105 @@ function paintSunHat(ctx: Ctx): void {
   ctx.fill();
   ctx.fillStyle = '#f4b400';
   ctx.fillRect(-20, -135, 40, 6);
+}
+
+// A black tailcoat over the white shirt: lapels, a shirt front and short tails at the hips.
+function paintTailcoat(ctx: Ctx): void {
+  const cloth = hGradient(ctx, -28, 28, [
+    [0, '#14141c'],
+    [0.32, '#3a3a4a'],
+    [0.7, '#24242f'],
+    [1, '#101016'],
+  ]);
+  ctx.fillStyle = cloth;
+  ctx.beginPath();
+  ctx.moveTo(-18, -89);
+  ctx.quadraticCurveTo(-29, -86, -28, -72);
+  ctx.lineTo(-27, -22);
+  ctx.lineTo(-14, -30);
+  ctx.lineTo(14, -30);
+  ctx.lineTo(27, -22);
+  ctx.lineTo(28, -72);
+  ctx.quadraticCurveTo(29, -86, 18, -89);
+  ctx.closePath();
+  ctx.fill();
+  outline(ctx, 1.2);
+  // White shirt front between the lapels.
+  ctx.fillStyle = vGradient(ctx, -88, -48, [
+    [0, '#ffffff'],
+    [1, '#dcdcdc'],
+  ]);
+  ctx.beginPath();
+  ctx.moveTo(-10, -88);
+  ctx.lineTo(10, -88);
+  ctx.lineTo(0, -48);
+  ctx.closePath();
+  ctx.fill();
+  // Satin lapels.
+  ctx.fillStyle = '#4a4a5e';
+  [-1, 1].forEach((side) => {
+    ctx.beginPath();
+    ctx.moveTo(side * 10, -88);
+    ctx.lineTo(side * 16, -78);
+    ctx.lineTo(side * 6, -60);
+    ctx.lineTo(0, -48);
+    ctx.closePath();
+    ctx.fill();
+  });
+  ctx.fillStyle = '#d4af37';
+  [-44, -36].forEach((y) =>
+    [-5, 5].forEach((x) => {
+      ctx.beginPath();
+      ctx.arc(x, y, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+    }),
+  );
+  // Pocket square.
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.moveTo(14, -66);
+  ctx.lineTo(22, -66);
+  ctx.lineTo(18, -61);
+  ctx.closePath();
+  ctx.fill();
+}
+
+// A short apron tied at the waist: the simple first look of waiters and cooks.
+function paintWaistApron(ctx: Ctx): void {
+  ctx.fillStyle = vGradient(ctx, -40, -6, [
+    [0, '#3a3a46'],
+    [1, '#1e1e26'],
+  ]);
+  roundRect(ctx, -22, -40, 44, 34, [3, 3, 8, 8]);
+  ctx.fill();
+  outline(ctx, 1);
+  ctx.fillStyle = '#2a2a34';
+  ctx.fillRect(-25, -42, 50, 5);
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  roundRect(ctx, -12, -30, 14, 10, 2);
+  ctx.fill();
+}
+
+// A knotted scarf at the neck, painted grey and tinted per wearer.
+function paintNeckerchief(ctx: Ctx): void {
+  ctx.fillStyle = vGradient(ctx, -88, -66, [
+    [0, LIT],
+    [1, DARK],
+  ]);
+  ctx.beginPath();
+  ctx.moveTo(-15, -88);
+  ctx.quadraticCurveTo(0, -82, 15, -88);
+  ctx.lineTo(4, -78);
+  ctx.lineTo(7, -64);
+  ctx.lineTo(0, -68);
+  ctx.lineTo(-7, -64);
+  ctx.lineTo(-4, -78);
+  ctx.closePath();
+  ctx.fill();
+  outline(ctx, 1);
+  ctx.fillStyle = MID;
+  ctx.beginPath();
+  ctx.arc(0, -80, 4, 0, Math.PI * 2);
+  ctx.fill();
+  outline(ctx, 1);
 }

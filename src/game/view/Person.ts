@@ -23,14 +23,50 @@ const STAFF_SHIRTS: Record<Exclude<PersonKind, 'customer'>, number> = {
 };
 const STAFF_PANTS = 0x2b2b3a;
 const CHEF_PANTS = 0x6f7b84;
-// Painted over the body, per kind.
+// Staff dress better as their section levels up (style tiers 0-3, see styleTier in core).
+interface Look {
+  shirt: number;
+  // Sleeve color when it differs from the shirt (a jacket).
+  sleeves?: number;
+  body: Part[];
+  head: Part[];
+}
+const RED_SCARF = 0xd8452b;
+const BLUE_SCARF = 0x2f88a8;
+const SERVICE_LOOKS = (simpleShirt: number): Look[] => [
+  { shirt: simpleShirt, body: ['waistApron'], head: [] },
+  { shirt: 0xffffff, body: ['vest'], head: [] },
+  { shirt: 0xffffff, body: ['vest', 'bowTie'], head: [] },
+  { shirt: 0xffffff, sleeves: 0x2a2a36, body: ['tailcoat', 'bowTie'], head: [] },
+];
+const STAFF_LOOKS: Partial<Record<PersonKind, Look[]>> = {
+  waiter: SERVICE_LOOKS(0x6fb3cf),
+  cashier: SERVICE_LOOKS(0xf0c987),
+  chef: [
+    { shirt: 0xf2efe8, body: ['waistApron'], head: [] },
+    { shirt: 0xffffff, body: ['chefApron'], head: ['toque'] },
+    { shirt: 0xffffff, body: ['chefApron', 'neckerchief'], head: ['toque'] },
+    { shirt: 0xffffff, body: ['chefApron', 'neckerchief'], head: ['tallToque'] },
+  ],
+  dishwasher: [
+    { shirt: 0x9aa3a8, body: ['rubberApron'], head: [] },
+    { shirt: 0xb4def0, body: ['rubberApron'], head: [] },
+    { shirt: 0xb4def0, body: ['rubberApron', 'neckerchief'], head: [] },
+    { shirt: 0xffffff, body: ['rubberApron', 'neckerchief'], head: [] },
+  ],
+};
+const SCARF_TINT: Partial<Record<PersonKind, number>> = { chef: RED_SCARF, dishwasher: BLUE_SCARF };
+// Fixed outfits for guests.
 const OUTFITS: Partial<Record<PersonKind, { body?: Part; head?: Part }>> = {
-  waiter: { body: 'vest' },
-  cashier: { body: 'vest' },
-  chef: { body: 'chefApron', head: 'toque' },
-  dishwasher: { body: 'rubberApron' },
   vip: { body: 'sash', head: 'sunHat' },
 };
+
+function makePart(scene: Phaser.Scene, name: Part, tint?: number): Phaser.GameObjects.Image {
+  const image = scene.add.image(0, 0, PEOPLE_TEXTURE, name).setScale(1 / ART_RES);
+  image.setOrigin(CELL.left / CELL.width, CELL.top / CELL.height);
+  if (tint !== undefined) image.setTint(tint);
+  return image;
+}
 
 export const WALK_SPEED = 165; // pixels per second, unhurried so the scene stays calm
 const BOB_HEIGHT = 7;
@@ -49,9 +85,16 @@ export class Person extends Phaser.GameObjects.Container {
   private nextBlink = 1000 + Math.random() * 4000;
   // Working staff wobble in place (stirring, scrubbing, counting money).
   busy = false;
+  private readonly kind: PersonKind;
+  private readonly torso: Phaser.GameObjects.Image;
+  private readonly arms: Phaser.GameObjects.Image;
+  private readonly bodyWear: Phaser.GameObjects.Container;
+  private readonly headWear: Phaser.GameObjects.Container;
+  private style = -1;
 
   constructor(scene: Phaser.Scene, x: number, y: number, kind: PersonKind) {
     super(scene, x, y);
+    this.kind = kind;
     ensurePeopleAtlas(scene);
     const pick = <T>(list: T[]): T => Phaser.Utils.Array.GetRandom(list);
     const skin = pick(SKIN_TONES);
@@ -63,17 +106,16 @@ export class Person extends Phaser.GameObjects.Container {
     const skirt = female && (kind === 'customer' || kind === 'vip') && Math.random() < SKIRT_SHARE;
     const outfit = OUTFITS[kind] ?? {};
 
-    const part = (name: Part, tint?: number) => {
-      const image = scene.add.image(0, 0, PEOPLE_TEXTURE, name).setScale(1 / ART_RES);
-      image.setOrigin(CELL.left / CELL.width, CELL.top / CELL.height);
-      if (tint !== undefined) image.setTint(tint);
-      return image;
-    };
+    const part = (name: Part, tint?: number) => makePart(scene, name, tint);
 
     const shadow = part('shadow');
-    const body: Phaser.GameObjects.Image[] = [part('legs', skirt ? skin : pants), part('shoes')];
+    const body: Phaser.GameObjects.GameObject[] = [part('legs', skirt ? skin : pants), part('shoes')];
     if (skirt) body.push(part('skirt', pick(SHIRT_COLORS.filter((c) => c !== shirt))));
-    body.push(part('torso', shirt), part('arms', shirt), part('hands', skin));
+    this.torso = part('torso', shirt);
+    this.arms = part('arms', shirt);
+    this.bodyWear = scene.add.container(0, 0);
+    this.headWear = scene.add.container(0, 0);
+    body.push(this.torso, this.arms, part('hands', skin), this.bodyWear);
     if (outfit.body) body.push(part(outfit.body));
     if (hairStyle === 'long') body.push(part('hairLong', hair));
     if (hairStyle === 'bob') body.push(part('hairBob', hair));
@@ -83,12 +125,30 @@ export class Person extends Phaser.GameObjects.Container {
     body.push(part(female ? 'hairTop' : 'hairShort', hair));
     if (hairStyle === 'bun') body.push(part('hairBun', hair));
     if (outfit.head) body.push(part(outfit.head));
+    body.push(this.headWear);
 
     this.hands = scene.add.container(0, -62);
     this.figure = scene.add.container(0, 0, [...body, this.hands]);
     this.add([shadow, this.figure]);
     this.setDepth(y).setScale(depthScale(y));
+    this.setStyle(0);
     scene.add.existing(this);
+  }
+
+  // Dresses staff for their section's style tier. Returns true when the look changed.
+  setStyle(tier: number): boolean {
+    const looks = STAFF_LOOKS[this.kind];
+    if (!looks) return false;
+    const index = Phaser.Math.Clamp(tier, 0, looks.length - 1);
+    if (index === this.style) return false;
+    this.style = index;
+    const look = looks[index];
+    this.torso.setTint(look.shirt);
+    this.arms.setTint(look.sleeves ?? look.shirt);
+    const wear = (name: Part) => makePart(this.scene, name, name === 'neckerchief' ? SCARF_TINT[this.kind] : undefined);
+    this.bodyWear.removeAll(true).add(look.body.map(wear));
+    this.headWear.removeAll(true).add(look.head.map(wear));
+    return true;
   }
 
   get isWalking(): boolean {

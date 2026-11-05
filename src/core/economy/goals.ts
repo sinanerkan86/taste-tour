@@ -26,3 +26,13 @@ export function menuSize(state: EconomyState): number {
 }
 
 export const MENU_SIZE = DISH_TIERS.length;
+
+// Section levels at which a section gets its next look in the scene (staff outfits, furniture).
+// The first city ends with sections around level 100-150, so all three show up in a normal run.
+export const STYLE_LEVELS = [25, 50, 100];
+export const STYLE_TIERS = STYLE_LEVELS.length;
+
+// 0 = the plain starting look, up to STYLE_TIERS.
+export function styleTier(level: number): number {
+  return STYLE_LEVELS.filter((threshold) => level >= threshold).length;
+}

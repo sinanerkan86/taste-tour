@@ -693,7 +693,7 @@ function paintCashierDesk(ctx: Ctx, theme: CityTheme): void {
 }
 
 // Texture origin is the table center (90, 46).
-function paintTable(ctx: Ctx, theme: CityTheme): void {
+export function paintTable(ctx: Ctx, theme: CityTheme): void {
   ctx.translate(90, 46);
   // Pedestal and foot.
   ctx.fillStyle = radial(ctx, 0, 44, 0, 34, [

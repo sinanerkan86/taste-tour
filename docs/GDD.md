@@ -19,7 +19,7 @@ Customer arrives → sits → orders → chef cooks → waiter serves → custom
 Early on the player can speed things up by tapping; as staff are hired, everything becomes automated.
 A tap on the restaurant earns a tip worth 25% of one customer's bill. At the start that is about a second of income per tap; once customers flow in quickly it becomes negligible, so tapping fades out naturally without a separate rule. (The balance simulation ignores tapping.)
 
-The panel has an x1 / x10 / Max toggle: one tap buys that many levels (Max: as many as the money covers). The economy is the same; it only cuts the number of taps (the simulation buys about one level every 5 seconds in the first city).
+The panel has an x1 / x10 / Max toggle: one tap buys that many levels (Max: as many as the money covers). The choice is remembered (player settings are stored apart from the save). The economy is the same; it only cuts the number of taps (the simulation buys about one level every 5 seconds in the first city).
 
 ## 3. Restaurant sections
 
@@ -66,6 +66,8 @@ Staff on screen: chefs and waiters grow by one every 25 section levels (waiters 
 - A dish is **mastered** at level 100 and stops leveling. Growth then has to come from the next dish, which prevents one cheap dish from making newer dishes pointless.
 - Cooking time is visual only (animation length); it does not affect the economy. The kitchen's capacity is set by its own upgrades.
 
+- The Menu tab shows every dish of the city from the start with its icon and unlock price; dishes after the next one are faded with a padlock and "unlocks after <previous dish>".
+
 Unlock order for Istanbul (not final): Döner → Pizza → Taco → Burger → Ramen → Sushi → Paella.
 Each next dish is worth ~8× the previous one.
 
@@ -83,6 +85,19 @@ Within each city the restaurant gets cozier with every dish on the menu, so each
 | 7 | A red carpet and brass posts with velvet ropes at the entrance |
 
 A franchise starts the new city plain again, so the growth is felt in every city.
+
+### Section looks
+
+Each section also gets a new look at levels 25, 50 and 100 (`STYLE_LEVELS`; the first city ends with sections around level 100-150, so a normal run sees all three). A short note announces it and the room scrolls there if it is off screen.
+
+| Section | Lv 25 | Lv 50 | Lv 100 |
+|---|---|---|---|
+| Waiters (start: polo shirt and waist apron) | White shirt and vest | Bow tie | Black tailcoat |
+| Cashier (start: polo shirt and waist apron) | Same steps as the waiters, plus a tip jar | Card terminal | Flowers on the desk |
+| Kitchen (start: cooks in plain shirts and aprons, no hats) | Chef jackets and toques, stockpot and cutting board | Red neckerchiefs, copper pans under the hood | Tall toques, heat lamps on the pass, service bell |
+| Dining room | Gold-trimmed table cloths with napkins and wine glasses | Velvet chair cushions in the city color | Brass table lamps with warm light |
+| Entrance | Chalkboard A-frame sign | Clipped topiary trees by the door | Lantern over the door |
+| Dish pit (start: grey shirt) | Light blue shirt, soap and sponge | Blue neckerchief, plate rack on the wall | White jacket, steel splashback |
 Later ideas: bigger rooms (second floor, terrace) as their own upgrades.
 
 ### Goal bar
@@ -148,6 +163,8 @@ IAP: Remove ads (grants ad rewards without ads), permanent 2x income, starter pa
 - Warm, saturated colors; palette changes per city (Istanbul: copper, pomegranate red, tile blue, saffron).
 - Cute characters with soft shading and depth (painted in code into 2x textures, so they stay sharp when zoomed in).
 - "Juice": particles, tweens, gentle number pop-ups; no screen shake.
+- Upgrade panel rows carry painted round icons: one per section, one per dish (dishes share 14 shapes such as bowl, wrap, slice, with their own colors).
+- **Sound** is synthesized with the Web Audio API (no files): soft mallet and bell effects for taps, coins, purchases, new looks, the VIP and ready goals; a relaxed 84 bpm café loop (electric piano, bass, brushes, a vibraphone tune from the second loop). Sound and music switch on and off in the settings (gear in the HUD) and pause in the background.
 - Initial art is produced by Claude as vector graphics; the user reviews the product and gives feedback, technical direction stays with Claude.
 
 ## 10. Tech stack
@@ -174,4 +191,4 @@ IAP: Remove ads (grants ad rewards without ads), permanent 2x income, starter pa
 
 - Should delivery be in the first release, or come with an update?
 - Final list of dishes and cities
-- Music/sound source
+- Music/sound: synthesized in code for now (see section 9); real recordings later if needed

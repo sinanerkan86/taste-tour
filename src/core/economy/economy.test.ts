@@ -21,6 +21,7 @@ import {
   buySectionLevel,
   currentGoal,
   menuSize,
+  styleTier,
   buySectionLevels,
   buyDishLevels,
   dishBuyPlan,
@@ -273,5 +274,11 @@ describe('goals', () => {
     expect(currentGoal(state).kind).toBe('firstStar');
     state.runReputation = PRESTIGE.starDivisor;
     expect(currentGoal(state)).toEqual({ kind: 'franchise', progress: 1 });
+  });
+});
+
+describe('style tiers', () => {
+  it('steps up at the style levels', () => {
+    expect([1, 24, 25, 49, 50, 99, 100, 500].map(styleTier)).toEqual([0, 0, 1, 1, 2, 2, 3, 3]);
   });
 });

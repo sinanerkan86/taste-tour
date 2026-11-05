@@ -53,7 +53,7 @@ export const preferencesStore: KeyValueStore = {
 const SAVE_KEY = 'taste-tour.save';
 
 export class SaveManager {
-  constructor(private readonly store: KeyValueStore = localStore) {}
+  constructor(readonly store: KeyValueStore = localStore) {}
 
   async load(): Promise<SaveData | null> {
     const json = await this.store.get(SAVE_KEY);

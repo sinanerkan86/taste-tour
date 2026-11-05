@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { audio } from '../audio';
 import { FONT, PALETTE, toCss } from '../config';
 
 const WIDTH = 620;
@@ -63,6 +64,7 @@ export class GoalBar extends Phaser.GameObjects.Container {
     this.percent.setColor(toCss(ready ? PALETTE.success : PALETTE.muted));
     // A gentle pulse once, when the goal becomes doable.
     if (ready && this.ready === false) {
+      audio.play('unlock', 0.6);
       this.scene.tweens.add({ targets: this, scale: 1.06, duration: 220, yoyo: true, repeat: 1, ease: 'Sine.easeInOut' });
     }
     this.ready = ready;

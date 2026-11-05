@@ -15,6 +15,7 @@ import {
   incomePerSecond,
   menuSize,
   milestonesReached,
+  styleTier,
   nextVipGap,
   passTime,
   newEconomy,
@@ -44,9 +45,12 @@ import { GoalBar } from '../ui/GoalBar';
 import { HintBubble } from '../ui/HintBubble';
 import { UpgradePanel } from '../ui/UpgradePanel';
 import { WelcomeBackModal } from '../ui/WelcomeBackModal';
-import { ROOM, type Point } from '../view/layout';
+import { ROOM, SECTION_ANCHORS, type Point } from '../view/layout';
 import { RestaurantView } from '../view/RestaurantView';
 import { Decor } from '../view/decor';
+import { audio } from '../audio';
+import { SettingsModal } from '../ui/SettingsModal';
+import { gearIcon } from '../ui/icons';
 import { ROOM_MARGIN, RoomCamera } from '../view/RoomCamera';
 import { cityTheme } from '../view/themes';
 
@@ -64,6 +68,7 @@ const MARKER_VISIBLE_MARGIN = 50;
 const PAN_MS = 450;
 // The goal card sits this far below the top of the restaurant view.
 const GOAL_BAR_Y = 50;
+const GEAR_RADIUS = 40;
 const BANNER_Y = 330;
 const AUTOSAVE_MS = 10_000;
 // Shorter absences are paid out silently, as if the game had kept running.
@@ -132,6 +137,7 @@ export class RestaurantScene extends Phaser.Scene {
       if (params.has('vip')) this.vipCountdown = 1;
     }
     this.setUpCameras();
+    this.input.on('pointerdown', () => audio.unlock());
     const theme = cityTheme(cityConfig(this.economy.city).id);
     this.view = new RestaurantView(this, theme);
     this.decor = new Decor(this, theme);
@@ -424,6 +430,7 @@ export class RestaurantScene extends Phaser.Scene {
     if (this.vipCountdown > 0) return;
     this.vipCountdown = nextVipGap(Math.random());
     void this.view.spawnVip(ADS.vipStaySeconds);
+    audio.play('vip');
   }
 
   private offerVip(at: Point): void {
@@ -500,6 +507,7 @@ export class RestaurantScene extends Phaser.Scene {
 
   private tapRoom(at: Point, screen: Point): void {
     const amount = tap(this.economy);
+    audio.play('tap');
     sparkle(this, at.x, at.y, PALETTE.saffron, ROOM_FX_DEPTH);
     floatingText(this, at.x, at.y - 40, `+${formatNumber(amount)}`, PALETTE.saffron, 38, ROOM_FX_DEPTH);
     this.flyCoinToHud(screen);
@@ -507,11 +515,18 @@ export class RestaurantScene extends Phaser.Scene {
 
   private buySection(id: SectionId): void {
     const before = milestonesReached(this.economy.sectionLevels[id]);
+    const lookBefore = styleTier(this.economy.sectionLevels[id]);
     if (buySectionLevels(this.economy, id, this.panel.buyAmount) === 0) return;
     void this.saveGame();
     this.panel.pulseSection(id);
     this.celebratePurchase();
-    if (milestonesReached(this.economy.sectionLevels[id]) > before) {
+    if (styleTier(this.economy.sectionLevels[id]) > lookBefore) {
+      // The section gets a new look: make sure the player sees it.
+      this.note(t(`look.${id}` as TranslationKey));
+      audio.play('look');
+      const anchor = SECTION_ANCHORS[id];
+      if (!this.room.shows(anchor, 0)) this.room.panTo(anchor);
+    } else if (milestonesReached(this.economy.sectionLevels[id]) > before) {
       const name = t(`section.${id}` as TranslationKey);
       this.note(t('banner.milestone', { name, bonus: MILESTONE_BONUS.section }));
     }
@@ -544,6 +559,7 @@ export class RestaurantScene extends Phaser.Scene {
 
   // Big moments (new dish, new city, Rush...): a banner with confetti.
   private celebrate(message: string, color: number = PALETTE.pomegranate): void {
+    audio.play('celebrate');
     banner(this, BANNER_Y, message, color);
     confetti(this, GAME_WIDTH / 2, BANNER_Y + 40);
   }
@@ -666,8 +682,19 @@ export class RestaurantScene extends Phaser.Scene {
       .setOrigin(0, 0.5)
       .setDepth(UI_DEPTH);
 
+    // Far right: settings gear.
+    const gearX = GAME_WIDTH - HUD_MARGIN - GEAR_RADIUS;
+    const gearBg = this.add.circle(gearX, 80, GEAR_RADIUS, PALETTE.pomegranateDark).setDepth(UI_DEPTH);
+    const gear = this.add.image(gearX, 80, gearIcon(this)).setScale(1 / 2).setDepth(UI_DEPTH);
+    gearBg.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+      audio.unlock();
+      audio.play('click');
+      this.tweens.add({ targets: gear, angle: gear.angle + 90, duration: 250, ease: 'Quad.easeOut' });
+      new SettingsModal(this, UI_DEPTH + 100);
+    });
+
     // Right: franchise button, hidden until the menu is complete.
-    this.franchiseButton = new Button(this, GAME_WIDTH - HUD_MARGIN - 105, 80, 210, 100, () => this.openFranchise(), 'star');
+    this.franchiseButton = new Button(this, gearX - GEAR_RADIUS - 20 - 105, 80, 210, 100, () => this.openFranchise(), 'star');
     this.franchiseButton.setButtonStyle(BUTTON_STYLES.buy).setDepth(UI_DEPTH).setVisible(false);
     this.franchiseCaption = this.add
       .text(this.franchiseButton.x, 155, t('franchise.button'), {
@@ -683,6 +710,7 @@ export class RestaurantScene extends Phaser.Scene {
 
   private showPayment(amount: number, at: Point): void {
     if (amount <= 0) return;
+    if (this.room.shows(at, 0)) audio.play('coin', 0.35);
     const coin = this.add.image(-34, 0, 'coin').setScale(0.7);
     const text = this.add
       .text(0, 0, `+${formatNumber(amount)}`, {

@@ -1,8 +1,10 @@
 import Phaser from 'phaser';
-import type { SectionId } from '../../core/economy';
+import { styleTier, type SectionId } from '../../core/economy';
+import { SectionLooks } from './sectionLooks';
 import { t, type TranslationKey } from '../../i18n';
 import { DISH_COLORS } from '../colors';
 import { FONT, PALETTE, toCss } from '../config';
+import { ROOM_FX_DEPTH, sparkle } from '../fx';
 import {
   CASHIER_LINE,
   CASHIER_STAFF,
@@ -202,6 +204,7 @@ export class RestaurantView {
   private spawnTimer = 0;
   private vip: { person: Person; bubble: Bubble | null; leave: Phaser.Time.TimerEvent | null } | null = null;
   private state: ViewState | null = null;
+  private readonly looks: SectionLooks;
   private flow: Flow | null = null;
 
   constructor(
@@ -210,6 +213,7 @@ export class RestaurantView {
   ) {
     const art = drawRoom(scene, theme);
     this.tables = art.tables;
+    this.looks = new SectionLooks(scene, theme, art);
     this.seats = TABLES.flatMap((table, i) =>
       ([-1, 1] as const).map((side, s) => ({ table, side, chair: art.chairs[i * 2 + s], open: true, occupant: null })),
     );
@@ -233,9 +237,11 @@ export class RestaurantView {
   }
 
   update(state: ViewState, time: number, delta: number): void {
+    const wasStarted = this.state !== null;
     this.state = state;
     this.flow = computeFlow(state);
     this.syncStaff(this.flow);
+    this.applyLooks(state.levels, wasStarted);
     this.syncSeats(this.flow.seatsOpen);
     this.updateMarker(state.bottleneck);
 
@@ -611,6 +617,19 @@ export class RestaurantView {
       const person = this.addPerson(new Person(this.scene, STOVES[stove].x, KITCHEN.counterY - 20, 'chef'));
       this.chefs.push({ person, stove, cooking: false });
     }
+  }
+
+  // Staff outfits and room props follow each section's style tier. Changes after the first
+  // frame are celebrated with a little sparkle.
+  private applyLooks(levels: Record<SectionId, number>, animate: boolean): void {
+    this.looks.update(levels, animate);
+    const restyle = (person: Person, section: SectionId) => {
+      if (person.setStyle(styleTier(levels[section])) && animate) sparkle(this.scene, person.x, person.y - 100, 0xfff3c4, ROOM_FX_DEPTH);
+    };
+    this.waiters.forEach((w) => restyle(w.person, 'waiters'));
+    this.chefs.forEach((c) => restyle(c.person, 'kitchen'));
+    restyle(this.cashier, 'cashier');
+    restyle(this.dishwasher, 'dishwashing');
   }
 
   private animateSteam(time: number): void {

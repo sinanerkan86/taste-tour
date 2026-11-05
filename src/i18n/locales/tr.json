@@ -1,4 +1,7 @@
 {
+  "map.title": "Dünya Turu",
+  "map.here": "Buradasın",
+  "map.progress": "{done}/{total} yemek",
   "settings.title": "Ayarlar",
   "settings.on": "Açık",
   "settings.off": "Kapalı",

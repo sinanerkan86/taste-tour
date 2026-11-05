@@ -24,7 +24,8 @@ import { FONT, GAME_WIDTH, LAYOUT, PALETTE, toCss } from '../config';
 import { DISH_COLORS, SECTION_COLORS } from '../colors';
 import { BUTTON_STYLES, Button } from './Button';
 import { dishIcon, lockIcon, sectionIcon } from './icons';
-import { ART_RES } from '../view/paint';
+import { ART_RES, paintTexture, roundRect, vGradient } from '../view/paint';
+import { card } from './style';
 import { saveSettings, settings } from '../settings';
 
 const MARGIN = 24;
@@ -37,6 +38,34 @@ const AMOUNT_WIDTH = 150;
 
 
 type Tab = 'restaurant' | 'menu';
+
+const ROW_CARDS = {
+  normal: { top: 0xffffff, bottom: 0xfff0d6, border: 0xe6c49a, radius: 24 },
+  highlight: { top: 0xfff2ee, bottom: 0xffd2c6, border: 0xec4a3c, radius: 24, borderWidth: 5 },
+};
+
+// Warm cream sheet with a glossy top edge, like a menu card.
+function paintPanelBackground(scene: Phaser.Scene): string {
+  const height = LAYOUT.panelHeight + 60;
+  return paintTexture(scene, 'panel-bg', GAME_WIDTH, height, (ctx) => {
+    ctx.fillStyle = 'rgba(40,15,5,0.3)';
+    roundRect(ctx, 0, 0, GAME_WIDTH, height, 44);
+    ctx.fill();
+    ctx.fillStyle = '#c98a4a';
+    roundRect(ctx, 0, 6, GAME_WIDTH, height, 44);
+    ctx.fill();
+    ctx.fillStyle = vGradient(ctx, 12, height, [
+      [0, '#fff8ea'],
+      [0.25, '#fbeccf'],
+      [1, '#f3dcb6'],
+    ]);
+    roundRect(ctx, 0, 13, GAME_WIDTH, height, 40);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    roundRect(ctx, 40, 18, GAME_WIDTH - 80, 6, 3);
+    ctx.fill();
+  });
+}
 
 interface RowView {
   title: string;
@@ -54,7 +83,7 @@ interface RowView {
 }
 
 class UpgradeRow extends Phaser.GameObjects.Container {
-  private readonly bg: Phaser.GameObjects.Graphics;
+  private readonly bg: Phaser.GameObjects.Image;
   private readonly title: Phaser.GameObjects.Text;
   private readonly level: Phaser.GameObjects.Text;
   private readonly detail: Phaser.GameObjects.Text;
@@ -68,7 +97,7 @@ class UpgradeRow extends Phaser.GameObjects.Container {
   constructor(scene: Phaser.Scene, y: number, onBuy: () => void) {
     super(scene, 0, y);
     const width = GAME_WIDTH - MARGIN * 2;
-    this.bg = scene.add.graphics();
+    this.bg = scene.add.image(GAME_WIDTH / 2, 0, '__DEFAULT').setScale(1 / ART_RES);
     this.icon = scene.add.image(MARGIN + 56, 0, '__DEFAULT').setScale(1 / ART_RES);
     this.lock = scene.add.image(MARGIN + 80, 22, lockIcon(scene)).setScale(1 / ART_RES).setVisible(false);
     this.title = scene.add
@@ -120,13 +149,8 @@ class UpgradeRow extends Phaser.GameObjects.Container {
     if (this.lastHighlight !== view.highlight) {
       this.lastHighlight = view.highlight;
       const width = GAME_WIDTH - MARGIN * 2;
-      this.bg.clear();
-      this.bg.fillStyle(view.highlight ? 0xffe9e4 : PALETTE.cream, 1);
-      this.bg.fillRoundedRect(MARGIN, -ROW_HEIGHT / 2, width, ROW_HEIGHT, 16);
-      if (view.highlight) {
-        this.bg.lineStyle(4, PALETTE.pomegranate, 1);
-        this.bg.strokeRoundedRect(MARGIN, -ROW_HEIGHT / 2, width, ROW_HEIGHT, 16);
-      }
+      const look = view.highlight ? ROW_CARDS.highlight : ROW_CARDS.normal;
+      this.bg.setTexture(card(this.scene, `row-${view.highlight ? 'hot' : 'plain'}`, width, ROW_HEIGHT, look));
     }
   }
 
@@ -170,9 +194,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
   ) {
     // The scene places the panel at the bottom of the screen.
     super(scene, 0, 0);
-    const bg = scene.add.graphics();
-    bg.fillStyle(PALETTE.panel, 1);
-    bg.fillRoundedRect(0, 0, GAME_WIDTH, LAYOUT.panelHeight + 40, 36);
+    const bg = scene.add.image(0, -8, paintPanelBackground(scene)).setOrigin(0).setScale(1 / ART_RES);
     this.add(bg);
 
     // Two tabs, then a button that cycles how many levels a buy tap gets.

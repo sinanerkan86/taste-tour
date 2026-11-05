@@ -30,11 +30,12 @@ import {
   type EconomyState,
   type SectionId,
 } from '../../core/economy';
+import { ART_RES } from '../view/paint';
 import { formatNumber } from '../../core/format';
 import { createSave, offlineReward, type OfflineReward, type SaveData } from '../../core/save';
 import { t, tDuration, type TranslationKey } from '../../i18n';
 import { ads, type AdPlacement } from '../ads/AdService';
-import { FONT, GAME_WIDTH, LAYOUT, PALETTE, panelTop, toCss } from '../config';
+import { FONT, GAME_WIDTH, PALETTE, panelTop, toCss } from '../config';
 import { FX_DEPTH, ROOM_FX_DEPTH, UI_LAYER_DEPTH, banner, confetti, floatingText, sparkle } from '../fx';
 import { saves } from '../persistence';
 import { AdOfferModal } from '../ui/AdOfferModal';
@@ -49,15 +50,21 @@ import { ROOM, SECTION_ANCHORS, type Point } from '../view/layout';
 import { RestaurantView } from '../view/RestaurantView';
 import { Decor } from '../view/decor';
 import { audio } from '../audio';
+import type { WorldMapData } from './WorldMapScene';
 import { SettingsModal } from '../ui/SettingsModal';
-import { gearIcon } from '../ui/icons';
+import { gearIcon, globeIcon } from '../ui/icons';
+import { counterPill, glossyButton, outlined, paintHudAwning } from '../ui/style';
 import { ROOM_MARGIN, RoomCamera } from '../view/RoomCamera';
 import { cityTheme } from '../view/themes';
 
 const PANEL_REFRESH_MS = 100;
 // HUD and panel draw above everything in the restaurant scene.
 const UI_DEPTH = 10000;
-const HUD_COIN: Point = { x: GAME_WIDTH / 2 - 150, y: 78 };
+const MONEY_PILL = { width: 380, height: 84 };
+const HUD_COIN: Point = { x: GAME_WIDTH / 2 + 20 - MONEY_PILL.width / 2, y: 70 };
+const CITY_PILL = { width: 270, height: 60 };
+const STARS_PILL = { width: 160, height: 56 };
+const GEAR_SIZE = 96;
 const HUD_MARGIN = 30;
 // Rewarded ad buttons sit in the bottom right corner of the room, this far above the panel.
 const AD_BUTTON = { width: 130, height: 68, abovePanel: 80, gap: 14 };
@@ -68,7 +75,6 @@ const MARKER_VISIBLE_MARGIN = 50;
 const PAN_MS = 450;
 // The goal card sits this far below the top of the restaurant view.
 const GOAL_BAR_Y = 50;
-const GEAR_RADIUS = 40;
 const BANNER_Y = 330;
 const AUTOSAVE_MS = 10_000;
 // Shorter absences are paid out silently, as if the game had kept running.
@@ -166,6 +172,12 @@ export class RestaurantScene extends Phaser.Scene {
 
   private cityName(city: number): string {
     return t(`city.${cityConfig(city).id}` as TranslationKey);
+  }
+
+  // The world tour opens on top of the restaurant, which keeps running underneath.
+  private openWorldMap(): void {
+    if (this.scene.isActive('WorldMap')) return;
+    this.scene.launch('WorldMap', { economy: this.economy } satisfies WorldMapData);
   }
 
   private openFranchise(): void {
@@ -646,46 +658,45 @@ export class RestaurantScene extends Phaser.Scene {
   }
 
   private drawHud(): void {
-    this.add.rectangle(0, 0, GAME_WIDTH, LAYOUT.hudHeight, PALETTE.pomegranate).setOrigin(0).setDepth(UI_DEPTH);
-    this.add
-      .rectangle(0, LAYOUT.hudHeight, GAME_WIDTH, 8, PALETTE.pomegranateDark)
-      .setOrigin(0)
-      .setDepth(UI_DEPTH);
+    // A striped awning across the top, with a scalloped edge hanging over the room.
+    this.add.image(0, 0, paintHudAwning(this)).setOrigin(0).setScale(1 / ART_RES).setDepth(UI_DEPTH);
+
+    // Center: money in a dark pill with the coin overlapping its left end, income below.
+    this.add.image(GAME_WIDTH / 2 + 20, HUD_COIN.y, counterPill(this, MONEY_PILL.width, MONEY_PILL.height)).setScale(1 / ART_RES).setDepth(UI_DEPTH);
     this.hudCoin = this.add.image(HUD_COIN.x, HUD_COIN.y, 'coin').setScale(1.1).setDepth(UI_DEPTH);
     this.moneyText = this.add
-      .text(GAME_WIDTH / 2 - 100, 78, '0', {
-        fontFamily: FONT,
-        fontSize: '72px',
-        fontStyle: 'bold',
-        color: toCss(PALETTE.cream),
-      })
-      .setOrigin(0, 0.5)
+      .text(GAME_WIDTH / 2 + 30, HUD_COIN.y - 2, '0', outlined(58))
+      .setOrigin(0.5)
       .setDepth(UI_DEPTH);
     this.incomeText = this.add
-      .text(GAME_WIDTH / 2, 150, '', { fontFamily: FONT, fontSize: '36px', fontStyle: 'bold', color: toCss(PALETTE.saffron) })
+      .text(GAME_WIDTH / 2 + 20, 148, '', outlined(32, { color: 0xffe066, stroke: 0x6a1a10 }))
       .setOrigin(0.5)
       .setDepth(UI_DEPTH);
 
-    // Left: city and Chef Stars.
-    this.add
-      .text(HUD_MARGIN, 52, this.cityName(this.economy.city), {
-        fontFamily: FONT,
-        fontSize: '32px',
-        fontStyle: 'bold',
-        color: toCss(PALETTE.cream),
-      })
+    // Left: city (opens the world map) and Chef Stars.
+    const cityPill = this.add.image(HUD_MARGIN + CITY_PILL.width / 2, 58, counterPill(this, CITY_PILL.width, CITY_PILL.height)).setScale(1 / ART_RES).setDepth(UI_DEPTH);
+    const globe = this.add.image(HUD_MARGIN + 18, 58, globeIcon(this)).setScale(1 / ART_RES).setDepth(UI_DEPTH);
+    const cityText = this.add
+      .text(HUD_MARGIN + 66, 56, this.cityName(this.economy.city), outlined(30))
       .setOrigin(0, 0.5)
       .setDepth(UI_DEPTH);
-    this.add.image(HUD_MARGIN + 26, 122, 'star').setScale(0.8).setDepth(UI_DEPTH);
+    cityText.setScale(Math.min(1, (CITY_PILL.width - 76) / cityText.width));
+    cityPill.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+      audio.play('click');
+      this.tweens.add({ targets: [cityPill, globe, cityText], scale: '*=0.94', duration: 70, yoyo: true });
+      this.openWorldMap();
+    });
+    this.add.image(HUD_MARGIN + STARS_PILL.width / 2 + 10, 132, counterPill(this, STARS_PILL.width, STARS_PILL.height)).setScale(1 / ART_RES).setDepth(UI_DEPTH);
+    this.add.image(HUD_MARGIN + 18, 130, 'star').setScale(0.85).setDepth(UI_DEPTH);
     this.starsText = this.add
-      .text(HUD_MARGIN + 62, 122, '0', { fontFamily: FONT, fontSize: '40px', fontStyle: 'bold', color: toCss(PALETTE.cream) })
+      .text(HUD_MARGIN + 62, 130, '0', outlined(36))
       .setOrigin(0, 0.5)
       .setDepth(UI_DEPTH);
 
-    // Far right: settings gear.
-    const gearX = GAME_WIDTH - HUD_MARGIN - GEAR_RADIUS;
-    const gearBg = this.add.circle(gearX, 80, GEAR_RADIUS, PALETTE.pomegranateDark).setDepth(UI_DEPTH);
-    const gear = this.add.image(gearX, 80, gearIcon(this)).setScale(1 / 2).setDepth(UI_DEPTH);
+    // Far right: settings gear on a glossy square.
+    const gearX = GAME_WIDTH - HUD_MARGIN - GEAR_SIZE / 2;
+    const gearBg = this.add.image(gearX, 82, glossyButton(this, GEAR_SIZE, GEAR_SIZE, { face: 0x3d86d8 })).setScale(1 / ART_RES).setDepth(UI_DEPTH);
+    const gear = this.add.image(gearX, 78, gearIcon(this)).setScale(0.62).setDepth(UI_DEPTH);
     gearBg.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
       audio.unlock();
       audio.play('click');
@@ -694,15 +705,10 @@ export class RestaurantScene extends Phaser.Scene {
     });
 
     // Right: franchise button, hidden until the menu is complete.
-    this.franchiseButton = new Button(this, gearX - GEAR_RADIUS - 20 - 105, 80, 210, 100, () => this.openFranchise(), 'star');
-    this.franchiseButton.setButtonStyle(BUTTON_STYLES.buy).setDepth(UI_DEPTH).setVisible(false);
+    this.franchiseButton = new Button(this, gearX - GEAR_SIZE / 2 - 16 - 85, 74, 170, 92, () => this.openFranchise(), 'star');
+    this.franchiseButton.setButtonStyle(BUTTON_STYLES.go).setDepth(UI_DEPTH).setVisible(false);
     this.franchiseCaption = this.add
-      .text(this.franchiseButton.x, 155, t('franchise.button'), {
-        fontFamily: FONT,
-        fontSize: '26px',
-        fontStyle: 'bold',
-        color: toCss(PALETTE.cream),
-      })
+      .text(this.franchiseButton.x, 148, t('franchise.button'), outlined(24))
       .setOrigin(0.5)
       .setDepth(UI_DEPTH)
       .setVisible(false);

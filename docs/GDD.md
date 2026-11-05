@@ -112,6 +112,7 @@ A small card under the HUD always names the next goal with a progress bar: the n
 - City order: Istanbul → Rome → Tokyo → New York → Mexico City → Bangkok, then the list starts over with bigger numbers.
 - Each city has its own 7-dish world menu that opens with the local specialty, its own color palette (wall, tiles, floor, table cloths) and a framed poster of its landmark on the wall: mosque (Istanbul), Colosseum (Rome), torii gate and mountain (Tokyo), skyline (New York), stepped pyramid (Mexico City), temple spires (Bangkok). City music comes later.
 - New cities = ready-made content for future updates.
+- **World tour map:** tapping the city pill in the HUD opens a scrolling map where a road winds up through a meadow (trees, ponds, drifting clouds) from the first city to the next ones. Each city is a round window with its landmark: finished cities show the stars they gave (stored per city in the save as `cityStars`), the current one glows under a bouncing pin with its menu progress, and the cities ahead wait under a padlock with their first dish floating beside them. Golden footsteps mark the road travelled. After the sixth city the list repeats with "II", "III".
 - **In the game:** the HUD shows the city and the Chef Stars. When the menu is complete a "Franchise" button appears in the HUD with the stars on offer (it keeps counting up while the player stays). Its dialog shows the stars to gain, the income bonus before → after, and that money, sections and dishes start over. Confirming fades to the new city, which greets the player with a banner.
 
 ## 7. Economy math
@@ -160,6 +161,7 @@ IAP: Remove ads (grants ad rewards without ads), permanent 2x income, starter pa
 
 - A **living restaurant scene** instead of a list screen: walking customers, waiters, steaming stoves.
 - **Calm, not hectic**: the scene shows at most about one customer every two seconds and people walk unhurried; it should feel like a pleasant place to watch, never overwhelming. Big celebrations (banner + confetti) only for big moments; level milestones get a short note. Ads are always the player's choice.
+- **Interface style: soft, glossy and lively** (like candy toys): the rounded Fredoka font with white text outlined in dark brown, chunky glossy pill buttons with a light rim and a dark outline, dark translucent counter pills with the icon overlapping their left end, soft gradient cards, and a red and cream striped awning as the HUD. Shared helpers live in `src/game/ui/style.ts`.
 - Warm, saturated colors; palette changes per city (Istanbul: copper, pomegranate red, tile blue, saffron).
 - Cute characters with soft shading and depth (painted in code into 2x textures, so they stay sharp when zoomed in).
 - "Juice": particles, tweens, gentle number pop-ups; no screen shake.

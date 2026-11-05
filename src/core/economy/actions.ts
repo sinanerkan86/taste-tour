@@ -112,7 +112,9 @@ export function canFranchise(state: EconomyState): boolean {
 
 // Franchise: sell the restaurant and start over in the next city, keeping the stars.
 export function prestige(state: EconomyState): EconomyState {
-  const next = newEconomy(state.stars + pendingStars(state), state.lifetimeEarnings, state.city + 1);
+  const gained = pendingStars(state);
+  const next = newEconomy(state.stars + gained, state.lifetimeEarnings, state.city + 1);
+  next.cityStars = [...state.cityStars, gained];
   // Ad rewards were earned by the player, not the restaurant, so they move along.
   next.rushSeconds = state.rushSeconds;
   next.timeSkipCooldown = state.timeSkipCooldown;

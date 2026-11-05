@@ -605,3 +605,39 @@ export function gearIcon(scene: Phaser.Scene): string {
     ctx.globalCompositeOperation = 'source-over';
   });
 }
+
+// A little globe for the city pill (opens the world map).
+export function globeIcon(scene: Phaser.Scene): string {
+  return paintTexture(scene, 'icon-globe', 60, 60, (ctx) => {
+    ctx.translate(30, 30);
+    ctx.fillStyle = 'rgba(40,20,10,0.3)';
+    ellipse(ctx, 0, 3, 26, 26);
+    ctx.fill();
+    ctx.fillStyle = radial(ctx, 0, 0, 2, 26, [
+      [0, '#8fe0ff'],
+      [1, '#1f7fc0'],
+    ], -8, -10);
+    ellipse(ctx, 0, 0, 25, 25);
+    ctx.fill();
+    ctx.fillStyle = '#5cc23a';
+    ctx.beginPath();
+    ctx.moveTo(-14, -16);
+    ctx.quadraticCurveTo(-2, -20, 2, -10);
+    ctx.quadraticCurveTo(-4, -2, -12, 2);
+    ctx.quadraticCurveTo(-20, -4, -14, -16);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(6, 2);
+    ctx.quadraticCurveTo(18, 0, 18, 10);
+    ctx.quadraticCurveTo(10, 20, 4, 14);
+    ctx.quadraticCurveTo(2, 8, 6, 2);
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#fff4dc';
+    ellipse(ctx, 0, 0, 25, 25);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ellipse(ctx, -9, -12, 8, 4);
+    ctx.fill();
+  });
+}

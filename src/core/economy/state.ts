@@ -12,6 +12,8 @@ export interface EconomyState {
   stars: number;
   // Index of the current restaurant in the chain: 0 is the first one (see cityConfig).
   city: number;
+  // Stars each finished city awarded, in order (shown on the world map).
+  cityStars: number[];
   sectionLevels: Record<SectionId, number>;
   // Level per dish in menu order (DISH_TIERS); 0 means not on the menu yet.
   dishLevels: number[];
@@ -29,6 +31,7 @@ export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomySt
     runReputation: 0,
     stars,
     city,
+    cityStars: [],
     sectionLevels,
     dishLevels: DISH_TIERS.map((d) => (d.unlockCost === 0 ? 1 : 0)),
     rushSeconds: 0,

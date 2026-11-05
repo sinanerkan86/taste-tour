@@ -1,28 +1,29 @@
 import Phaser from 'phaser';
 import { type Sfx, audio } from '../audio';
-import { FONT, PALETTE, toCss } from '../config';
+import { ART_RES } from '../view/paint';
+import { LIP, glossyButton, outlined } from './style';
 
 export interface ButtonStyle {
   face: number;
-  shadow: number;
+  // Label color and its outline.
   text: number;
+  stroke: number;
 }
 
 export const BUTTON_STYLES = {
-  buy: { face: PALETTE.saffron, shadow: PALETTE.saffronDark, text: PALETTE.ink },
-  primary: { face: PALETTE.pomegranate, shadow: PALETTE.pomegranateDark, text: PALETTE.cream },
-  disabled: { face: PALETTE.disabled, shadow: PALETTE.disabledDark, text: PALETTE.muted },
-  toggle: { face: PALETTE.tileBlue, shadow: 0x134a5e, text: PALETTE.cream },
+  buy: { face: 0xffbe1a, text: 0xffffff, stroke: 0x8a4a00 },
+  primary: { face: 0xec4a3c, text: 0xffffff, stroke: 0x7a1a12 },
+  disabled: { face: 0xcbc0b2, text: 0xf7f2ea, stroke: 0x8a7f72 },
+  toggle: { face: 0x2fa4d8, text: 0xffffff, stroke: 0x0f4a6a },
+  go: { face: 0x5cc23a, text: 0xffffff, stroke: 0x245a10 },
 } satisfies Record<string, ButtonStyle>;
 
-const SHADOW_DEPTH = 8;
-
-// A rounded "3D" button. Children are positioned relative to the container's center.
+// A glossy candy button. Children are positioned relative to the container's center.
 export class Button extends Phaser.GameObjects.Container {
-  private readonly bg: Phaser.GameObjects.Graphics;
+  private readonly face: Phaser.GameObjects.Image;
   private readonly label: Phaser.GameObjects.Text;
   private readonly icon?: Phaser.GameObjects.Image;
-  private style: ButtonStyle = BUTTON_STYLES.buy;
+  private style: ButtonStyle | null = null;
   private enabled = true;
   // Played on a press while enabled; null for silence.
   sound: Sfx | null = 'click';
@@ -39,13 +40,12 @@ export class Button extends Phaser.GameObjects.Container {
     super(scene, x, y);
     const w = buttonWidth;
     const h = buttonHeight;
-    this.bg = scene.add.graphics();
-    this.label = scene.add
-      .text(0, -SHADOW_DEPTH / 2, '', { fontFamily: FONT, fontSize: '34px', fontStyle: 'bold' })
-      .setOrigin(0.5);
-    this.add([this.bg, this.label]);
+    this.face = scene.add.image(0, 0, '__DEFAULT').setScale(1 / ART_RES);
+    const size = Math.round(Math.min(38, h * 0.4));
+    this.label = scene.add.text(0, -LIP / 2, '', outlined(size)).setOrigin(0.5);
+    this.add([this.face, this.label]);
     if (iconKey) {
-      this.icon = scene.add.image(0, -SHADOW_DEPTH / 2, iconKey).setScale(0.75);
+      this.icon = scene.add.image(0, -LIP / 2, iconKey).setScale(Math.min(0.75, (h * 0.5) / 64));
       this.add(this.icon);
     }
     this.setSize(w, h).setInteractive({ useHandCursor: true });
@@ -56,7 +56,7 @@ export class Button extends Phaser.GameObjects.Container {
       scene.tweens.add({ targets: this, scale: 0.93, duration: 60, yoyo: true, ease: 'Quad.easeOut' });
       onClick();
     });
-    this.redraw();
+    this.setButtonStyle(BUTTON_STYLES.buy);
     scene.add.existing(this);
   }
 
@@ -78,19 +78,10 @@ export class Button extends Phaser.GameObjects.Container {
     if (this.style === style && this.enabled === enabled) return this;
     this.style = style;
     this.enabled = enabled;
-    this.redraw();
+    this.face.setTexture(glossyButton(this.scene, this.buttonWidth, this.buttonHeight, { face: style.face }));
+    this.label.setColor(`#${style.text.toString(16).padStart(6, '0')}`);
+    this.label.setStroke(`#${style.stroke.toString(16).padStart(6, '0')}`, this.label.style.strokeThickness);
+    this.icon?.setAlpha(style === BUTTON_STYLES.disabled ? 0.6 : 1);
     return this;
-  }
-
-  private redraw(): void {
-    const w = this.buttonWidth;
-    const h = this.buttonHeight;
-    const radius = 18;
-    this.bg.clear();
-    this.bg.fillStyle(this.style.shadow, 1);
-    this.bg.fillRoundedRect(-w / 2, -h / 2 + SHADOW_DEPTH, w, h - SHADOW_DEPTH, radius);
-    this.bg.fillStyle(this.style.face, 1);
-    this.bg.fillRoundedRect(-w / 2, -h / 2, w, h - SHADOW_DEPTH, radius);
-    this.label.setColor(toCss(this.style.text));
   }
 }

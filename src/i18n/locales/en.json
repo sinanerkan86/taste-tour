@@ -1,4 +1,7 @@
 {
+  "map.title": "World Tour",
+  "map.here": "You are here",
+  "map.progress": "{done}/{total} dishes",
   "settings.title": "Settings",
   "settings.on": "On",
   "settings.off": "Off",

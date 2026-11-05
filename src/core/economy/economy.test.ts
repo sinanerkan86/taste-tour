@@ -197,6 +197,7 @@ describe('actions', () => {
     const next = prestige(state);
     expect(next.city).toBe(1);
     expect(next.stars).toBe(20);
+    expect(next.cityStars).toEqual([20]);
     expect(next.money).toBe(0);
     expect(next.lifetimeEarnings).toBe(state.lifetimeEarnings);
     expect(pendingStars(next)).toBe(0);

@@ -47,6 +47,7 @@ export const PALETTE = {
   success: 0x4a8c3a,
 } as const;
 
-export const FONT = '"Trebuchet MS", "Segoe UI", system-ui, sans-serif';
+// Rounded, friendly display font bundled with the app (Fredoka, SIL Open Font License).
+export const FONT = '"Fredoka", "Trebuchet MS", system-ui, sans-serif';
 
 export const toCss = (color: number): string => `#${color.toString(16).padStart(6, '0')}`;

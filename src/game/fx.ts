@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
-import { FONT, GAME_WIDTH, PALETTE, toCss } from './config';
+import { glossyButton, outlined } from './ui/style';
+import { ART_RES } from './view/paint';
+import { GAME_WIDTH, PALETTE } from './config';
 
 // Objects at or above this depth are screen UI (HUD, panel, banners, dialogs) and ignore the
 // restaurant camera's zoom and scroll; everything below lives in the restaurant world.
@@ -54,14 +56,7 @@ export function floatingText(
   depth = FX_DEPTH,
 ): void {
   const label = scene.add
-    .text(x, y, text, {
-      fontFamily: FONT,
-      fontSize: `${size}px`,
-      fontStyle: 'bold',
-      color: toCss(color),
-      stroke: toCss(PALETTE.ink),
-      strokeThickness: 8,
-    })
+    .text(x, y, text, outlined(size, { color }))
     .setOrigin(0.5)
     .setDepth(depth);
   scene.tweens.add({
@@ -79,14 +74,10 @@ let activeBanner: Phaser.GameObjects.Container | null = null;
 
 export function banner(scene: Phaser.Scene, y: number, text: string, color: number = PALETTE.pomegranate): void {
   activeBanner?.destroy();
-  const label = scene.add
-    .text(0, 0, text, { fontFamily: FONT, fontSize: '56px', fontStyle: 'bold', color: toCss(PALETTE.cream) })
-    .setOrigin(0.5);
-  const width = Math.min(label.width + 100, GAME_WIDTH - 40);
-  const bg = scene.add.graphics();
-  bg.fillStyle(PALETTE.ink, 0.35).fillRoundedRect(-width / 2, -46 + 8, width, 92, 28);
-  bg.fillStyle(color, 1).fillRoundedRect(-width / 2, -46, width, 92, 28);
-  bg.lineStyle(5, PALETTE.saffron, 1).strokeRoundedRect(-width / 2, -46, width, 92, 28);
+  const label = scene.add.text(0, -4, text, outlined(54)).setOrigin(0.5);
+  const width = Math.round(Math.min(label.width + 110, GAME_WIDTH - 40));
+  label.setScale(Math.min(1, (width - 80) / label.width));
+  const bg = scene.add.image(0, 0, glossyButton(scene, width, 110, { face: color, rim: 0xffe9a8 })).setScale(1 / ART_RES);
   const container = scene.add.container(GAME_WIDTH / 2, y, [bg, label]).setDepth(FX_DEPTH + 1).setScale(0);
   activeBanner = container;
   scene.tweens.chain({

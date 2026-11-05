@@ -56,6 +56,8 @@ export function parseSave(json: string): SaveData | null {
     runReputation: Math.max(0, finiteOr(saved.runReputation, runEarnings / cityCostScale(city))),
     stars: Math.max(0, Math.floor(finiteOr(saved.stars, 0))),
     city,
+    // One entry per finished city; saves from before the world map count those cities as 0.
+    cityStars: Array.from({ length: city }, (_, i) => Math.max(0, Math.floor(finiteOr(saved.cityStars?.[i], 0)))),
     sectionLevels: { ...fresh.sectionLevels },
     dishLevels: [...fresh.dishLevels],
     rushSeconds: Math.max(0, finiteOr(saved.rushSeconds, 0)),

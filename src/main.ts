@@ -32,6 +32,16 @@ window.addEventListener('resize', () => {
 
 setUpNativeApp(game);
 
+// The loading screen in index.html fades out once the restaurant has been built.
+game.events.once(Phaser.Core.Events.READY, () => {
+  game.scene.getScene('Restaurant')?.events.once(Phaser.Scenes.Events.CREATE, () => {
+    const loader = document.getElementById('loader');
+    if (!loader) return;
+    loader.classList.add('done');
+    loader.addEventListener('transitionend', () => loader.remove(), { once: true });
+  });
+});
+
 // Dev-only handle for debugging from the browser console.
 if (import.meta.env.DEV) {
   (window as unknown as { game: Phaser.Game }).game = game;

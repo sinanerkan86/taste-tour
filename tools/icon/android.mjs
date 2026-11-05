@@ -36,4 +36,6 @@ const adaptive = `<?xml version="1.0" encoding="utf-8"?>
 for (const file of ['ic_launcher.xml', 'ic_launcher_round.xml']) writeFileSync(join(RES, 'mipmap-anydpi-v26', file), adaptive);
 
 await resize('assets/icon-only.png', 512, PLAY_ICON);
+// The web loading screen in index.html shows the foreground layer on the same red.
+await resize('assets/icon-foreground.png', 480, 'public/splash-icon.png');
 console.log('Android icons and the Play Store icon are up to date.');

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches the outer red of the app icon (ICON_COLORS.outer in tools/icon/paint.ts). -->
+    <color name="splash_background">#D8342A</color>
+</resources>

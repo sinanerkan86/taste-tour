@@ -11,10 +11,23 @@
       body { box-sizing: border-box; padding-top: env(safe-area-inset-top); }
       html.native, html.native body { background: linear-gradient(#c0392b 50%, #f3e6d0 50%); }
       #game { width: 100%; height: 100%; }
+      /* Loading screen until the first scene is ready: same red and icon as the Android splash. */
+      #loader {
+        position: fixed; inset: 0; z-index: 10; background: #d8342a;
+        display: flex; align-items: center; justify-content: center; transition: opacity 0.35s ease-out;
+      }
+      /* Sized and placed to line up with the Android 12 system splash icon (measured on a Pixel 8). */
+      #loader img { width: 288px; height: 288px; transform: translateY(-25px); }
+      #loader p {
+        position: absolute; left: 0; right: 0; top: calc(50% + 109px); margin: 0; text-align: center;
+        font: 600 30px Fredoka, system-ui, sans-serif; color: #fff4e0; text-shadow: 0 2px 6px rgba(80, 10, 0, 0.35);
+      }
+      #loader.done { opacity: 0; pointer-events: none; }
     </style>
   </head>
   <body>
     <div id="game"></div>
+    <div id="loader"><img src="/splash-icon.png" alt="" /><p>Taste Tour</p></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

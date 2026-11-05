@@ -11,6 +11,7 @@ export const BUTTON_STYLES = {
   buy: { face: PALETTE.saffron, shadow: PALETTE.saffronDark, text: PALETTE.ink },
   primary: { face: PALETTE.pomegranate, shadow: PALETTE.pomegranateDark, text: PALETTE.cream },
   disabled: { face: PALETTE.disabled, shadow: PALETTE.disabledDark, text: PALETTE.muted },
+  toggle: { face: PALETTE.tileBlue, shadow: 0x134a5e, text: PALETTE.cream },
 } satisfies Record<string, ButtonStyle>;
 
 const SHADOW_DEPTH = 8;

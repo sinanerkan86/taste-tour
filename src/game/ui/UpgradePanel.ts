@@ -1,17 +1,19 @@
 import Phaser from 'phaser';
 import {
+  BUY_AMOUNTS,
   DISH_MAX_LEVEL,
   DISH_TIERS,
   MILESTONE_BONUS,
   SECTION_IDS,
   cityConfig,
-  dishCost,
+  dishBuyPlan,
   dishPrice,
   nextLockedDish,
   nextMilestone,
+  sectionBuyPlan,
   sectionRates,
-  sectionUpgradeCost,
   throughput,
+  type BuyAmount,
   type EconomyState,
   type SectionId,
 } from '../../core/economy';
@@ -26,6 +28,10 @@ const ROW_HEIGHT = 100;
 const ROW_GAP = 6;
 const TAB_HEIGHT = 90;
 const BUTTON_WIDTH = 270;
+const AMOUNT_WIDTH = 150;
+
+// The chosen buy amount outlives the panel, so it survives a franchise (scene restart).
+let buyAmount: BuyAmount = 1;
 
 
 type Tab = 'restaurant' | 'menu';
@@ -133,6 +139,11 @@ class UpgradeRow extends Phaser.GameObjects.Container {
   }
 }
 
+// "Lv 5", or "Lv 5 (+10)" when a tap buys more than one level.
+function levelText(level: number, levels: number): string {
+  return levels > 1 ? t('row.levelGain', { level, gain: levels }) : t('row.level', { level });
+}
+
 function milestoneText(level: number, bonus: number): string {
   const next = nextMilestone(level);
   return next === null ? '' : `  ·  ${t('row.nextMilestone', { bonus, level: next })}`;
@@ -144,6 +155,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
   private readonly sectionRows: UpgradeRow[];
   private readonly dishRows: UpgradeRow[];
   private readonly tabButtons: Record<Tab, Button>;
+  private readonly amountButton: Button;
 
   constructor(
     scene: Phaser.Scene,
@@ -157,7 +169,8 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     bg.fillRoundedRect(0, 0, GAME_WIDTH, LAYOUT.panelHeight + 40, 36);
     this.add(bg);
 
-    const tabWidth = (GAME_WIDTH - MARGIN * 3) / 2;
+    // Two tabs, then a button that cycles how many levels a buy tap gets.
+    const tabWidth = (GAME_WIDTH - MARGIN * 4 - AMOUNT_WIDTH) / 2;
     const tabY = 20 + TAB_HEIGHT / 2;
     this.tabButtons = {
       restaurant: new Button(scene, MARGIN + tabWidth / 2, tabY, tabWidth, TAB_HEIGHT, () => this.showTab('restaurant')),
@@ -165,7 +178,10 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     };
     this.tabButtons.restaurant.setLabel(t('tab.restaurant'));
     this.tabButtons.menu.setLabel(t('tab.menu'));
-    this.add([this.tabButtons.restaurant, this.tabButtons.menu]);
+    this.amountButton = new Button(scene, GAME_WIDTH - MARGIN - AMOUNT_WIDTH / 2, tabY, AMOUNT_WIDTH, TAB_HEIGHT, () => this.cycleAmount());
+    this.amountButton.setButtonStyle(BUTTON_STYLES.toggle);
+    this.showAmount();
+    this.add([this.tabButtons.restaurant, this.tabButtons.menu, this.amountButton]);
 
     const rowY = (i: number) => 20 + TAB_HEIGHT + 24 + ROW_HEIGHT / 2 + i * (ROW_HEIGHT + ROW_GAP);
     this.sectionRows = SECTION_IDS.map(
@@ -176,6 +192,20 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
 
     this.showTab('restaurant');
     scene.add.existing(this);
+  }
+
+  get buyAmount(): BuyAmount {
+    return buyAmount;
+  }
+
+  private cycleAmount(): void {
+    buyAmount = BUY_AMOUNTS[(BUY_AMOUNTS.indexOf(buyAmount) + 1) % BUY_AMOUNTS.length];
+    this.showAmount();
+    if (this.lastState) this.refresh(this.lastState);
+  }
+
+  private showAmount(): void {
+    this.amountButton.setLabel(buyAmount === 'max' ? t('buy.max') : t('buy.amount', { amount: buyAmount }), false);
   }
 
   pulseSection(id: SectionId): void {
@@ -213,10 +243,10 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     const { bottleneck } = throughput(state);
     SECTION_IDS.forEach((id, i) => {
       const level = state.sectionLevels[id];
-      const cost = sectionUpgradeCost(state, id);
+      const { levels, cost } = sectionBuyPlan(state, id, buyAmount);
       this.sectionRows[i].render({
         title: t(`section.${id}` as TranslationKey),
-        level: t('row.level', { level }),
+        level: levelText(level, levels),
         detail: t('row.sectionRate', { rate: formatNumber(rates[id], 2) }) + milestoneText(level, MILESTONE_BONUS.section),
         buttonLabel: formatNumber(cost),
         buttonIcon: true,
@@ -233,14 +263,14 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     const city = cityConfig(state.city);
     DISH_TIERS.forEach((_, i) => {
       const level = state.dishLevels[i];
-      const cost = dishCost(state, i);
+      const { levels, cost } = dishBuyPlan(state, i, buyAmount);
       const row = this.dishRows[i];
       const title = t(`dish.${city.dishes[i]}` as TranslationKey);
       if (level > 0) {
         const mastered = level >= DISH_MAX_LEVEL;
         row.render({
           title,
-          level: t('row.level', { level }),
+          level: mastered ? t('row.level', { level }) : levelText(level, levels),
           detail:
             t('row.dishPrice', { price: formatNumber(dishPrice(state, i)) }) +
             (mastered ? '' : milestoneText(level, MILESTONE_BONUS.dish)),

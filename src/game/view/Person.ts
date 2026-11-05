@@ -32,7 +32,7 @@ const OUTFITS: Partial<Record<PersonKind, { body?: Part; head?: Part }>> = {
   vip: { body: 'sash', head: 'sunHat' },
 };
 
-export const WALK_SPEED = 260; // pixels per second
+export const WALK_SPEED = 165; // pixels per second, unhurried so the scene stays calm
 const BOB_HEIGHT = 7;
 
 // A painted character built from atlas parts (see characterArt.ts). The container's origin is at
@@ -138,11 +138,11 @@ export class Person extends Phaser.GameObjects.Container {
   // Called every frame for the walking bob and idle breathing.
   animate(time: number): void {
     if (this.walking) {
-      this.figure.y = -Math.abs(Math.sin(time * 0.012 + this.phase)) * BOB_HEIGHT;
+      this.figure.y = -Math.abs(Math.sin(time * 0.008 + this.phase)) * BOB_HEIGHT;
     } else {
       this.figure.scaleY = 1 + Math.sin(time * 0.003 + this.phase) * 0.015;
     }
-    this.figure.angle = this.busy && !this.walking ? Math.sin(time * 0.02 + this.phase) * 4 : 0;
+    this.figure.angle = this.busy && !this.walking ? Math.sin(time * 0.011 + this.phase) * 3 : 0;
   }
 
   destroy(fromScene?: boolean): void {

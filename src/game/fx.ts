@@ -33,7 +33,7 @@ export function sparkle(scene: Phaser.Scene, x: number, y: number, tint: number 
 }
 
 export function confetti(scene: Phaser.Scene, x: number, y: number): void {
-  explode(scene, x, y, 'confetti', 60, {
+  explode(scene, x, y, 'confetti', 36, {
     speed: { min: 500, max: 1000 },
     angle: { min: 220, max: 320 },
     rotate: { min: 0, max: 360 },

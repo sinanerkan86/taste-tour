@@ -5,8 +5,8 @@ import {
   MILESTONE_BONUS,
   activateRush,
   advanceTime,
-  buyDish,
-  buySectionLevel,
+  buyDishLevels,
+  buySectionLevels,
   canActivateRush,
   canFranchise,
   cityConfig,
@@ -51,7 +51,7 @@ const UI_DEPTH = 10000;
 const HUD_COIN: Point = { x: GAME_WIDTH / 2 - 150, y: 78 };
 const HUD_MARGIN = 30;
 // Rewarded ad buttons sit in the bottom right corner of the room, this far above the panel.
-const AD_BUTTON = { width: 150, height: 80, abovePanel: 85, gap: 15 };
+const AD_BUTTON = { width: 130, height: 68, abovePanel: 80, gap: 14 };
 // Shown at the edge of the room view when the bottleneck marker is scrolled out of sight.
 const MARKER_ARROW = { inset: 62, radius: 34 };
 // World pixels the marker must be inside the view to count as visible.
@@ -240,8 +240,8 @@ export class RestaurantScene extends Phaser.Scene {
     const adY = top - AD_BUTTON.abovePanel;
     this.rushButton.setY(adY);
     this.timeSkipButton.setY(adY);
-    this.rushCaption.setY(adY + AD_BUTTON.height / 2 + 22);
-    this.timeSkipCaption.setY(adY + AD_BUTTON.height / 2 + 22);
+    this.rushCaption.setY(adY + AD_BUTTON.height / 2 + 18);
+    this.timeSkipCaption.setY(adY + AD_BUTTON.height / 2 + 18);
   }
 
   // A pulsing "!" with an arrow at the side of the room view, pointing to an off-screen
@@ -494,20 +494,20 @@ export class RestaurantScene extends Phaser.Scene {
 
   private buySection(id: SectionId): void {
     const before = milestonesReached(this.economy.sectionLevels[id]);
-    if (!buySectionLevel(this.economy, id)) return;
+    if (buySectionLevels(this.economy, id, this.panel.buyAmount) === 0) return;
     void this.saveGame();
     this.panel.pulseSection(id);
     this.celebratePurchase();
     if (milestonesReached(this.economy.sectionLevels[id]) > before) {
       const name = t(`section.${id}` as TranslationKey);
-      this.celebrate(t('banner.milestone', { name, bonus: MILESTONE_BONUS.section }));
+      this.note(t('banner.milestone', { name, bonus: MILESTONE_BONUS.section }));
     }
     this.refreshUi();
   }
 
   private buyDish(index: number): void {
     const level = this.economy.dishLevels[index];
-    if (!buyDish(this.economy, index)) return;
+    if (buyDishLevels(this.economy, index, this.panel.buyAmount) === 0) return;
     void this.saveGame();
     this.panel.pulseDish(index);
     this.celebratePurchase();
@@ -518,7 +518,7 @@ export class RestaurantScene extends Phaser.Scene {
     } else if (newLevel === DISH_MAX_LEVEL) {
       this.celebrate(t('banner.mastered', { name }), PALETTE.tileBlue);
     } else if (milestonesReached(newLevel) > milestonesReached(level)) {
-      this.celebrate(t('banner.milestone', { name, bonus: MILESTONE_BONUS.dish }));
+      this.note(t('banner.milestone', { name, bonus: MILESTONE_BONUS.dish }));
     }
     this.refreshUi();
   }
@@ -529,10 +529,15 @@ export class RestaurantScene extends Phaser.Scene {
     sparkle(this, pointer.x, pointer.y, 0xffffff);
   }
 
+  // Big moments (new dish, new city, Rush...): a banner with confetti.
   private celebrate(message: string, color: number = PALETTE.pomegranate): void {
     banner(this, BANNER_Y, message, color);
     confetti(this, GAME_WIDTH / 2, BANNER_Y + 40);
-    this.cameras.cameras.forEach((camera) => camera.shake(180, 0.004));
+  }
+
+  // Small moments (level milestones), which happen often: a short note above the panel.
+  private note(message: string): void {
+    floatingText(this, GAME_WIDTH / 2, panelTop(this.scale.height) - 150, message, PALETTE.cream, 34);
   }
 
   // `from` is a screen position.
@@ -652,14 +657,14 @@ export class RestaurantScene extends Phaser.Scene {
         strokeThickness: 8,
       })
       .setOrigin(0, 0.5);
-    const popup = this.add.container(at.x, at.y, [coin, text]).setDepth(ROOM_FX_DEPTH);
-    this.flyCoinToHud(this.room.toScreen(at));
+    // A gentle rise and fade; coins only fly to the HUD for the player's own taps.
+    const popup = this.add.container(at.x, at.y, [coin, text]).setDepth(ROOM_FX_DEPTH).setScale(0.85);
     this.tweens.add({
       targets: popup,
-      y: at.y - 130,
+      y: at.y - 80,
       alpha: 0,
-      duration: 1100,
-      ease: 'Quad.easeOut',
+      duration: 1800,
+      ease: 'Sine.easeOut',
       onComplete: () => popup.destroy(),
     });
   }

@@ -28,17 +28,76 @@ function spend(state: EconomyState, cost: number): boolean {
   return true;
 }
 
+// How many levels one tap on a buy button buys: 1, 10, or as many as the money covers.
+export type BuyAmount = 1 | 10 | 'max';
+export const BUY_AMOUNTS: BuyAmount[] = [1, 10, 'max'];
+
+export interface BuyPlan {
+  levels: number;
+  cost: number;
+}
+
+// A fixed amount buys exactly that many levels (fewer only near a level cap), affordable or
+// not, so the button can show the price. 'max' buys as many as the money covers, but at least
+// one, so an unaffordable button still shows the next level's price.
+function planLevels(costOf: (offset: number) => number, amount: BuyAmount, limit: number, money: number): BuyPlan {
+  const wanted = Math.min(amount === 'max' ? limit : amount, limit);
+  let levels = 0;
+  let cost = 0;
+  while (levels < wanted) {
+    const next = costOf(levels);
+    if (amount === 'max' && levels > 0 && cost + next > money) break;
+    cost += next;
+    levels++;
+  }
+  return { levels, cost };
+}
+
+// Safety net for 'max' on sections, which have no level cap.
+const MAX_LEVELS_PER_BUY = 1000;
+
+export function sectionBuyPlan(state: EconomyState, id: SectionId, amount: BuyAmount): BuyPlan {
+  const cfg = SECTIONS[id];
+  const level = state.sectionLevels[id];
+  const scale = cityCostScale(state.city);
+  return planLevels((k) => levelCost(cfg.baseCost, cfg.costGrowth, level + k) * scale, amount, MAX_LEVELS_PER_BUY, state.money);
+}
+
+// Unlocking a dish counts as its first level. Locked dishes other than the next one cannot be bought.
+export function dishBuyPlan(state: EconomyState, index: number, amount: BuyAmount): BuyPlan {
+  const tier = DISH_TIERS[index];
+  const level = state.dishLevels[index];
+  if (level === 0 && index !== nextLockedDish(state)) return { levels: 0, cost: Infinity };
+  if (level >= DISH_MAX_LEVEL) return { levels: 0, cost: Infinity };
+  const scale = cityCostScale(state.city);
+  const costOf = (k: number) => {
+    const at = level + k;
+    return (at === 0 ? tier.unlockCost : levelCost(tier.baseUpgradeCost, tier.costGrowth, at)) * scale;
+  };
+  return planLevels(costOf, amount, DISH_MAX_LEVEL - level, state.money);
+}
+
+// Buys levels if the money covers the whole plan. Returns how many levels were bought.
+export function buySectionLevels(state: EconomyState, id: SectionId, amount: BuyAmount): number {
+  const plan = sectionBuyPlan(state, id, amount);
+  if (plan.levels === 0 || !spend(state, plan.cost)) return 0;
+  state.sectionLevels[id] += plan.levels;
+  return plan.levels;
+}
+
+export function buyDishLevels(state: EconomyState, index: number, amount: BuyAmount): number {
+  const plan = dishBuyPlan(state, index, amount);
+  if (plan.levels === 0 || !spend(state, plan.cost)) return 0;
+  state.dishLevels[index] += plan.levels;
+  return plan.levels;
+}
+
 export function buySectionLevel(state: EconomyState, id: SectionId): boolean {
-  if (!spend(state, sectionUpgradeCost(state, id))) return false;
-  state.sectionLevels[id]++;
-  return true;
+  return buySectionLevels(state, id, 1) > 0;
 }
 
 export function buyDish(state: EconomyState, index: number): boolean {
-  if (state.dishLevels[index] === 0 && index !== nextLockedDish(state)) return false;
-  if (!spend(state, dishCost(state, index))) return false;
-  state.dishLevels[index]++;
-  return true;
+  return buyDishLevels(state, index, 1) > 0;
 }
 
 // Stars a franchise would award right now.

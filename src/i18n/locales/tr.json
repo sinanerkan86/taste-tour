@@ -1,6 +1,9 @@
 {
   "tab.restaurant": "Restoran",
   "tab.menu": "Menü",
+  "buy.amount": "x{amount}",
+  "buy.max": "Maks",
+  "row.levelGain": "Sv {level} (+{gain})",
   "hud.perSecond": "+{amount}/sn",
   "section.entrance": "Giriş",
   "section.seating": "Salon",

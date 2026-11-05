@@ -1,6 +1,9 @@
 {
   "tab.restaurant": "Restaurant",
   "tab.menu": "Menu",
+  "buy.amount": "x{amount}",
+  "buy.max": "Max",
+  "row.levelGain": "Lv {level} (+{gain})",
   "hud.perSecond": "+{amount}/s",
   "section.entrance": "Entrance",
   "section.seating": "Dining Room",

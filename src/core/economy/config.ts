@@ -113,9 +113,9 @@ export const ADS = {
   // VIP guest: shows up now and then and tips this many seconds of (non-Rush) income for an ad.
   vipTipSeconds: 15 * 60,
   // Seconds of play between VIP visits (random in this range), and how long a VIP waits.
-  vipMinGapSeconds: 3 * 60,
-  vipMaxGapSeconds: 6 * 60,
-  vipFirstGapSeconds: 90,
+  vipMinGapSeconds: 8 * 60,
+  vipMaxGapSeconds: 12 * 60,
+  vipFirstGapSeconds: 4 * 60,
   vipStaySeconds: 40,
 };
 

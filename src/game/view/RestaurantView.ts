@@ -27,15 +27,16 @@ import { Person, createPlate } from './Person';
 import { drawRoom } from './room';
 import type { CityTheme } from './themes';
 
-// The scene shows at most this many customers per second; above it, each visible customer
+// The scene shows at most this many customers per second (kept low so it reads as a calm
+// restaurant, not a rush); above it, each visible customer
 // stands for several real ones (their payment popup shows the combined amount).
-const MAX_VISUAL_RATE = 1.2;
+const MAX_VISUAL_RATE = 0.45;
 // Customers arrive a bit faster than the restaurant can serve them, so work visibly piles up
 // in front of the bottleneck instead of every section running in lockstep.
 const ARRIVAL_SURPLUS = 1.3;
-const EAT_MS = 2400;
+const EAT_MS = 4500;
 // After this long without food, the order bubble turns red and shakes.
-const ORDER_PATIENCE_MS = 5000;
+const ORDER_PATIENCE_MS = 8000;
 const PLATE_POOL = 14;
 const MAX_WAITERS = 4;
 const MAX_CHEFS = 3;
@@ -44,9 +45,9 @@ const LEVELS_PER_STAFF = 25;
 // Rough distance a waiter walks per order; turns the waiters' rate into a walking speed.
 const WAITER_TRIP_PX = 650;
 const PASS_TO_TABLE_PX = 350;
-const MAX_WAITER_SPEED = 600;
+const MAX_WAITER_SPEED = 330;
 // A seat is claimed at the door, so the walk there counts toward the stay.
-const DOOR_TO_SEAT_SECONDS = 1.6;
+const DOOR_TO_SEAT_SECONDS = 2.6;
 const STACK_VISIBLE = 10;
 // Staff idle this long get a sleepy "zzz" bubble.
 const IDLE_BUBBLE_SECONDS = 4;
@@ -145,8 +146,8 @@ function computeFlow(state: ViewState): Flow {
     1,
     MAX_WAITERS,
   );
-  const cookSeconds = Phaser.Math.Clamp(chefs / rate('kitchen'), 0.4, 20);
-  const waiterSpeed = Phaser.Math.Clamp((WAITER_TRIP_PX * rate('waiters')) / waiters, 160, MAX_WAITER_SPEED);
+  const cookSeconds = Phaser.Math.Clamp(chefs / rate('kitchen'), 1.5, 20);
+  const waiterSpeed = Phaser.Math.Clamp((WAITER_TRIP_PX * rate('waiters')) / waiters, 140, MAX_WAITER_SPEED);
 
   // A seat serves one customer per stay, so the dining room's rate is seats / stay length.
   const stay = DOOR_TO_SEAT_SECONDS + cookSeconds + PASS_TO_TABLE_PX / waiterSpeed + EAT_MS / 1000;
@@ -164,8 +165,8 @@ function computeFlow(state: ViewState): Flow {
     seatsOpen,
     cookSeconds,
     waiterSpeed,
-    cashierSeconds: Phaser.Math.Clamp(1 / rate('cashier'), 0.25, 10),
-    washSeconds: Phaser.Math.Clamp(1 / rate('dishwashing'), 0.2, 10),
+    cashierSeconds: Phaser.Math.Clamp(1 / rate('cashier'), 1, 10),
+    washSeconds: Phaser.Math.Clamp(1 / rate('dishwashing'), 0.8, 10),
     chefs,
     waiters,
   };

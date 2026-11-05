@@ -19,6 +19,8 @@ Customer arrives → sits → orders → chef cooks → waiter serves → custom
 Early on the player can speed things up by tapping; as staff are hired, everything becomes automated.
 A tap on the restaurant earns a tip worth 25% of one customer's bill. At the start that is about a second of income per tap; once customers flow in quickly it becomes negligible, so tapping fades out naturally without a separate rule. (The balance simulation ignores tapping.)
 
+The panel has an x1 / x10 / Max toggle: one tap buys that many levels (Max: as many as the money covers). The economy is the same; it only cuts the number of taps (the simulation buys about one level every 5 seconds in the first city).
+
 ## 3. Restaurant sections
 
 | Section | What it controls | Upgrades |
@@ -120,16 +122,17 @@ If the bot stays 1.5× longer per city it collects 15 stars per city (Istanbul 2
 
 Implemented (7a): Rush gives 2x income for 4 hours per ad and stacks up to 12 hours; its time keeps running while the player is away, so offline earnings use the boosted rate only for the Rush part. Time skip pays one hour of current income at once and then has a 30 minute cooldown. The welcome-back dialog offers "Collect 2x". Every ad starts from a dialog that shows the reward, and a skipped ad gives nothing. Rush time and the cooldown carry over through a franchise. Numbers live in `ADS` in the economy config.
 
-Implemented (7b): a VIP guest (a food tourist with a sun hat and a star bubble) walks in after 90 s of play and then every 3-6 minutes, and waits near the door for 40 s. Tapping them offers a tip worth 15 minutes of income (Rush does not raise it) for an ad; saying no or ignoring them sends them away. The staff discount placement is left for later.
+Implemented (7b): a VIP guest (a food tourist with a sun hat and a star bubble) walks in after 4 minutes of play and then every 8-12 minutes (kept rare so ads never feel pushed), and waits near the door for 40 s. Tapping them offers a tip worth 15 minutes of income (Rush does not raise it) for an ad; saying no or ignoring them sends them away. The staff discount placement is left for later.
 
 IAP: Remove ads (grants ad rewards without ads), permanent 2x income, starter packs.
 
 ## 9. Visual direction
 
-- A **living restaurant scene** instead of a list screen: walking customers, rushing waiters, steaming stoves, flying coins.
+- A **living restaurant scene** instead of a list screen: walking customers, waiters, steaming stoves.
+- **Calm, not hectic**: the scene shows at most about one customer every two seconds and people walk unhurried; it should feel like a pleasant place to watch, never overwhelming. Big celebrations (banner + confetti) only for big moments; level milestones get a short note. Ads are always the player's choice.
 - Warm, saturated colors; palette changes per city (Istanbul: copper, pomegranate red, tile blue, saffron).
-- Simple but cute characters; vector-based (crisp at any resolution).
-- "Juice": particles, tweens, number pop-ups, light screen shake.
+- Cute characters with soft shading and depth (painted in code into 2x textures, so they stay sharp when zoomed in).
+- "Juice": particles, tweens, gentle number pop-ups; no screen shake.
 - Initial art is produced by Claude as vector graphics; the user reviews the product and gives feedback, technical direction stays with Claude.
 
 ## 10. Tech stack

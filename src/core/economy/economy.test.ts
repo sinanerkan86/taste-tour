@@ -19,6 +19,10 @@ import {
   cityPriceScale,
   CITIES,
   buySectionLevel,
+  buySectionLevels,
+  buyDishLevels,
+  dishBuyPlan,
+  sectionBuyPlan,
   dishCost,
   incomePerSecond,
   levelCost,
@@ -126,6 +130,44 @@ describe('actions', () => {
     expect(buyDish(state, 2)).toBe(false);
     expect(buyDish(state, 1)).toBe(true);
     expect(state.dishLevels[1]).toBe(1);
+  });
+
+  it('prices ten levels as the sum of each level and buys them only if affordable', () => {
+    const state = newEconomy();
+    const plan = sectionBuyPlan(state, 'kitchen', 10);
+    let sum = 0;
+    const probe = newEconomy();
+    for (let i = 0; i < 10; i++) {
+      sum += sectionUpgradeCost(probe, 'kitchen');
+      probe.sectionLevels.kitchen++;
+    }
+    expect(plan.levels).toBe(10);
+    expect(plan.cost).toBeCloseTo(sum);
+    state.money = sum * 0.99;
+    expect(buySectionLevels(state, 'kitchen', 10)).toBe(0);
+    state.money = sum;
+    expect(buySectionLevels(state, 'kitchen', 10)).toBe(10);
+    expect(state.sectionLevels.kitchen).toBe(11);
+  });
+
+  it('buys as many levels as the money covers with max, showing one level when broke', () => {
+    const state = newEconomy();
+    expect(sectionBuyPlan(state, 'waiters', 'max')).toEqual({ levels: 1, cost: sectionUpgradeCost(state, 'waiters') });
+    state.money = sectionBuyPlan(state, 'waiters', 10).cost + 1;
+    const plan = sectionBuyPlan(state, 'waiters', 'max');
+    expect(plan.levels).toBeGreaterThanOrEqual(10);
+    expect(plan.cost).toBeLessThanOrEqual(state.money);
+    expect(buySectionLevels(state, 'waiters', 'max')).toBe(plan.levels);
+  });
+
+  it('caps bulk dish purchases at the max level and keeps the unlock order', () => {
+    const state = newEconomy();
+    state.money = 1e300;
+    expect(dishBuyPlan(state, 2, 10).levels).toBe(0);
+    state.dishLevels[0] = DISH_MAX_LEVEL - 3;
+    expect(dishBuyPlan(state, 0, 10).levels).toBe(3);
+    expect(buyDishLevels(state, 0, 'max')).toBe(3);
+    expect(state.dishLevels[0]).toBe(DISH_MAX_LEVEL);
   });
 
   it('stops leveling a mastered dish', () => {

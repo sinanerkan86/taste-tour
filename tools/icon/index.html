@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>App icon</title>
+    <style>
+      body { margin: 0; padding: 24px; background: #2b211c; color: #f6ead8; font: 600 16px system-ui, sans-serif; }
+      .row { display: flex; flex-wrap: wrap; gap: 32px; }
+      figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+      .shapes { display: flex; gap: 12px; align-items: center; }
+      canvas.big { width: 240px; height: 240px; border-radius: 48px; }
+      canvas.round { width: 96px; height: 96px; border-radius: 50%; }
+      canvas.squircle { width: 96px; height: 96px; border-radius: 30%; }
+      canvas.small { width: 48px; height: 48px; border-radius: 50%; }
+    </style>
+  </head>
+  <body>
+    <div class="row" id="concepts"></div>
+    <script type="module" src="./preview.ts"></script>
+  </body>
+</html>

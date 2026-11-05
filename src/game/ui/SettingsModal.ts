@@ -2,13 +2,15 @@ import Phaser from 'phaser';
 import { LANGUAGES, type Locale, getLocale, setLocale, t } from '../../i18n';
 import { ads } from '../ads/AdService';
 import { audio } from '../audio';
+import { PRIVACY_POLICY_URL, openExternal } from '../native';
 import { PALETTE } from '../config';
 import { saveSettings, settings } from '../settings';
 import { BUTTON_STYLES, Button } from './Button';
 import { createModalCard, modalText } from './modalCard';
+import { plain } from './style';
 
 const CARD_WIDTH = 760;
-const CARD_HEIGHT = 820;
+const CARD_HEIGHT = 900;
 // Extra room for the privacy options button, shown only to players who need it.
 const PRIVACY_ROW = 120;
 const ROW_GAP = 130;
@@ -63,6 +65,15 @@ export class SettingsModal extends Phaser.GameObjects.Container {
       button.setLabel(t('settings.privacy')).setButtonStyle(BUTTON_STYLES.toggle);
       extras.push(button);
     }
+
+    // A plain link to the privacy policy, for every player.
+    const policy = scene.add.text(cx, top + cardHeight - 165, t('settings.policy'), plain(32, PALETTE.muted, true)).setOrigin(0.5);
+    const underline = scene.add.rectangle(cx, policy.y + 21, policy.width, 3, PALETTE.muted);
+    policy.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+      audio.play('click');
+      openExternal(PRIVACY_POLICY_URL);
+    });
+    extras.push(policy, underline);
 
     const close = new Button(scene, cx, top + cardHeight - 80, 320, 90, () => this.destroy());
     close.setLabel(t('settings.close')).setButtonStyle(BUTTON_STYLES.primary);

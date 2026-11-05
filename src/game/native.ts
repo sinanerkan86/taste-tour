@@ -18,3 +18,12 @@ export function setUpNativeApp(game: Phaser.Game): void {
   });
   void ads.init();
 }
+
+export const PRIVACY_POLICY_URL = 'https://sinanerkan86.github.io/taste-tour-privacy/';
+
+// Opens a web page outside the game. On Android, Capacitor hands any address that is not the
+// game itself to the system browser; in the browser build it opens a new tab.
+export function openExternal(url: string): void {
+  if (Capacitor.isNativePlatform()) window.location.href = url;
+  else window.open(url, '_blank', 'noopener');
+}

@@ -82,7 +82,7 @@ interface Flow {
 interface Seat {
   table: Point;
   side: -1 | 1;
-  chair: Phaser.GameObjects.Graphics;
+  chair: Phaser.GameObjects.Image;
   open: boolean;
   occupant: Person | null;
 }
@@ -173,7 +173,7 @@ function computeFlow(state: ViewState): Flow {
 
 export class RestaurantView {
   private readonly seats: Seat[];
-  private readonly tables: Phaser.GameObjects.Graphics[];
+  private readonly tables: Phaser.GameObjects.Image[];
   private readonly doorQueue: { person: Person; admit: (seat: Seat) => void }[] = [];
   private readonly orders: Order[] = [];
   private readonly readyPlates: ReadyPlate[] = [];

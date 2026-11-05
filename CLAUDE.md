@@ -38,6 +38,7 @@ Full design: [docs/GDD.md](docs/GDD.md). Keep the GDD up to date when design dec
 
 - `npm run dev`: game at `/`, balance report at `/sim.html`. `npm run sim`: balance tables in the terminal. `npm test`: unit tests (vitest) for `src/core`.
 - Economy model and tuned numbers are in `src/core/economy` (see GDD section 7). Phaser code is in `src/game` (logical resolution 1080 wide, 1920 to 2560 tall depending on the screen).
+- Art is painted in code with the 2D canvas API (gradients, soft shadows) into textures at 2x (`src/game/view/paint.ts`): the room per city in `room.ts` (background + furniture images with depth), characters from one atlas of grey-shaded parts tinted per person in `characterArt.ts`.
 - Roadmap item 4 (playable prototype) is done:
   - [x] 4a. Economy wired into the game: HUD (money, income/s), upgrade panel with Restaurant/Menu tabs, bottleneck marker, passive income. EN/TR strings in `src/i18n`. Dev shortcut: `/?money=1e6`.
   - [x] 4b. Living restaurant scene (`src/game/view`): customers arrive at the economy's rate (shown up to 1.2/s), sit, order, get served by waiters, pay at the cashier; staff counts follow the economy; a red marker floats over the bottleneck section. Real queues per section come with roadmap item 5. Dev: `window.game` exposes the Phaser game; the Browser pane must be visible or the game loop does not run.

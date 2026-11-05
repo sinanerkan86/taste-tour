@@ -1,13 +1,14 @@
 import Phaser from 'phaser';
+import { CELL, PEOPLE_TEXTURE, ensurePeopleAtlas, type Part } from './characterArt';
 import type { Point } from './layout';
+import { ART_RES, type Ctx, addArt, ellipse, paintTexture, radial } from './paint';
 
 export type PersonKind = 'customer' | 'waiter' | 'chef' | 'cashier' | 'dishwasher' | 'vip';
 
-const SKIN_TONES = [0xf6d2b0, 0xe8b48c, 0xc98e66, 0x9c6644, 0x6e4630];
-const SHIRT_COLORS = [0xc0392b, 0x1f6f8b, 0x4a8c3a, 0xe08e0b, 0x7b4fa0, 0x2f8fb0, 0xd35d8a, 0x5f6b73];
-const HAIR_COLORS = [0x2b1d14, 0x5a3a24, 0x8c5a2b, 0xd9a21b, 0x1c1c1c];
-const BOW_TIE = 0xc0392b;
-const LIPS = 0xb03a48;
+const SKIN_TONES = [0xffdcbf, 0xf3c29b, 0xd9a27a, 0xb07a52, 0x82573a];
+const SHIRT_COLORS = [0xe0503f, 0x2f88a8, 0x5fae4a, 0xf5a623, 0x9466c0, 0x45b0d6, 0xec7aa6, 0x7d8a93];
+const PANTS_COLORS = [0x3f5f8f, 0x34343f, 0x6b5a48, 0x4a6b5a, 0x2e4a6e];
+const HAIR_COLORS = [0x3a2a1e, 0x6b4630, 0xa8703a, 0xe8b84a, 0x262626, 0x8a3a24];
 type HairStyle = 'short' | 'long' | 'bob' | 'bun' | 'ponytail';
 const FEMALE_HAIR: HairStyle[] = ['long', 'bob', 'bun', 'ponytail'];
 // Share of women among customers and staff, and of women customers wearing a skirt.
@@ -16,16 +17,26 @@ const SKIRT_SHARE = 0.6;
 const STAFF_SHIRTS: Record<Exclude<PersonKind, 'customer'>, number> = {
   waiter: 0xffffff,
   chef: 0xffffff,
-  cashier: 0xf3e3c3,
-  dishwasher: 0x9ec9d9,
-  vip: 0x6c3483,
+  cashier: 0xfff0d4,
+  dishwasher: 0xb4def0,
+  vip: 0x8e4fb0,
 };
-const GOLD = 0xf4b400;
+const STAFF_PANTS = 0x2b2b3a;
+const CHEF_PANTS = 0x6f7b84;
+// Painted over the body, per kind.
+const OUTFITS: Partial<Record<PersonKind, { body?: Part; head?: Part }>> = {
+  waiter: { body: 'vest' },
+  cashier: { body: 'vest' },
+  chef: { body: 'chefApron', head: 'toque' },
+  dishwasher: { body: 'rubberApron' },
+  vip: { body: 'sash', head: 'sunHat' },
+};
 
 export const WALK_SPEED = 260; // pixels per second
 const BOB_HEIGHT = 7;
 
-// A simple vector character. The container's origin is at the feet, so depth = y sorts correctly.
+// A painted character built from atlas parts (see characterArt.ts). The container's origin is at
+// the feet, so depth = y sorts correctly.
 export class Person extends Phaser.GameObjects.Container {
   private readonly figure: Phaser.GameObjects.Container;
   // Things carried in front of the body (plates).
@@ -38,80 +49,39 @@ export class Person extends Phaser.GameObjects.Container {
 
   constructor(scene: Phaser.Scene, x: number, y: number, kind: PersonKind) {
     super(scene, x, y);
-    const skin = Phaser.Utils.Array.GetRandom(SKIN_TONES);
-    const hair = Phaser.Utils.Array.GetRandom(HAIR_COLORS);
-    const shirt = kind === 'customer' ? Phaser.Utils.Array.GetRandom(SHIRT_COLORS) : STAFF_SHIRTS[kind];
+    ensurePeopleAtlas(scene);
+    const pick = <T>(list: T[]): T => Phaser.Utils.Array.GetRandom(list);
+    const skin = pick(SKIN_TONES);
+    const hair = pick(HAIR_COLORS);
+    const shirt = kind === 'customer' ? pick(SHIRT_COLORS) : STAFF_SHIRTS[kind];
+    const pants = kind === 'chef' ? CHEF_PANTS : kind === 'customer' || kind === 'vip' ? pick(PANTS_COLORS) : STAFF_PANTS;
     const female = Math.random() < FEMALE_SHARE;
-    const hairStyle: HairStyle = female ? Phaser.Utils.Array.GetRandom(FEMALE_HAIR) : 'short';
+    const hairStyle: HairStyle = female ? pick(FEMALE_HAIR) : 'short';
     const skirt = female && (kind === 'customer' || kind === 'vip') && Math.random() < SKIRT_SHARE;
+    const outfit = OUTFITS[kind] ?? {};
 
-    const shadow = scene.add.ellipse(0, 0, 54, 14, 0x000000, 0.18);
-    const g = scene.add.graphics();
-    // Legs.
-    g.fillStyle(kind === 'chef' ? 0x5f6b73 : 0x2b2b3a, 1);
-    g.fillRoundedRect(-18, -34, 14, 34, 5).fillRoundedRect(4, -34, 14, 34, 5);
-    // Torso.
-    g.fillStyle(shirt, 1).fillRoundedRect(-26, -86, 52, 58, 16);
-    if (skirt) {
-      const color = Phaser.Utils.Array.GetRandom(SHIRT_COLORS.filter((c) => c !== shirt));
-      g.fillStyle(color, 1).fillPoints([{ x: -24, y: -42 }, { x: 24, y: -42 }, { x: 31, y: -12 }, { x: -31, y: -12 }], true);
-    }
-    if (kind === 'waiter' || kind === 'cashier') {
-      g.fillStyle(0x2b2b3a, 1).fillRoundedRect(-22, -62, 44, 34, 8);
-      g.fillStyle(BOW_TIE, 1).fillTriangle(-10, -84, -10, -74, 0, -79).fillTriangle(10, -84, 10, -74, 0, -79);
-    }
-    if (kind === 'chef') {
-      g.fillStyle(0xe8e2d6, 1).fillRoundedRect(-20, -64, 40, 36, 8);
-    }
-    if (kind === 'dishwasher') {
-      // Rubber apron.
-      g.fillStyle(0xf4b400, 1).fillRoundedRect(-20, -70, 40, 42, 8);
-    }
-    if (kind === 'vip') {
-      // Gold sash and a camera: a well-off food tourist.
-      g.lineStyle(8, GOLD, 1).lineBetween(-20, -82, 18, -34);
-      g.fillStyle(0x2b2b3a, 1).fillRoundedRect(4, -60, 26, 18, 4);
-      g.fillStyle(0x9ec9d9, 1).fillCircle(17, -51, 6);
-    }
-    // Hair that falls behind the head and onto the shoulders.
-    g.fillStyle(hair, 1);
-    if (hairStyle === 'long') g.fillRoundedRect(-29, -128, 58, 60, 20);
-    if (hairStyle === 'bob') g.fillRoundedRect(-29, -128, 58, 40, 18);
-    if (hairStyle === 'ponytail') g.fillEllipse(26, -110, 18, 44);
-    // Head.
-    g.fillStyle(skin, 1).fillCircle(0, -108, 24);
-    g.fillStyle(hair, 1);
-    if (female) {
-      g.fillEllipse(0, -123, 52, 22);
-      if (hairStyle === 'bun') g.fillCircle(0, -141, 13);
-    } else {
-      g.fillEllipse(0, -124, 46, 18);
-    }
-    g.fillStyle(0x2b1d14, 1).fillCircle(-8, -108, 3).fillCircle(8, -108, 3);
-    if (female) {
-      // Lashes and lipstick.
-      g.lineStyle(2, 0x2b1d14, 1).lineBetween(-11, -110, -14, -113).lineBetween(11, -110, 14, -113);
-      g.lineStyle(3, LIPS, 1).beginPath().arc(0, -101, 6, 0.3, Math.PI - 0.3).strokePath();
-    } else {
-      g.lineStyle(2, 0x2b1d14, 1).beginPath().arc(0, -101, 7, 0.2, Math.PI - 0.2).strokePath();
-    }
-    if (kind === 'vip') {
-      // Sunglasses and a wide sun hat.
-      g.fillStyle(0x1c1c1c, 1).fillRoundedRect(-17, -114, 14, 10, 4).fillRoundedRect(3, -114, 14, 10, 4);
-      g.fillRect(-4, -111, 8, 3);
-      g.fillStyle(0xf3e3c3, 1).fillEllipse(0, -128, 78, 16);
-      g.fillStyle(0xf3e3c3, 1).fillRoundedRect(-20, -150, 40, 24, 10);
-      g.fillStyle(GOLD, 1).fillRect(-20, -134, 40, 6);
-    }
-    if (kind === 'chef') {
-      // Toque.
-      g.fillStyle(0xffffff, 1).fillRoundedRect(-16, -150, 32, 24, 6);
-      g.fillCircle(-12, -152, 12).fillCircle(0, -158, 14).fillCircle(12, -152, 12);
-      g.lineStyle(2, 0xe0dcd2, 1).strokeRoundedRect(-16, -150, 32, 24, 6);
-    }
+    const part = (name: Part, tint?: number) => {
+      const image = scene.add.image(0, 0, PEOPLE_TEXTURE, name).setScale(1 / ART_RES);
+      image.setOrigin(CELL.left / CELL.width, CELL.top / CELL.height);
+      if (tint !== undefined) image.setTint(tint);
+      return image;
+    };
+
+    const shadow = part('shadow');
+    const body: Phaser.GameObjects.Image[] = [part('legs', skirt ? skin : pants), part('shoes')];
+    if (skirt) body.push(part('skirt', pick(SHIRT_COLORS.filter((c) => c !== shirt))));
+    body.push(part('torso', shirt), part('arms', shirt), part('hands', skin));
+    if (outfit.body) body.push(part(outfit.body));
+    if (hairStyle === 'long') body.push(part('hairLong', hair));
+    if (hairStyle === 'bob') body.push(part('hairBob', hair));
+    if (hairStyle === 'ponytail') body.push(part('hairPonytail', hair));
+    body.push(part('head', skin), part('shine'), part(female ? 'faceFemale' : 'faceMale'));
+    body.push(part(female ? 'hairTop' : 'hairShort', hair));
+    if (hairStyle === 'bun') body.push(part('hairBun', hair));
+    if (outfit.head) body.push(part(outfit.head));
 
     this.hands = scene.add.container(0, -62);
-    this.figure = scene.add.container(0, 0, [g, this.hands]);
+    this.figure = scene.add.container(0, 0, [...body, this.hands]);
     this.add([shadow, this.figure]);
     this.setDepth(y);
     scene.add.existing(this);
@@ -182,11 +152,41 @@ export class Person extends Phaser.GameObjects.Container {
   }
 }
 
-// A plate with food; the color hints at the dish.
+// A plate with food; the food is painted in grey and tinted with the dish color.
 export function createPlate(scene: Phaser.Scene, foodColor: number): Phaser.GameObjects.Container {
-  const g = scene.add.graphics();
-  g.fillStyle(0xffffff, 1).fillEllipse(0, 0, 58, 18);
-  g.lineStyle(2, 0xc9c1b4, 1).strokeEllipse(0, 0, 58, 18);
-  g.fillStyle(foodColor, 1).fillEllipse(0, -6, 34, 16);
-  return scene.add.container(0, 0, [g]);
+  const plate = addArt(scene, 0, 0, paintTexture(scene, 'plate', 64, 26, paintPlate), 32, 12);
+  const food = addArt(scene, 0, 0, paintTexture(scene, 'food', 40, 24, paintFood), 20, 18).setTint(foodColor);
+  return scene.add.container(0, 0, [plate, food]);
+}
+
+function paintPlate(ctx: Ctx): void {
+  ctx.translate(32, 12);
+  ctx.fillStyle = '#b9b1a3';
+  ellipse(ctx, 0, 3, 29, 9);
+  ctx.fill();
+  ctx.fillStyle = radial(ctx, 0, 0, 0, 30, [
+    [0, '#f4f0e8'],
+    [0.55, '#ffffff'],
+    [1, '#d9d2c4'],
+  ]);
+  ellipse(ctx, 0, 0, 29, 9);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(160,150,135,0.6)';
+  ctx.lineWidth = 1.2;
+  ellipse(ctx, 0, 0, 19, 5.5);
+  ctx.stroke();
+}
+
+function paintFood(ctx: Ctx): void {
+  ctx.translate(20, 18);
+  ctx.fillStyle = radial(ctx, 0, -6, 0, 18, [
+    [0, '#ffffff'],
+    [0.7, '#d0d0d0'],
+    [1, '#8c8c8c'],
+  ], -5, -11);
+  ellipse(ctx, 0, -6, 17, 9);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ellipse(ctx, -5, -10, 5, 2);
+  ctx.fill();
 }

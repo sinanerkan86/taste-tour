@@ -68,7 +68,9 @@ Staff on screen: chefs and waiters grow by one every 25 section levels (waiters 
 
 - The Menu tab shows every dish of the city from the start with its icon and unlock price; dishes after the next one are faded with a padlock and "unlocks after <previous dish>".
 
-Unlock order for Istanbul (not final): Döner → Pizza → Taco → Burger → Ramen → Sushi → Paella.
+Unlock order for Istanbul: Döner → Lahmacun → Pide → Köfte → Mantı → İskender → Baklava.
+
+Diners show what they ordered: the order bubble over a seated customer carries that dish's icon.
 Each next dish is worth ~8× the previous one.
 
 ## 5. Restaurant growth (visual stages)
@@ -109,8 +111,23 @@ A small card under the HUD always names the next goal with a progress bar: the n
 - Sell the restaurant and start from scratch in a new city; earn permanent **Chef Stars** as a multiplier (+10% income each).
 - **When:** the franchise opens once the city's whole menu is unlocked (a clear goal per city). Staying longer still earns more stars, but less and less.
 - **Stars** come from the current run only: `stars = floor((run reputation / 1.5e11)^(1/3))`, where reputation is the run's earnings measured in the city's cost scale. An on-pace city gives about 10 stars.
-- City order: Istanbul → Rome → Tokyo → New York → Mexico City → Bangkok, then the list starts over with bigger numbers.
-- Each city has its own 7-dish world menu that opens with the local specialty, its own color palette (wall, tiles, floor, table cloths) and a framed poster of its landmark on the wall: mosque (Istanbul), Colosseum (Rome), torii gate and mountain (Tokyo), skyline (New York), stepped pyramid (Mexico City), temple spires (Bangkok). City music comes later.
+- 10 cities along a route around the world: Istanbul → Rome → Paris → Cairo → Mumbai → Bangkok → Tokyo → Rio de Janeiro → Mexico City → New York (the big finale), then the list starts over with bigger numbers ("Istanbul II").
+- Each city serves only its own cuisine: 7 well-known dishes (nothing too obscure), ordered like a meal from street food to main courses and ending with a signature dessert. No dish appears in two cities (70 dishes in total).
+
+| City | Menu |
+|---|---|
+| Istanbul | Döner, Lahmacun, Pide, Köfte, Mantı, İskender, Baklava |
+| Rome | Bruschetta, Pizza, Carbonara, Lasagna, Risotto, Ossobuco, Tiramisu |
+| Paris | Croissant, Crêpe, Croque Monsieur, Quiche, Ratatouille, Coq au Vin, Crème Brûlée |
+| Cairo | Falafel, Ful Medames, Koshari, Shawarma, Mahshi, Fattah, Om Ali |
+| Mumbai | Samosa, Pav Bhaji, Masala Dosa, Butter Chicken, Tandoori Chicken, Biryani, Gulab Jamun |
+| Bangkok | Spring Rolls, Satay, Som Tam, Pad Thai, Tom Yum, Green Curry, Mango Sticky Rice |
+| Tokyo | Gyoza, Ramen, Tempura, Tonkatsu, Sukiyaki, Sushi, Mochi |
+| Rio de Janeiro | Pão de Queijo, Coxinha, Açaí Bowl, Moqueca, Feijoada, Churrasco, Brigadeiro |
+| Mexico City | Tacos, Quesadilla, Guacamole, Tamales, Enchiladas, Mole, Churros |
+| New York | Hot Dog, Bagel, Burger, Buffalo Wings, Pastrami Sandwich, Steak, Cheesecake |
+
+- Each city also has its own color palette (wall, tiles, floor, table cloths) and a framed poster of its landmark on the wall: mosque (Istanbul), Colosseum (Rome), Eiffel Tower over rooftops (Paris), pyramids and a palm (Cairo), the arched gateway by the sea (Mumbai), temple spires (Bangkok), torii gate and mountain (Tokyo), Sugarloaf with its cable car (Rio), stepped pyramid (Mexico City), skyline (New York). City music comes later.
 - New cities = ready-made content for future updates.
 - **World tour map:** tapping the city pill in the HUD opens a scrolling map where a road winds up through a meadow (trees, ponds, drifting clouds) from the first city to the next ones. Each city is a round window with its landmark: finished cities show the stars they gave (stored per city in the save as `cityStars`), the current one glows under a bouncing pin with its menu progress, and the cities ahead wait under a padlock with their first dish floating beside them. Golden footsteps mark the road travelled. After the sixth city the list repeats with "II", "III".
 - **In the game:** the HUD shows the city and the Chef Stars. When the menu is complete a "Franchise" button appears in the HUD with the stars on offer (it keeps counting up while the player stays). Its dialog shows the stars to gain, the income bonus before → after, and that money, sections and dishes start over. Confirming fades to the new city, which greets the player with a banner.
@@ -137,7 +154,9 @@ The bot franchises once the menu is complete and its stars per hour peak.
 |---|---|---|---|---|
 | Istanbul | 1h 31m | 10 | 3, 14, 28, 40, 50, 60 | 93.7B/s |
 | Rome | 1h 31m | 10 | same | 187T/s |
-| Tokyo … Bangkok | 1h 31m each | 10 each | same | ×1000 per city |
+| Paris … New York | 1h 31m each | 10 each | same | ×1000 per city |
+
+A full first tour of the 10 cities takes about 15 hours of active play. Prices grow ×1000 per city, so even many tours stay far below the 1e308 limit of plain JS numbers.
 
 If the bot stays 1.5× longer per city it collects 15 stars per city (Istanbul 2h 17m), and the following cities get shorter (1h 49m, 1h 43m, … 1h 36m) with the menu complete at ~45 min: lingering is rewarded but not required.
 
@@ -151,7 +170,7 @@ If the bot stays 1.5× longer per city it collects 15 stars per city (Istanbul 2
 | Wandering customer / VIP tourist | Randomly appearing customer, big tip for watching an ad |
 | Staff discount | Hire the next staff member cheaper by watching an ad |
 
-Implemented (7a): Rush gives 2x income for 4 hours per ad and stacks up to 12 hours; its time keeps running while the player is away, so offline earnings use the boosted rate only for the Rush part. Time skip pays one hour of current income at once and then has a 30 minute cooldown. The welcome-back dialog offers "Collect 2x". Every ad starts from a dialog that shows the reward, and a skipped ad gives nothing. Rush time and the cooldown carry over through a franchise. Numbers live in `ADS` in the economy config.
+Implemented (7a): Rush gives 2x income for 4 hours per ad and stacks up to 12 hours; its time keeps running while the player is away, so offline earnings use the boosted rate only for the Rush part. Time skip ("Extra cash") pays one hour of current income at once and then has a 30 minute cooldown; it is offered from a green "+" at the right end of the money counter, which turns grey while cooling down (tapping it then shows the time left). The welcome-back dialog offers "Collect 2x". Every ad starts from a dialog that shows the reward, and a skipped ad gives nothing. Rush time and the cooldown carry over through a franchise. Numbers live in `ADS` in the economy config.
 
 Implemented (7b): a VIP guest (a food tourist with a sun hat and a star bubble) walks in after 4 minutes of play and then every 8-12 minutes (kept rare so ads never feel pushed), and waits near the door for 40 s. Tapping them offers a tip worth 15 minutes of income (Rush does not raise it) for an ad; saying no or ignoring them sends them away. The staff discount placement is left for later.
 

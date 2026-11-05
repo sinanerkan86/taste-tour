@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { SectionId } from '../../core/economy';
-import { type Ctx, css, ellipse, hGradient, paintTexture, radial, roundRect, vGradient } from '../view/paint';
+import { type Ctx, css, ellipse, hGradient, paintTexture, radial, roundRect, shade, vGradient } from '../view/paint';
 
 // Round painted badges for the upgrade panel: one per restaurant section and one per dish.
 // Drawn around (0, 0) in a SIZE x SIZE texture.
@@ -201,7 +201,19 @@ type DishShape =
   | 'fried'
   | 'dip'
   | 'plate'
-  | 'hotdog';
+  | 'hotdog'
+  | 'skewer'
+  | 'flatbread'
+  | 'boat'
+  | 'toast'
+  | 'pasta'
+  | 'cake'
+  | 'croissant'
+  | 'ramekin'
+  | 'rolls'
+  | 'drop'
+  | 'sticks'
+  | 'ring';
 
 const GREEN = 0x5aa03c;
 const RED = 0xd8452b;
@@ -209,48 +221,86 @@ const CREAM = 0xf3e6cc;
 
 // Shape and colors (main food color, accent) for every dish id across all cities.
 const DISHES: Record<string, [DishShape, number, number]> = {
+  // Istanbul
   doner: ['wrap', 0x9a5a32, GREEN],
-  pizza: ['slice', 0xe8b04a, 0xc0392b],
-  taco: ['taco', 0xe7b453, GREEN],
-  burger: ['burger', 0x6b3a1e, GREEN],
-  ramen: ['bowl', 0xe8b878, 0xf4e2a0],
-  sushi: ['sushi', 0xf07b5a, 0x223322],
-  paella: ['pan', 0xf0c040, RED],
-  lasagna: ['layers', 0xe2a24a, 0xc0392b],
-  falafel: ['balls', 0x9a6a2e, GREEN],
-  dumplings: ['dumpling', 0xf3e6cc, GREEN],
-  fishAndChips: ['fried', 0xe6b04a, 0xf3d27a],
-  curry: ['bowl', 0xe08a2b, 0xf7f0e0],
-  pho: ['bowl', 0xd9a86a, GREEN],
-  ceviche: ['dip', 0xf3e0c0, 0xe85a3a],
-  tempura: ['fried', 0xf1c86a, 0xf08a5a],
-  hummus: ['dip', 0xe7cc8e, 0x8a9a3a],
-  bibimbap: ['bowl', 0xf2efe6, RED],
-  schnitzel: ['fried', 0xd89a40, 0xf6e27a],
-  goulash: ['bowl', 0xa8402a, 0xe8a060],
-  moussaka: ['layers', 0x8a4a6a, 0xf0d8a0],
-  empanadas: ['dumpling', 0xd9993a, 0xb06a2a],
-  hotDog: ['hotdog', 0xc0502a, 0xf2c94c],
-  risotto: ['plate', 0xf0e2b0, GREEN],
-  gyoza: ['dumpling', 0xe8c48a, 0x9a5a32],
-  shawarma: ['wrap', 0xb06a3a, CREAM],
-  jollof: ['plate', 0xd8552b, GREEN],
-  pierogi: ['dumpling', 0xf5e8c8, 0xe0a050],
-  poke: ['bowl', 0xf07b5a, GREEN],
-  mole: ['plate', 0x5a2e1e, 0xf0e8d8],
-  butterChicken: ['bowl', 0xe0782b, 0xf7f0e0],
-  borscht: ['bowl', 0xb0243e, 0xf7f0e0],
-  laksa: ['bowl', 0xf0a040, RED],
-  feijoada: ['bowl', 0x3a2420, 0xf0e8d8],
-  couscous: ['plate', 0xf0d070, RED],
+  lahmacun: ['flatbread', 0xb8452a, GREEN],
+  pide: ['boat', 0xa0522d, 0xf6e27a],
+  kofte: ['skewer', 0x7a3e22, GREEN],
+  manti: ['dip', 0xf6f0e2, RED],
+  iskender: ['plate', 0x8a4a2a, RED],
   baklava: ['layers', 0xe0a840, GREEN],
+  // Rome
+  bruschetta: ['toast', 0xd8452b, GREEN],
+  pizza: ['slice', 0xe8b04a, 0xc0392b],
+  carbonara: ['pasta', 0xf2d98a, 0x8a5a32],
+  lasagna: ['layers', 0xe2a24a, 0xc0392b],
+  risotto: ['plate', 0xf0e2b0, GREEN],
+  ossobuco: ['plate', 0x7a3a22, 0xf0a040],
+  tiramisu: ['cake', 0x7a4a2a, CREAM],
+  // Paris
+  croissant: ['croissant', 0xe0a040, 0xf6d27a],
+  crepe: ['slice', 0xf2d79a, 0x6b3a1e],
+  croqueMonsieur: ['toast', 0xf6d27a, 0xe8a0a0],
+  quiche: ['cake', 0xf2cf6a, GREEN],
+  ratatouille: ['pan', 0xc0392b, 0xf0c040],
+  coqAuVin: ['bowl', 0x7a2a2a, 0xf0a060],
+  cremeBrulee: ['ramekin', 0xe8b050, 0xffffff],
+  // Cairo
+  falafel: ['balls', 0x9a6a2e, GREEN],
+  foulMedames: ['dip', 0xa86a3a, GREEN],
+  koshari: ['bowl', 0xc0603a, 0xf6e2a0],
+  shawarma: ['wrap', 0xb06a3a, CREAM],
+  mahshi: ['rolls', 0x6a8a3a, 0x4a6a2a],
+  fattah: ['plate', 0xf0e0b8, 0xb8452a],
+  omAli: ['ramekin', 0xf0d8a0, 0x8a5a2a],
+  // Mumbai
+  samosa: ['dumpling', 0xd9993a, GREEN],
+  pavBhaji: ['dip', 0xd8602b, GREEN],
+  masalaDosa: ['rolls', 0xe0a850, 0xc07a2a],
+  butterChicken: ['bowl', 0xe0782b, 0xf7f0e0],
+  tandoori: ['skewer', 0xc8402a, GREEN],
+  biryani: ['plate', 0xf0c040, 0x8a4a2a],
+  gulabJamun: ['balls', 0x7a3a1a, 0xf0c040],
+  // Bangkok
+  springRolls: ['rolls', 0xe8b050, GREEN],
+  satay: ['skewer', 0xb8702a, 0xf0d070],
+  somTam: ['plate', 0x9ac860, RED],
   padThai: ['plate', 0xf0c070, RED],
-  bulgogi: ['plate', 0x7a3a1e, GREEN],
-  poutine: ['fried', 0xe8b850, 0x7a4a2a],
-  injera: ['dip', 0xc8a070, RED],
-  nasiGoreng: ['plate', 0xd88a3a, 0xf6e27a],
-  arepas: ['burger', 0xe8c070, 0x3a2420],
-  tiramisu: ['layers', 0x7a4a2a, CREAM],
+  tomYum: ['bowl', 0xe8602b, GREEN],
+  greenCurry: ['bowl', 0x8ab040, 0xf7f0e0],
+  mangoStickyRice: ['plate', 0xf6f0e2, 0xf0b020],
+  // Tokyo
+  gyoza: ['dumpling', 0xe8c48a, 0x9a5a32],
+  ramen: ['bowl', 0xe8b878, 0xf4e2a0],
+  tempura: ['fried', 0xf1c86a, 0xf08a5a],
+  tonkatsu: ['toast', 0xc8862a, 0x9ac860],
+  sukiyaki: ['pan', 0x9a4a3a, GREEN],
+  sushi: ['sushi', 0xf07b5a, 0x223322],
+  mochi: ['balls', 0xf6b6c8, 0xf6f0e2],
+  // Rio de Janeiro
+  paoDeQueijo: ['balls', 0xf0c870, 0xf6e2a0],
+  coxinha: ['drop', 0xd8903a, GREEN],
+  acai: ['bowl', 0x5a2a5a, 0xf0c040],
+  moqueca: ['pan', 0xe8702b, GREEN],
+  feijoada: ['bowl', 0x3a2420, 0xf0e8d8],
+  churrasco: ['skewer', 0x8a3a22, 0xf0a040],
+  brigadeiro: ['balls', 0x4a2818, 0xf0a0c0],
+  // Mexico City
+  taco: ['taco', 0xe7b453, GREEN],
+  quesadilla: ['slice', 0xf0c060, 0xf6a020],
+  guacamole: ['dip', 0x7ab040, RED],
+  tamales: ['rolls', 0xf0d890, 0xc0a060],
+  enchiladas: ['rolls', 0xc8402a, 0xf6f0e2],
+  mole: ['plate', 0x5a2e1e, 0xf0e8d8],
+  churros: ['sticks', 0xd89a40, 0x6b3a1e],
+  // New York
+  hotDog: ['hotdog', 0xc0502a, 0xf2c94c],
+  bagel: ['ring', 0xd8a050, 0xf6f0e2],
+  burger: ['burger', 0x6b3a1e, GREEN],
+  buffaloWings: ['fried', 0xd8602b, 0xf6f0e2],
+  pastrami: ['burger', 0xc8606a, 0xf0d070],
+  steak: ['plate', 0x7a3a22, GREEN],
+  cheesecake: ['cake', 0xf6e6c0, 0xc0243e],
 };
 
 function fill(ctx: Ctx, color: number, top: number, bottom: number): void {
@@ -550,6 +600,261 @@ const SHAPES: Record<DishShape, (ctx: Ctx, main: number, accent: number) => void
     roundRect(ctx, -22, 2, 44, 14, [3, 3, 8, 8]);
     fill(ctx, 0xe0a050, 2, 16);
     outline(ctx, 1.5);
+  },
+  // Grilled pieces on a skewer.
+  skewer: (ctx, main, accent) => {
+    plateUnder(ctx, 16, 28);
+    ctx.rotate(-0.45);
+    ctx.fillStyle = '#b0b4b8';
+    roundRect(ctx, -30, -1.5, 60, 3, 1.5);
+    ctx.fill();
+    [-16, 0, 16].forEach((x) => {
+      roundRect(ctx, x - 8, -8, 16, 16, 6);
+      fill(ctx, main, -8, 8);
+      outline(ctx, 1.5);
+      ctx.strokeStyle = css(main, -0.4);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x - 4, -6);
+      ctx.lineTo(x - 4, 6);
+      ctx.moveTo(x + 3, -6);
+      ctx.lineTo(x + 3, 6);
+      ctx.stroke();
+    });
+    dots(ctx, accent, [[-8, 10], [8, -10], [22, 9]], 3);
+  },
+  // A round thin bread with a topping, seen from above.
+  flatbread: (ctx, main, accent) => {
+    ellipse(ctx, 0, 2, 26, 22);
+    fill(ctx, 0xe8b868, -20, 24);
+    outline(ctx);
+    ellipse(ctx, 0, 2, 21, 17);
+    fill(ctx, main, -15, 19);
+    dots(ctx, shade(main, -0.3), [[-8, -4], [6, 8], [10, -6], [-4, 10]], 2.5);
+    dots(ctx, accent, [[-10, 6], [4, -8], [12, 4], [0, 2]], 3);
+    ctx.fillStyle = '#f6e2a0';
+    ellipse(ctx, -2, -2, 5, 2.5);
+    ctx.fill();
+  },
+  // An oval bread boat, open in the middle.
+  boat: (ctx, main, accent) => {
+    ctx.rotate(-0.3);
+    ctx.beginPath();
+    ctx.moveTo(-30, 0);
+    ctx.quadraticCurveTo(0, -20, 30, 0);
+    ctx.quadraticCurveTo(0, 20, -30, 0);
+    ctx.closePath();
+    fill(ctx, 0xe0a050, -14, 14);
+    outline(ctx);
+    ctx.beginPath();
+    ctx.moveTo(-20, 0);
+    ctx.quadraticCurveTo(0, -11, 20, 0);
+    ctx.quadraticCurveTo(0, 11, -20, 0);
+    ctx.closePath();
+    fill(ctx, main, -8, 8);
+    ctx.fillStyle = css(accent);
+    ellipse(ctx, 0, 0, 6, 4);
+    ctx.fill();
+    ctx.fillStyle = '#e8a020';
+    ellipse(ctx, 0, 0, 3, 2);
+    ctx.fill();
+  },
+  // A slice of bread or a breaded cutlet with something on top.
+  toast: (ctx, main, accent) => {
+    plateUnder(ctx, 16, 28);
+    ctx.rotate(-0.15);
+    roundRect(ctx, -22, -14, 44, 26, 8);
+    fill(ctx, 0xd8a050, -14, 12);
+    outline(ctx);
+    roundRect(ctx, -18, -11, 36, 19, 6);
+    fill(ctx, main, -11, 8);
+    ctx.strokeStyle = 'rgba(60,35,20,0.35)';
+    ctx.lineWidth = 1.5;
+    [-6, 6].forEach((x) => {
+      ctx.beginPath();
+      ctx.moveTo(x, -10);
+      ctx.lineTo(x - 3, 7);
+      ctx.stroke();
+    });
+    dots(ctx, accent, [[-12, -4], [2, -6], [12, 1], [-4, 3]], 3);
+  },
+  // Noodles twirled on a plate.
+  pasta: (ctx, main, accent) => {
+    plateUnder(ctx, 10, 28);
+    ellipse(ctx, 0, 0, 20, 13);
+    fill(ctx, main, -13, 13);
+    outline(ctx, 1.5);
+    ctx.strokeStyle = css(main, -0.25);
+    ctx.lineWidth = 2;
+    [6, 11, 16].forEach((r) => {
+      ctx.beginPath();
+      ctx.ellipse(0, 0, r, r * 0.6, 0, 0.4, Math.PI * 1.7);
+      ctx.stroke();
+    });
+    dots(ctx, accent, [[-8, -4], [7, 3], [2, -7]], 2.5);
+    dots(ctx, 0xffffff, [[-3, 5], [10, -4]], 1.8);
+  },
+  // A wedge of cake or tart.
+  cake: (ctx, main, accent) => {
+    plateUnder(ctx, 16);
+    ctx.beginPath();
+    ctx.moveTo(-22, -2);
+    ctx.lineTo(16, -14);
+    ctx.lineTo(16, 4);
+    ctx.lineTo(-22, 16);
+    ctx.closePath();
+    fill(ctx, main, -14, 16);
+    outline(ctx);
+    ctx.fillStyle = css(main, 0.3);
+    ctx.beginPath();
+    ctx.moveTo(-22, -2);
+    ctx.lineTo(16, -14);
+    ctx.lineTo(24, -8);
+    ctx.lineTo(-14, 4);
+    ctx.closePath();
+    ctx.fill();
+    outline(ctx, 1.5);
+    ctx.fillStyle = '#d8a050';
+    ctx.beginPath();
+    ctx.moveTo(-22, 12);
+    ctx.lineTo(16, 0);
+    ctx.lineTo(16, 4);
+    ctx.lineTo(-22, 16);
+    ctx.closePath();
+    ctx.fill();
+    dots(ctx, accent, [[-4, -4], [8, -8], [-12, 0]], 3.5);
+  },
+  croissant: (ctx, main, accent) => {
+    plateUnder(ctx, 16, 28);
+    const parts: [number, number, number][] = [
+      [-20, 6, 8],
+      [-11, -2, 11],
+      [0, -6, 13],
+      [11, -2, 11],
+      [20, 6, 8],
+    ];
+    parts.forEach(([x, y, r], i) => {
+      ctx.fillStyle = radial(ctx, x, y, 1, r + 2, [
+        [0, css(i === 2 ? accent : main, 0.25)],
+        [1, css(main, -0.2)],
+      ], x - 3, y - 4);
+      ellipse(ctx, x, y, r, r * 0.85);
+      ctx.fill();
+      outline(ctx, 1.5);
+    });
+  },
+  // A small round baking dish with a caramel or nut top.
+  ramekin: (ctx, main, accent) => {
+    ctx.beginPath();
+    ctx.moveTo(-24, -4);
+    ctx.lineTo(-20, 18);
+    ctx.quadraticCurveTo(0, 24, 20, 18);
+    ctx.lineTo(24, -4);
+    ctx.closePath();
+    ctx.fillStyle = hGradient(ctx, -24, 24, [
+      [0, '#ffffff'],
+      [1, '#c8d0d6'],
+    ]);
+    ctx.fill();
+    outline(ctx);
+    ctx.strokeStyle = 'rgba(120,130,140,0.5)';
+    ctx.lineWidth = 1.5;
+    for (let x = -16; x <= 16; x += 8) {
+      ctx.beginPath();
+      ctx.moveTo(x, 2);
+      ctx.lineTo(x * 0.9, 18);
+      ctx.stroke();
+    }
+    ellipse(ctx, 0, -4, 24, 9);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    outline(ctx, 1.5);
+    ellipse(ctx, 0, -4, 20, 7);
+    fill(ctx, main, -11, 3);
+    dots(ctx, accent, [[-8, -5], [5, -3], [10, -6]], 2.2);
+  },
+  // Rolled food lying side by side.
+  rolls: (ctx, main, accent) => {
+    plateUnder(ctx, 16, 28);
+    [-14, 0, 14].forEach((x, i) => {
+      ctx.save();
+      ctx.translate(x, 2 - i * 2);
+      ctx.rotate(-0.5);
+      roundRect(ctx, -6, -16, 12, 30, 6);
+      fill(ctx, main, -16, 14);
+      outline(ctx, 1.5);
+      ctx.strokeStyle = css(accent);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-5, -4);
+      ctx.lineTo(5, -8);
+      ctx.moveTo(-5, 6);
+      ctx.lineTo(5, 2);
+      ctx.stroke();
+      ctx.restore();
+    });
+  },
+  // A drop-shaped fried snack.
+  drop: (ctx, main, accent) => {
+    plateUnder(ctx, 16);
+    ctx.beginPath();
+    ctx.moveTo(0, -22);
+    ctx.bezierCurveTo(6, -12, 20, 0, 18, 8);
+    ctx.quadraticCurveTo(14, 18, 0, 18);
+    ctx.quadraticCurveTo(-14, 18, -18, 8);
+    ctx.bezierCurveTo(-20, 0, -6, -12, 0, -22);
+    ctx.closePath();
+    fill(ctx, main, -22, 18);
+    outline(ctx);
+    dots(ctx, shade(main, -0.25), [[-6, 2], [5, -4], [7, 9], [-8, 11], [0, 6]], 1.6);
+    dots(ctx, accent, [[16, 14], [-18, 14]], 3);
+  },
+  // Long fried sticks with a dipping cup.
+  sticks: (ctx, main, accent) => {
+    [-14, -4, 6].forEach((x, i) => {
+      ctx.save();
+      ctx.translate(x, 0);
+      ctx.rotate(0.35 - i * 0.2);
+      roundRect(ctx, -4.5, -24, 9, 44, 4.5);
+      fill(ctx, main, -24, 20);
+      outline(ctx, 1.5);
+      ctx.strokeStyle = css(main, -0.3);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-1.5, -20);
+      ctx.lineTo(-1.5, 16);
+      ctx.moveTo(1.5, -20);
+      ctx.lineTo(1.5, 16);
+      ctx.stroke();
+      dots(ctx, 0xfff6e0, [[-2, -12], [2, -2], [-1, 8]], 1.2);
+      ctx.restore();
+    });
+    ellipse(ctx, 18, 14, 10, 4);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    roundRect(ctx, 8, 14, 20, 10, [0, 0, 5, 5]);
+    ctx.fill();
+    outline(ctx, 1.5);
+    ellipse(ctx, 18, 14, 8, 3);
+    fill(ctx, accent, 11, 17);
+  },
+  // A ring-shaped bread cut open with a filling.
+  ring: (ctx, main, accent) => {
+    plateUnder(ctx, 16, 28);
+    ellipse(ctx, 0, 2, 24, 16);
+    fill(ctx, main, -14, 18);
+    outline(ctx);
+    ctx.fillStyle = css(accent);
+    roundRect(ctx, -24, 0, 48, 5, 2.5);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ellipse(ctx, -4, -6, 12, 5);
+    ctx.fill();
+    ellipse(ctx, 0, 2, 7, 4);
+    ctx.fillStyle = '#e8e2d8';
+    ctx.fill();
+    outline(ctx, 1.2);
+    dots(ctx, 0xfff3d0, [[-14, -4], [-6, -10], [8, -9], [15, -3]], 1.5);
   },
 };
 

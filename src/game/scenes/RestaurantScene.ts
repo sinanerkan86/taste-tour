@@ -68,6 +68,8 @@ const GEAR_SIZE = 96;
 const HUD_MARGIN = 30;
 // Rewarded ad buttons sit in the bottom right corner of the room, this far above the panel.
 const AD_BUTTON = { width: 130, height: 68, abovePanel: 80, gap: 14 };
+// The green "+" at the right end of the money pill: a time skip (money now) for a rewarded ad.
+const PLUS_SIZE = 66;
 // Shown at the edge of the room view when the bottleneck marker is scrolled out of sight.
 const MARKER_ARROW = { inset: 62, radius: 34 };
 // World pixels the marker must be inside the view to count as visible.
@@ -107,8 +109,8 @@ export class RestaurantScene extends Phaser.Scene {
   private franchiseCaption!: Phaser.GameObjects.Text;
   private rushButton!: Button;
   private rushCaption!: Phaser.GameObjects.Text;
-  private timeSkipButton!: Button;
-  private timeSkipCaption!: Phaser.GameObjects.Text;
+  private plusButton!: Phaser.GameObjects.Container;
+  private plusReady: boolean | null = null;
   // Seconds of play until the next VIP guest walks in.
   private vipCountdown = 0;
   // Null until the first UI refresh, so a loaded game does not announce the franchise again.
@@ -145,7 +147,7 @@ export class RestaurantScene extends Phaser.Scene {
     this.setUpCameras();
     this.input.on('pointerdown', () => audio.unlock());
     const theme = cityTheme(cityConfig(this.economy.city).id);
-    this.view = new RestaurantView(this, theme);
+    this.view = new RestaurantView(this, theme, cityConfig(this.economy.city).dishes);
     this.decor = new Decor(this, theme);
     this.view.onPayment = (amount, at) => this.showPayment(amount, at);
     this.view.onMarkerTap = (section) => this.focusBottleneck(section);
@@ -270,9 +272,7 @@ export class RestaurantScene extends Phaser.Scene {
     this.panel.setY(top);
     const adY = top - AD_BUTTON.abovePanel;
     this.rushButton.setY(adY);
-    this.timeSkipButton.setY(adY);
     this.rushCaption.setY(adY + AD_BUTTON.height / 2 + 18);
-    this.timeSkipCaption.setY(adY + AD_BUTTON.height / 2 + 18);
   }
 
   // A pulsing "!" with an arrow at the side of the room view, pointing to an off-screen
@@ -371,14 +371,10 @@ export class RestaurantScene extends Phaser.Scene {
         .setOrigin(0.5)
         .setDepth(UI_DEPTH);
     // Vertical positions are set in layout().
-    const skipX = GAME_WIDTH - HUD_MARGIN - AD_BUTTON.width / 2;
-    const rushX = skipX - AD_BUTTON.width - AD_BUTTON.gap;
+    const rushX = GAME_WIDTH - HUD_MARGIN - AD_BUTTON.width / 2;
     this.rushButton = new Button(this, rushX, 0, AD_BUTTON.width, AD_BUTTON.height, () => this.offerRush(), 'ad');
     this.rushButton.setLabel(`${ADS.rushMultiplier}x`).setDepth(UI_DEPTH);
     this.rushCaption = caption(rushX);
-    this.timeSkipButton = new Button(this, skipX, 0, AD_BUTTON.width, AD_BUTTON.height, () => this.offerTimeSkip(), 'ad');
-    this.timeSkipButton.setLabel(t('ads.timeSkipLabel', { hours: ADS.timeSkipSeconds / 3600 })).setDepth(UI_DEPTH);
-    this.timeSkipCaption = caption(skipX);
   }
 
   private refreshAdButtons(): void {
@@ -386,9 +382,16 @@ export class RestaurantScene extends Phaser.Scene {
     this.rushButton.setButtonStyle(canActivateRush(this.economy) ? BUTTON_STYLES.buy : BUTTON_STYLES.disabled, canActivateRush(this.economy));
     this.rushCaption.setText(rush > 0 ? tDuration(rush) : t('ads.rushCaption'));
     this.rushCaption.setColor(toCss(rush > 0 ? PALETTE.saffron : PALETTE.cream));
-    const cooldown = this.economy.timeSkipCooldown;
-    this.timeSkipButton.setButtonStyle(cooldown > 0 ? BUTTON_STYLES.disabled : BUTTON_STYLES.buy, cooldown <= 0);
-    this.timeSkipCaption.setText(cooldown > 0 ? tDuration(cooldown) : t('ads.timeSkipCaption'));
+    // The "+" turns grey while the time skip cools down and bounces once when it is ready again.
+    const ready = this.economy.timeSkipCooldown <= 0;
+    if (ready !== this.plusReady) {
+      const [face] = this.plusButton.list as Phaser.GameObjects.Image[];
+      face.setTexture(glossyButton(this, PLUS_SIZE, PLUS_SIZE, { face: ready ? BUTTON_STYLES.go.face : BUTTON_STYLES.disabled.face }));
+      if (ready && this.plusReady === false) {
+        this.tweens.add({ targets: this.plusButton, scale: 1.25, duration: 180, yoyo: true, repeat: 1, ease: 'Sine.easeInOut' });
+      }
+      this.plusReady = ready;
+    }
   }
 
   private offerRush(): void {
@@ -407,7 +410,11 @@ export class RestaurantScene extends Phaser.Scene {
   }
 
   private offerTimeSkip(): void {
-    if (this.economy.timeSkipCooldown > 0) return;
+    const cooldown = this.economy.timeSkipCooldown;
+    if (cooldown > 0) {
+      floatingText(this, this.plusButton.x - 60, this.plusButton.y + 70, t('ads.timeSkipWait', { time: tDuration(cooldown) }), PALETTE.cream, 34);
+      return;
+    }
     const offer = {
       title: t('ads.timeSkipTitle'),
       body: t('ads.timeSkipBody', { hours: ADS.timeSkipSeconds / 3600 }),
@@ -665,13 +672,24 @@ export class RestaurantScene extends Phaser.Scene {
     this.add.image(GAME_WIDTH / 2 + 20, HUD_COIN.y, counterPill(this, MONEY_PILL.width, MONEY_PILL.height)).setScale(1 / ART_RES).setDepth(UI_DEPTH);
     this.hudCoin = this.add.image(HUD_COIN.x, HUD_COIN.y, 'coin').setScale(1.1).setDepth(UI_DEPTH);
     this.moneyText = this.add
-      .text(GAME_WIDTH / 2 + 30, HUD_COIN.y - 2, '0', outlined(58))
+      .text(GAME_WIDTH / 2 + 10, HUD_COIN.y - 2, '0', outlined(58))
       .setOrigin(0.5)
       .setDepth(UI_DEPTH);
     this.incomeText = this.add
       .text(GAME_WIDTH / 2 + 20, 148, '', outlined(32, { color: 0xffe066, stroke: 0x6a1a10 }))
       .setOrigin(0.5)
       .setDepth(UI_DEPTH);
+
+    const plusX = GAME_WIDTH / 2 + 20 + MONEY_PILL.width / 2 - 8;
+    const plusFace = this.add.image(0, 0, glossyButton(this, PLUS_SIZE, PLUS_SIZE, { face: BUTTON_STYLES.go.face })).setScale(1 / ART_RES);
+    const plusMark = this.add.text(0, -6, '+', outlined(56)).setOrigin(0.5);
+    this.plusButton = this.add.container(plusX, HUD_COIN.y, [plusFace, plusMark]).setDepth(UI_DEPTH);
+    this.plusButton.setSize(PLUS_SIZE + 20, PLUS_SIZE + 20).setInteractive({ useHandCursor: true });
+    this.plusButton.on('pointerdown', () => {
+      audio.play('click');
+      this.tweens.add({ targets: this.plusButton, scale: 0.9, duration: 70, yoyo: true });
+      this.offerTimeSkip();
+    });
 
     // Left: city (opens the world map) and Chef Stars.
     const cityPill = this.add.image(HUD_MARGIN + CITY_PILL.width / 2, 58, counterPill(this, CITY_PILL.width, CITY_PILL.height)).setScale(1 / ART_RES).setDepth(UI_DEPTH);

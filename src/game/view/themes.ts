@@ -89,7 +89,115 @@ function temple(g: Graphics, x: number, y: number): void {
   g.fillStyle(0x8b5a2b, 1).fillRect(x - 100, y + 38, 200, 7);
 }
 
+function eiffel(g: Graphics, x: number, y: number, sky: number): void {
+  // Rooftops on both sides, the tower in the middle.
+  g.fillStyle(0x8a95b0, 1);
+  g.fillRect(x - 100, y + 22, 60, 23).fillTriangle(x - 104, y + 22, x - 36, y + 22, x - 70, y + 6);
+  g.fillRect(x + 40, y + 26, 60, 19).fillTriangle(x + 36, y + 26, x + 104, y + 26, x + 70, y + 10);
+  g.fillStyle(0x4a4e6a, 1);
+  g.fillTriangle(x - 34, y + 45, x - 4, y - 20, x - 14, y + 45);
+  g.fillTriangle(x + 34, y + 45, x + 4, y - 20, x + 14, y + 45);
+  g.fillRect(x - 6, y - 40, 12, 24).fillTriangle(x - 4, y - 40, x + 4, y - 40, x, y - 52);
+  g.fillRect(x - 24, y + 12, 48, 6).fillRect(x - 13, y - 14, 26, 5);
+  // The arch under the first platform.
+  g.fillStyle(sky, 1);
+  g.beginPath();
+  g.arc(x, y + 45, 12, Math.PI, Math.PI * 2);
+  g.closePath();
+  g.fillPath();
+}
+
+function pyramidsOfGiza(g: Graphics, x: number, y: number): void {
+  g.fillStyle(0xe8c070, 1).fillRect(x - 110, y + 36, 220, 9);
+  const pyr = (cx: number, h: number, light: number, dark: number) => {
+    g.fillStyle(light, 1).fillTriangle(cx - h, y + 40, cx, y + 40 - h, cx, y + 40);
+    g.fillStyle(dark, 1).fillTriangle(cx, y + 40 - h, cx, y + 40, cx + h, y + 40);
+  };
+  pyr(x + 50, 46, 0xd8a85a, 0xb88440);
+  pyr(x - 10, 70, 0xe0b265, 0xc08a45);
+  // A palm tree in front.
+  g.fillStyle(0x7a5a30, 1).fillRect(x - 82, y - 2, 6, 42);
+  g.fillStyle(0x3f8a3a, 1);
+  [-0.4, 0.6, 1.8, 2.8].forEach((a) => g.fillEllipse(x - 79 + Math.cos(a) * 14, y - 6 + Math.sin(a) * 6 - 4, 30, 9));
+}
+
+function gateway(g: Graphics, x: number, y: number, sky: number): void {
+  // Sea in front, an arched gateway with four small domes.
+  g.fillStyle(0x4aa0c0, 1).fillRect(x - 110, y + 36, 220, 9);
+  g.fillStyle(0xd8a070, 1);
+  g.fillRect(x - 62, y - 14, 124, 52);
+  g.fillRect(x - 70, y - 22, 140, 10);
+  [-52, -18, 18, 52].forEach((dx) => g.fillEllipse(x + dx, y - 24, 22, 20).fillRect(x + dx - 1, y - 40, 2, 8));
+  g.fillStyle(sky, 1);
+  g.fillRect(x - 15, y + 4, 30, 34).fillEllipse(x, y + 4, 30, 30);
+  g.fillRect(x - 50, y + 12, 18, 26).fillEllipse(x - 41, y + 12, 18, 16);
+  g.fillRect(x + 32, y + 12, 18, 26).fillEllipse(x + 41, y + 12, 18, 16);
+}
+
+function sugarloaf(g: Graphics, x: number, y: number): void {
+  g.fillStyle(0x4aa0c0, 1).fillRect(x - 110, y + 28, 220, 12);
+  g.fillStyle(0xf0d8a0, 1).fillRect(x - 110, y + 40, 220, 5);
+  // Two rounded peaks with a cable car between them.
+  g.fillStyle(0x3f7a4a, 1);
+  g.beginPath();
+  g.arc(x - 54, y + 34, 34, Math.PI, Math.PI * 2);
+  g.closePath();
+  g.fillPath();
+  g.fillStyle(0x2f6a40, 1);
+  g.beginPath();
+  g.moveTo(x + 10, y + 34);
+  g.lineTo(x + 30, y - 10);
+  g.lineTo(x + 54, y - 34);
+  g.lineTo(x + 74, y - 16);
+  g.lineTo(x + 100, y + 34);
+  g.closePath();
+  g.fillPath();
+  g.fillStyle(0x6a7a6a, 1).fillEllipse(x + 54, y - 30, 22, 12);
+  g.lineStyle(2, 0x3a3a40, 1).lineBetween(x - 54, y + 10, x + 52, y - 32);
+  g.fillStyle(0xe8463a, 1).fillRect(x - 6, y - 14, 14, 10);
+}
+
 export const CITY_THEMES: Record<string, CityTheme> = {
+  paris: {
+    wall: 0xf3e6dc,
+    tileA: 0x2c3e6a,
+    tileB: 0xf5f0e6,
+    floor: 0xb08a6a,
+    floorDark: 0x9a765a,
+    accent: 0xc0304a,
+    sky: 0xc9d8f0,
+    landmark: (g, x, y) => eiffel(g, x, y, 0xc9d8f0),
+  },
+  cairo: {
+    wall: 0xf4dcae,
+    tileA: 0x1f6f8b,
+    tileB: 0xd9a441,
+    floor: 0xc49a66,
+    floorDark: 0xad8656,
+    accent: 0x2a8a7a,
+    sky: 0xf7d9a0,
+    landmark: pyramidsOfGiza,
+  },
+  mumbai: {
+    wall: 0xfbe3c8,
+    tileA: 0xd8602b,
+    tileB: 0x2f8a6a,
+    floor: 0xa86a42,
+    floorDark: 0x925a36,
+    accent: 0xd8b020,
+    sky: 0xfac0a0,
+    landmark: (g, x, y) => gateway(g, x, y, 0xfac0a0),
+  },
+  rio: {
+    wall: 0xe8f4e0,
+    tileA: 0x2a9a5a,
+    tileB: 0xf6d040,
+    floor: 0xd6b48a,
+    floorDark: 0xc09e76,
+    accent: 0x1f6fbf,
+    sky: 0x9fdcf0,
+    landmark: sugarloaf,
+  },
   istanbul: {
     wall: PALETTE.wall,
     tileA: PALETTE.tileBlue,

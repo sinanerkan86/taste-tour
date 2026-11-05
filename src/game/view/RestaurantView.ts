@@ -27,6 +27,8 @@ import {
 } from './layout';
 import { Person, createPlate } from './Person';
 import { drawRoom } from './room';
+import { ART_RES } from './paint';
+import { dishIcon } from '../ui/icons';
 import type { CityTheme } from './themes';
 
 // The scene shows at most this many customers per second (kept low so it reads as a calm
@@ -210,6 +212,8 @@ export class RestaurantView {
   constructor(
     private readonly scene: Phaser.Scene,
     theme: CityTheme,
+    // Dish ids of the city menu, in DISH_TIERS order (for the order bubbles).
+    private readonly dishes: string[],
   ) {
     const art = drawRoom(scene, theme);
     this.tables = art.tables;
@@ -375,8 +379,9 @@ export class RestaurantView {
 
     // Order, wait for the kitchen and the waiters, then eat.
     const menu = this.state?.menu ?? [0];
-    const color = DISH_COLORS[Phaser.Utils.Array.GetRandom(menu)];
-    const bubble = this.showOrderBubble(person, color);
+    const dish = Phaser.Utils.Array.GetRandom(menu);
+    const color = DISH_COLORS[dish];
+    const bubble = this.showOrderBubble(person, dish);
     const plate = await new Promise<Phaser.GameObjects.Container>((served) => this.orders.push({ seat, color, served }));
     bubble.close();
     await this.delay(EAT_MS);
@@ -737,8 +742,10 @@ export class RestaurantView {
   }
 
   // The order bubble turns red and shakes when the food takes too long.
-  private showOrderBubble(person: Person, foodColor: number): Bubble {
-    const bubble = this.showBubble(person, (g) => g.fillStyle(foodColor, 1).fillCircle(0, -4, 16));
+  private showOrderBubble(person: Person, dish: number): Bubble {
+    const bubble = this.showBubble(person, () => {});
+    const icon = this.scene.add.image(0, -4, dishIcon(this.scene, this.dishes[dish] ?? '', DISH_COLORS[dish])).setScale(0.62 / ART_RES);
+    bubble.container.add(icon);
     const alarm = this.scene.add.graphics().setAlpha(0);
     alarm.fillStyle(0xf6b3ad, 1).fillRoundedRect(-32, -30, 64, 52, 16);
     alarm.fillTriangle(-8, 20, 8, 20, 0, 34);

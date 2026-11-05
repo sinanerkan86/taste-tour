@@ -48,19 +48,24 @@ export const DISH_TIERS: DishTier[] = [
 
 export interface CityConfig {
   id: string;
-  // Dish ids in menu order, one per DISH_TIERS entry. Each city opens with its local specialty.
+  // Dish ids in menu order, one per DISH_TIERS entry: well-known dishes of that city's own cuisine,
+  // from street food to the main courses, ending with a signature dessert.
   dishes: string[];
 }
 
 // Franchising moves to the next city. After the last one the list starts over (with ever
 // bigger numbers), so new cities can be added as content updates.
 export const CITIES: CityConfig[] = [
-  { id: 'istanbul', dishes: ['doner', 'pizza', 'taco', 'burger', 'ramen', 'sushi', 'paella'] },
-  { id: 'rome', dishes: ['lasagna', 'falafel', 'dumplings', 'fishAndChips', 'curry', 'pho', 'ceviche'] },
-  { id: 'tokyo', dishes: ['tempura', 'hummus', 'bibimbap', 'schnitzel', 'goulash', 'moussaka', 'empanadas'] },
-  { id: 'newYork', dishes: ['hotDog', 'risotto', 'gyoza', 'shawarma', 'jollof', 'pierogi', 'poke'] },
-  { id: 'mexicoCity', dishes: ['mole', 'butterChicken', 'borscht', 'laksa', 'feijoada', 'couscous', 'baklava'] },
-  { id: 'bangkok', dishes: ['padThai', 'bulgogi', 'poutine', 'injera', 'nasiGoreng', 'arepas', 'tiramisu'] },
+  { id: 'istanbul', dishes: ['doner', 'lahmacun', 'pide', 'kofte', 'manti', 'iskender', 'baklava'] },
+  { id: 'rome', dishes: ['bruschetta', 'pizza', 'carbonara', 'lasagna', 'risotto', 'ossobuco', 'tiramisu'] },
+  { id: 'paris', dishes: ['croissant', 'crepe', 'croqueMonsieur', 'quiche', 'ratatouille', 'coqAuVin', 'cremeBrulee'] },
+  { id: 'cairo', dishes: ['falafel', 'foulMedames', 'koshari', 'shawarma', 'mahshi', 'fattah', 'omAli'] },
+  { id: 'mumbai', dishes: ['samosa', 'pavBhaji', 'masalaDosa', 'butterChicken', 'tandoori', 'biryani', 'gulabJamun'] },
+  { id: 'bangkok', dishes: ['springRolls', 'satay', 'somTam', 'padThai', 'tomYum', 'greenCurry', 'mangoStickyRice'] },
+  { id: 'tokyo', dishes: ['gyoza', 'ramen', 'tempura', 'tonkatsu', 'sukiyaki', 'sushi', 'mochi'] },
+  { id: 'rio', dishes: ['paoDeQueijo', 'coxinha', 'acai', 'moqueca', 'feijoada', 'churrasco', 'brigadeiro'] },
+  { id: 'mexicoCity', dishes: ['taco', 'quesadilla', 'guacamole', 'tamales', 'enchiladas', 'mole', 'churros'] },
+  { id: 'newYork', dishes: ['hotDog', 'bagel', 'burger', 'buffaloWings', 'pastrami', 'steak', 'cheesecake'] },
 ];
 
 export const CITY = {

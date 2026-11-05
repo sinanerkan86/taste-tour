@@ -202,7 +202,7 @@ export class WorldMapScene extends Phaser.Scene {
     } else if (state === 'current') {
       const served = economy.dishLevels.filter((level) => level > 0).length;
       this.badge(x, y + NODE_RADIUS + 82, t('map.progress', { done: served, total: DISH_TIERS.length }), 0xffbe1a);
-      this.pin(x, y - NODE_RADIUS - 20);
+      this.pin(x, y - NODE_RADIUS - 20, this.nodes[node.index + 1]?.x ?? x);
     } else {
       this.add.image(x, y - 6, lockIcon(this)).setScale(1.5).setDepth(6);
       // A taste of what is coming: the city's first dish.
@@ -219,10 +219,19 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   // "You are here": a bouncing map pin with a chef hat.
-  private pin(x: number, y: number): void {
+  // The label sits beside the pin, on the side away from the next city, whose name ribbon
+  // would otherwise run into it.
+  private pin(x: number, y: number, nextX: number): void {
     const pin = this.add.image(x, y, pinTexture(this)).setOrigin(0.5, 1).setScale(1 / ART_RES).setDepth(8);
     this.tweens.add({ targets: pin, y: y - 22, duration: 520, yoyo: true, repeat: -1, ease: 'Quad.easeOut' });
-    const here = this.add.text(x, y - 170, t('map.here'), outlined(30, { color: 0xffe066 })).setOrigin(0.5).setDepth(8);
+    const right = nextX <= x;
+    const gap = 70;
+    const here = this.add
+      .text(right ? x + gap : x - gap, y - 80, t('map.here'), outlined(30, { color: 0xffe066 }))
+      .setOrigin(right ? 0 : 1, 0.5)
+      .setDepth(8);
+    const room = right ? GAME_WIDTH - 16 - (x + gap) : x - gap - 16;
+    here.setScale(Math.min(1, room / here.width));
     this.tweens.add({ targets: here, y: here.y - 22, duration: 520, yoyo: true, repeat: -1, ease: 'Quad.easeOut' });
   }
 

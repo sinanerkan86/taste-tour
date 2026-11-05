@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, PALETTE } from '../config';
 import { CASHIER_DESK, DISHPIT, DOOR, KITCHEN, POSTER, ROOM, SEAT_OFFSET_X, STOVES, TABLES } from './layout';
+import { ROOM_MARGIN } from './RoomCamera';
 import type { CityTheme } from './themes';
 
 export interface RoomArt {
@@ -14,15 +15,15 @@ export interface RoomArt {
 export function drawRoom(scene: Phaser.Scene, theme: CityTheme): RoomArt {
   const g = scene.add.graphics().setDepth(-1000);
 
-  // Back wall with a tiled band.
-  g.fillStyle(theme.wall, 1).fillRect(0, ROOM.top, GAME_WIDTH, ROOM.wallBottom - ROOM.top);
+  // Back wall with a tiled band. Wall and floor run past the room's edges for zooming out.
+  g.fillStyle(theme.wall, 1).fillRect(0, ROOM.top - ROOM_MARGIN, GAME_WIDTH, ROOM.wallBottom - ROOM.top + ROOM_MARGIN);
   for (let i = 0, x = 0; x < GAME_WIDTH; i++, x += 45) {
     g.fillStyle(i % 2 === 0 ? theme.tileA : theme.tileB, 1).fillRect(x, ROOM.wallBottom - 150, 45, 45);
   }
   drawPoster(g, theme);
 
   // Wooden floor.
-  for (let i = 0, y = ROOM.wallBottom; y < ROOM.bottom; i++, y += 60) {
+  for (let i = 0, y = ROOM.wallBottom; y < ROOM.bottom + ROOM_MARGIN; i++, y += 60) {
     g.fillStyle(i % 2 === 0 ? theme.floor : theme.floorDark, 1).fillRect(0, y, GAME_WIDTH, 60);
   }
 

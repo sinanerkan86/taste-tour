@@ -7,7 +7,7 @@ const BASE_HEIGHT = 1920;
 export const MAX_GAME_HEIGHT = 2560;
 
 // Phones taller than 16:9 get a taller canvas instead of empty bands above and below; the
-// extra height goes to the upgrade panel at the bottom. Measured at startup and again when the
+// extra height goes to the restaurant scene, which zooms in to fill it. Measured at startup and again when the
 // view resizes (e.g. Android hides the navigation bar after the game has started).
 export function fitHeight(): number {
   if (typeof document === 'undefined') return BASE_HEIGHT;
@@ -19,11 +19,13 @@ export function fitHeight(): number {
 
 export const GAME_HEIGHT = fitHeight();
 
-// Vertical layout bands.
+// Vertical layout bands: HUD at the top, upgrade panel at the bottom, restaurant in between.
 export const LAYOUT = {
   hudHeight: 190,
-  panelTop: 1010,
+  panelHeight: 910,
 } as const;
+
+export const panelTop = (gameHeight: number): number => gameHeight - LAYOUT.panelHeight;
 
 // Istanbul palette (first city).
 export const PALETTE = {

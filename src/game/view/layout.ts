@@ -6,11 +6,12 @@ export interface Point {
   y: number;
 }
 
-// Restaurant scene coordinates (the band between the HUD and the upgrade panel).
+// Restaurant world coordinates. On a 1080x1920 screen the room fills the band between the HUD
+// and the upgrade panel 1:1; taller screens zoom it in (see RoomCamera).
 export const ROOM = {
   top: LAYOUT.hudHeight + 8,
   wallBottom: 470,
-  bottom: LAYOUT.panelTop,
+  bottom: 1010,
 } as const;
 
 export const KITCHEN = { left: 560, right: 1060, counterY: 470 } as const;

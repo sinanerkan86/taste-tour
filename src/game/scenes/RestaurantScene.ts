@@ -31,8 +31,8 @@ import { formatNumber } from '../../core/format';
 import { createSave, offlineReward, type OfflineReward, type SaveData } from '../../core/save';
 import { t, tDuration, type TranslationKey } from '../../i18n';
 import { ads, type AdPlacement } from '../ads/AdService';
-import { FONT, GAME_WIDTH, LAYOUT, PALETTE, toCss } from '../config';
-import { FX_DEPTH, banner, confetti, floatingText, sparkle } from '../fx';
+import { FONT, GAME_WIDTH, LAYOUT, PALETTE, panelTop, toCss } from '../config';
+import { FX_DEPTH, ROOM_FX_DEPTH, UI_LAYER_DEPTH, banner, confetti, floatingText, sparkle } from '../fx';
 import { saves } from '../persistence';
 import { AdOfferModal } from '../ui/AdOfferModal';
 import { BUTTON_STYLES, Button } from '../ui/Button';
@@ -42,6 +42,7 @@ import { UpgradePanel } from '../ui/UpgradePanel';
 import { WelcomeBackModal } from '../ui/WelcomeBackModal';
 import { ROOM, type Point } from '../view/layout';
 import { RestaurantView } from '../view/RestaurantView';
+import { ROOM_MARGIN, RoomCamera } from '../view/RoomCamera';
 import { cityTheme } from '../view/themes';
 
 const PANEL_REFRESH_MS = 100;
@@ -49,8 +50,13 @@ const PANEL_REFRESH_MS = 100;
 const UI_DEPTH = 10000;
 const HUD_COIN: Point = { x: GAME_WIDTH / 2 - 150, y: 78 };
 const HUD_MARGIN = 30;
-// Rewarded ad buttons sit on the floor in the bottom right corner of the room.
-const AD_BUTTON = { width: 150, height: 80, y: 925, gap: 15 };
+// Rewarded ad buttons sit in the bottom right corner of the room, this far above the panel.
+const AD_BUTTON = { width: 150, height: 80, abovePanel: 85, gap: 15 };
+// Shown at the edge of the room view when the bottleneck marker is scrolled out of sight.
+const MARKER_ARROW = { inset: 62, radius: 34 };
+// World pixels the marker must be inside the view to count as visible.
+const MARKER_VISIBLE_MARGIN = 50;
+const PAN_MS = 450;
 const BANNER_Y = 330;
 const AUTOSAVE_MS = 10_000;
 // Shorter absences are paid out silently, as if the game had kept running.
@@ -89,6 +95,12 @@ export class RestaurantScene extends Phaser.Scene {
   private franchiseReady: boolean | null = null;
   private hudCoin!: Phaser.GameObjects.Image;
   private sincePanelRefresh = 0;
+  // The restaurant world is drawn by the zoomable, scrollable room camera; HUD, panel and
+  // dialogs by a second camera that covers the whole screen. Depth decides which is which.
+  private room!: RoomCamera;
+  private uiCamera!: Phaser.Cameras.Scene2D.Camera;
+  private markerArrow!: Phaser.GameObjects.Container;
+  private markerArrowTip!: Phaser.GameObjects.Triangle;
 
   constructor() {
     super('Restaurant');
@@ -109,6 +121,7 @@ export class RestaurantScene extends Phaser.Scene {
       if (Number.isInteger(city) && city > 0 && !data.arrived) this.economy.city = city;
       if (params.has('vip')) this.vipCountdown = 1;
     }
+    this.setUpCameras();
     this.view = new RestaurantView(this, cityTheme(cityConfig(this.economy.city).id));
     this.view.onPayment = (amount, at) => this.showPayment(amount, at);
     this.view.onMarkerTap = (section) => this.focusBottleneck(section);
@@ -122,6 +135,8 @@ export class RestaurantScene extends Phaser.Scene {
       (index) => this.buyDish(index),
     );
     this.panel.setDepth(UI_DEPTH);
+    this.createMarkerArrow();
+    this.layout();
     this.refreshUi();
 
     this.setUpSaving();
@@ -151,7 +166,7 @@ export class RestaurantScene extends Phaser.Scene {
     const save = createSave(this.economy, Date.now(), this.seenHints);
     void this.saveGame();
     this.input.enabled = false;
-    this.cameras.main.fadeOut(FRANCHISE_FADE_MS, 0, 0, 0);
+    this.cameras.cameras.forEach((camera) => camera.fadeOut(FRANCHISE_FADE_MS, 0, 0, 0));
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
       this.input.enabled = true;
       this.scene.restart({ save, arrived: true } satisfies RestaurantSceneData);
@@ -159,7 +174,7 @@ export class RestaurantScene extends Phaser.Scene {
   }
 
   private welcomeToCity(): void {
-    this.cameras.main.fadeIn(FRANCHISE_FADE_MS, 0, 0, 0);
+    this.cameras.cameras.forEach((camera) => camera.fadeIn(FRANCHISE_FADE_MS, 0, 0, 0));
     this.time.delayedCall(FRANCHISE_FADE_MS, () =>
       this.celebrate(t('banner.newCity', { city: this.cityName(this.economy.city) }), PALETTE.tileBlue),
     );
@@ -175,15 +190,94 @@ export class RestaurantScene extends Phaser.Scene {
     this.panel.focusSection(section);
   }
 
-  // First-session tip that explains the bottleneck and teaches the marker tap.
+  // First-session tip that explains the bottleneck and teaches the marker tap. The room first
+  // scrolls so the marker is in view; the card itself is screen UI so it is not zoomed.
   private showBottleneckHint(): void {
     const anchor = this.view.markerAnchor;
     if (!anchor || this.hint) return;
-    this.hint = new HintBubble(this, { x: anchor.x, y: anchor.y + HINT_OFFSET_Y }, t('hint.bottleneck'), FX_DEPTH - 1, () => {
-      this.hint = null;
-      this.seenHints.push(BOTTLENECK_HINT);
-      void this.saveGame();
+    this.room.panTo(anchor);
+    this.time.delayedCall(PAN_MS + 50, () => {
+      if (this.hint) return;
+      const marker = this.room.toScreen(anchor);
+      const at = { x: marker.x, y: marker.y + HINT_OFFSET_Y * this.room.zoom };
+      this.hint = new HintBubble(this, at, t('hint.bottleneck'), FX_DEPTH - 1, () => {
+        this.hint = null;
+        this.seenHints.push(BOTTLENECK_HINT);
+        void this.saveGame();
+      });
     });
+  }
+
+  private setUpCameras(): void {
+    this.room = new RoomCamera(this, this.cameras.main);
+    this.room.onTap = (at, screen) => this.tapRoom(at, screen);
+    this.uiCamera = this.cameras.add(0, 0, GAME_WIDTH, this.scale.height);
+    // Every frame, before drawing, each top-level object is hidden from the camera it does not
+    // belong to. Doing it here also covers objects created later (customers, effects, dialogs).
+    const assign = () => {
+      const skipRoom = this.cameras.main.id;
+      const skipUi = this.uiCamera.id;
+      for (const object of this.children.list) {
+        const depth = (object as Phaser.GameObjects.GameObject & { depth: number }).depth;
+        object.cameraFilter = depth >= UI_LAYER_DEPTH ? skipRoom : skipUi;
+      }
+    };
+    this.events.on(Phaser.Scenes.Events.PRE_RENDER, assign);
+    this.scale.on(Phaser.Scale.Events.RESIZE, this.layout, this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.events.off(Phaser.Scenes.Events.PRE_RENDER, assign);
+      this.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
+    });
+  }
+
+  // Places the panel at the bottom of the screen and gives the room all the height in between.
+  private layout(): void {
+    const height = this.scale.height;
+    const top = panelTop(height);
+    this.room.layout(ROOM.top, top - ROOM.top);
+    this.uiCamera.setSize(GAME_WIDTH, height);
+    this.panel.setY(top);
+    const adY = top - AD_BUTTON.abovePanel;
+    this.rushButton.setY(adY);
+    this.timeSkipButton.setY(adY);
+    this.rushCaption.setY(adY + AD_BUTTON.height / 2 + 22);
+    this.timeSkipCaption.setY(adY + AD_BUTTON.height / 2 + 22);
+  }
+
+  // A pulsing "!" with an arrow at the side of the room view, pointing to an off-screen
+  // bottleneck marker. Tapping it scrolls the room there.
+  private createMarkerArrow(): void {
+    const { radius } = MARKER_ARROW;
+    this.markerArrowTip = this.add.triangle(0, 0, 0, -16, 0, 16, 22, 0, PALETTE.pomegranate).setOrigin(0, 0.5);
+    const circle = this.add.circle(0, 0, radius, PALETTE.pomegranate).setStrokeStyle(5, 0xffffff);
+    const mark = this.add
+      .text(0, 0, '!', { fontFamily: FONT, fontSize: '44px', fontStyle: 'bold', color: '#ffffff' })
+      .setOrigin(0.5);
+    this.markerArrow = this.add.container(0, 0, [this.markerArrowTip, circle, mark]).setDepth(FX_DEPTH - 2).setVisible(false);
+    this.markerArrow.setSize(radius * 3, radius * 3).setInteractive({ useHandCursor: true });
+    this.markerArrow.on('pointerdown', () => {
+      const anchor = this.view.markerAnchor;
+      if (anchor) this.room.panTo(anchor);
+    });
+    this.tweens.add({ targets: circle, scale: 1.12, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+  }
+
+  // The arrow sits at the edge of the room band nearest to the hidden marker, its tip turned
+  // toward it.
+  private updateMarkerArrow(): void {
+    const anchor = this.view.markerAnchor;
+    const hidden = anchor !== null && !this.room.shows(anchor, MARKER_VISIBLE_MARGIN);
+    this.markerArrow.setVisible(hidden);
+    if (!anchor || !hidden) return;
+    const { inset, radius } = MARKER_ARROW;
+    const band = this.room.screenRect;
+    const target = this.room.toScreen(anchor);
+    const x = Phaser.Math.Clamp(target.x, band.x + inset, band.right - inset);
+    // Keep clear of the ad buttons at the bottom of the band.
+    const y = Phaser.Math.Clamp(target.y, band.y + inset, band.bottom - inset * 2.5);
+    this.markerArrow.setPosition(x, y);
+    const angle = Math.atan2(target.y - y, target.x - x);
+    this.markerArrowTip.setPosition(Math.cos(angle) * (radius + 2), Math.sin(angle) * (radius + 2)).setRotation(angle);
   }
 
   // Autosave, plus a save whenever the game goes to the background. When it comes back,
@@ -235,7 +329,7 @@ export class RestaurantScene extends Phaser.Scene {
   private createAdButtons(): void {
     const caption = (x: number) =>
       this.add
-        .text(x, AD_BUTTON.y + AD_BUTTON.height / 2 + 22, '', {
+        .text(x, 0, '', {
           fontFamily: FONT,
           fontSize: '26px',
           fontStyle: 'bold',
@@ -245,12 +339,13 @@ export class RestaurantScene extends Phaser.Scene {
         })
         .setOrigin(0.5)
         .setDepth(UI_DEPTH);
+    // Vertical positions are set in layout().
     const skipX = GAME_WIDTH - HUD_MARGIN - AD_BUTTON.width / 2;
     const rushX = skipX - AD_BUTTON.width - AD_BUTTON.gap;
-    this.rushButton = new Button(this, rushX, AD_BUTTON.y, AD_BUTTON.width, AD_BUTTON.height, () => this.offerRush(), 'ad');
+    this.rushButton = new Button(this, rushX, 0, AD_BUTTON.width, AD_BUTTON.height, () => this.offerRush(), 'ad');
     this.rushButton.setLabel(`${ADS.rushMultiplier}x`).setDepth(UI_DEPTH);
     this.rushCaption = caption(rushX);
-    this.timeSkipButton = new Button(this, skipX, AD_BUTTON.y, AD_BUTTON.width, AD_BUTTON.height, () => this.offerTimeSkip(), 'ad');
+    this.timeSkipButton = new Button(this, skipX, 0, AD_BUTTON.width, AD_BUTTON.height, () => this.offerTimeSkip(), 'ad');
     this.timeSkipButton.setLabel(t('ads.timeSkipLabel', { hours: ADS.timeSkipSeconds / 3600 })).setDepth(UI_DEPTH);
     this.timeSkipCaption = caption(skipX);
   }
@@ -333,7 +428,7 @@ export class RestaurantScene extends Phaser.Scene {
       async () => {
         const granted = await this.watchAd('vip', () => {
           earn(this.economy, tip);
-          floatingText(this, at.x, at.y - 80, `+${formatNumber(tip)}`, PALETTE.saffron, 56);
+          floatingText(this, at.x, at.y - 80, `+${formatNumber(tip)}`, PALETTE.saffron, 56, ROOM_FX_DEPTH);
           this.celebrateCollect();
         });
         void this.view.dismissVip(granted);
@@ -354,6 +449,7 @@ export class RestaurantScene extends Phaser.Scene {
   // Called every frame; delta is milliseconds since the previous frame.
   update(time: number, delta: number): void {
     advanceTime(this.economy, delta / 1000);
+    this.room.update(delta);
     this.updateVip(delta / 1000);
     const flow = throughput(this.economy);
     this.view.update(
@@ -368,6 +464,7 @@ export class RestaurantScene extends Phaser.Scene {
       time,
       delta,
     );
+    this.updateMarkerArrow();
 
     this.sincePanelRefresh += delta;
     if (this.sincePanelRefresh >= PANEL_REFRESH_MS) {
@@ -378,18 +475,21 @@ export class RestaurantScene extends Phaser.Scene {
     }
   }
 
-  // Tapping the restaurant earns a tip; it matters most before the restaurant runs itself.
+  // Pressing the restaurant either drags the view sideways or, if the finger did not move,
+  // earns a tip; tips matter most before the restaurant runs itself.
   private createTapArea(): void {
     const area = this.add
-      .zone(0, ROOM.top, GAME_WIDTH, ROOM.bottom - ROOM.top)
+      .zone(0, ROOM.top - ROOM_MARGIN, GAME_WIDTH, ROOM.bottom - ROOM.top + ROOM_MARGIN * 2)
       .setOrigin(0)
       .setInteractive();
-    area.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      const amount = tap(this.economy);
-      sparkle(this, pointer.x, pointer.y);
-      floatingText(this, pointer.x, pointer.y - 40, `+${formatNumber(amount)}`, PALETTE.saffron, 38);
-      this.flyCoinToHud(pointer);
-    });
+    area.on('pointerdown', (pointer: Phaser.Input.Pointer) => this.room.startPress(pointer));
+  }
+
+  private tapRoom(at: Point, screen: Point): void {
+    const amount = tap(this.economy);
+    sparkle(this, at.x, at.y, PALETTE.saffron, ROOM_FX_DEPTH);
+    floatingText(this, at.x, at.y - 40, `+${formatNumber(amount)}`, PALETTE.saffron, 38, ROOM_FX_DEPTH);
+    this.flyCoinToHud(screen);
   }
 
   private buySection(id: SectionId): void {
@@ -432,9 +532,10 @@ export class RestaurantScene extends Phaser.Scene {
   private celebrate(message: string, color: number = PALETTE.pomegranate): void {
     banner(this, BANNER_Y, message, color);
     confetti(this, GAME_WIDTH / 2, BANNER_Y + 40);
-    this.cameras.main.shake(180, 0.004);
+    this.cameras.cameras.forEach((camera) => camera.shake(180, 0.004));
   }
 
+  // `from` is a screen position.
   private flyCoinToHud(from: Point): void {
     const coin = this.add.image(from.x, from.y, 'coin').setScale(0.6).setDepth(FX_DEPTH);
     this.tweens.add({
@@ -551,8 +652,8 @@ export class RestaurantScene extends Phaser.Scene {
         strokeThickness: 8,
       })
       .setOrigin(0, 0.5);
-    const popup = this.add.container(at.x, at.y, [coin, text]).setDepth(FX_DEPTH);
-    this.flyCoinToHud(at);
+    const popup = this.add.container(at.x, at.y, [coin, text]).setDepth(ROOM_FX_DEPTH);
+    this.flyCoinToHud(this.room.toScreen(at));
     this.tweens.add({
       targets: popup,
       y: at.y - 130,

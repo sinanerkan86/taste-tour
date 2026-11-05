@@ -7,6 +7,12 @@ const SKIN_TONES = [0xf6d2b0, 0xe8b48c, 0xc98e66, 0x9c6644, 0x6e4630];
 const SHIRT_COLORS = [0xc0392b, 0x1f6f8b, 0x4a8c3a, 0xe08e0b, 0x7b4fa0, 0x2f8fb0, 0xd35d8a, 0x5f6b73];
 const HAIR_COLORS = [0x2b1d14, 0x5a3a24, 0x8c5a2b, 0xd9a21b, 0x1c1c1c];
 const BOW_TIE = 0xc0392b;
+const LIPS = 0xb03a48;
+type HairStyle = 'short' | 'long' | 'bob' | 'bun' | 'ponytail';
+const FEMALE_HAIR: HairStyle[] = ['long', 'bob', 'bun', 'ponytail'];
+// Share of women among customers and staff, and of women customers wearing a skirt.
+const FEMALE_SHARE = 0.5;
+const SKIRT_SHARE = 0.6;
 const STAFF_SHIRTS: Record<Exclude<PersonKind, 'customer'>, number> = {
   waiter: 0xffffff,
   chef: 0xffffff,
@@ -35,6 +41,9 @@ export class Person extends Phaser.GameObjects.Container {
     const skin = Phaser.Utils.Array.GetRandom(SKIN_TONES);
     const hair = Phaser.Utils.Array.GetRandom(HAIR_COLORS);
     const shirt = kind === 'customer' ? Phaser.Utils.Array.GetRandom(SHIRT_COLORS) : STAFF_SHIRTS[kind];
+    const female = Math.random() < FEMALE_SHARE;
+    const hairStyle: HairStyle = female ? Phaser.Utils.Array.GetRandom(FEMALE_HAIR) : 'short';
+    const skirt = female && (kind === 'customer' || kind === 'vip') && Math.random() < SKIRT_SHARE;
 
     const shadow = scene.add.ellipse(0, 0, 54, 14, 0x000000, 0.18);
     const g = scene.add.graphics();
@@ -43,6 +52,10 @@ export class Person extends Phaser.GameObjects.Container {
     g.fillRoundedRect(-18, -34, 14, 34, 5).fillRoundedRect(4, -34, 14, 34, 5);
     // Torso.
     g.fillStyle(shirt, 1).fillRoundedRect(-26, -86, 52, 58, 16);
+    if (skirt) {
+      const color = Phaser.Utils.Array.GetRandom(SHIRT_COLORS.filter((c) => c !== shirt));
+      g.fillStyle(color, 1).fillPoints([{ x: -24, y: -42 }, { x: 24, y: -42 }, { x: 31, y: -12 }, { x: -31, y: -12 }], true);
+    }
     if (kind === 'waiter' || kind === 'cashier') {
       g.fillStyle(0x2b2b3a, 1).fillRoundedRect(-22, -62, 44, 34, 8);
       g.fillStyle(BOW_TIE, 1).fillTriangle(-10, -84, -10, -74, 0, -79).fillTriangle(10, -84, 10, -74, 0, -79);
@@ -60,11 +73,28 @@ export class Person extends Phaser.GameObjects.Container {
       g.fillStyle(0x2b2b3a, 1).fillRoundedRect(4, -60, 26, 18, 4);
       g.fillStyle(0x9ec9d9, 1).fillCircle(17, -51, 6);
     }
+    // Hair that falls behind the head and onto the shoulders.
+    g.fillStyle(hair, 1);
+    if (hairStyle === 'long') g.fillRoundedRect(-29, -128, 58, 60, 20);
+    if (hairStyle === 'bob') g.fillRoundedRect(-29, -128, 58, 40, 18);
+    if (hairStyle === 'ponytail') g.fillEllipse(26, -110, 18, 44);
     // Head.
     g.fillStyle(skin, 1).fillCircle(0, -108, 24);
-    g.fillStyle(hair, 1).fillEllipse(0, -124, 46, 18);
+    g.fillStyle(hair, 1);
+    if (female) {
+      g.fillEllipse(0, -123, 52, 22);
+      if (hairStyle === 'bun') g.fillCircle(0, -141, 13);
+    } else {
+      g.fillEllipse(0, -124, 46, 18);
+    }
     g.fillStyle(0x2b1d14, 1).fillCircle(-8, -108, 3).fillCircle(8, -108, 3);
-    g.lineStyle(2, 0x2b1d14, 1).beginPath().arc(0, -101, 7, 0.2, Math.PI - 0.2).strokePath();
+    if (female) {
+      // Lashes and lipstick.
+      g.lineStyle(2, 0x2b1d14, 1).lineBetween(-11, -110, -14, -113).lineBetween(11, -110, 14, -113);
+      g.lineStyle(3, LIPS, 1).beginPath().arc(0, -101, 6, 0.3, Math.PI - 0.3).strokePath();
+    } else {
+      g.lineStyle(2, 0x2b1d14, 1).beginPath().arc(0, -101, 7, 0.2, Math.PI - 0.2).strokePath();
+    }
     if (kind === 'vip') {
       // Sunglasses and a wide sun hat.
       g.fillStyle(0x1c1c1c, 1).fillRoundedRect(-17, -114, 14, 10, 4).fillRoundedRect(3, -114, 14, 10, 4);

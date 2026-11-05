@@ -1,7 +1,12 @@
 import Phaser from 'phaser';
 import { FONT, GAME_WIDTH, PALETTE, toCss } from './config';
 
-// Effects draw above the restaurant but below the HUD and panel.
+// Objects at or above this depth are screen UI (HUD, panel, banners, dialogs) and ignore the
+// restaurant camera's zoom and scroll; everything below lives in the restaurant world.
+export const UI_LAYER_DEPTH = 8000;
+// Effects inside the restaurant world (tap sparkles, payment popups), above the people.
+export const ROOM_FX_DEPTH = 7000;
+// Screen effects draw above the restaurant but below the HUD and panel.
 export const FX_DEPTH = 9000;
 
 const CONFETTI_TINTS = [PALETTE.pomegranate, PALETTE.saffron, PALETTE.tileBlue, PALETTE.success, 0xffffff];
@@ -14,20 +19,17 @@ function explode(
   texture: string,
   count: number,
   config: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig,
+  depth: number,
 ): void {
   const lifespan = typeof config.lifespan === 'number' ? config.lifespan : 1000;
-  const emitter = scene.add.particles(x, y, texture, { ...config, emitting: false }).setDepth(FX_DEPTH);
+  const emitter = scene.add.particles(x, y, texture, { ...config, emitting: false }).setDepth(depth);
   emitter.explode(count);
   scene.time.delayedCall(lifespan + 200, () => emitter.destroy());
 }
 
-export function sparkle(scene: Phaser.Scene, x: number, y: number, tint: number = PALETTE.saffron): void {
-  explode(scene, x, y, 'spark', 10, {
-    speed: { min: 150, max: 380 },
-    scale: { start: 1, end: 0 },
-    lifespan: 450,
-    tint,
-  });
+export function sparkle(scene: Phaser.Scene, x: number, y: number, tint: number = PALETTE.saffron, depth = FX_DEPTH): void {
+  const config = { speed: { min: 150, max: 380 }, scale: { start: 1, end: 0 }, lifespan: 450, tint };
+  explode(scene, x, y, 'spark', 10, config, depth);
 }
 
 export function confetti(scene: Phaser.Scene, x: number, y: number): void {
@@ -39,7 +41,7 @@ export function confetti(scene: Phaser.Scene, x: number, y: number): void {
     scale: { start: 1.6, end: 1 },
     lifespan: 1400,
     tint: CONFETTI_TINTS,
-  });
+  }, FX_DEPTH);
 }
 
 export function floatingText(
@@ -49,6 +51,7 @@ export function floatingText(
   text: string,
   color: number = PALETTE.saffron,
   size = 42,
+  depth = FX_DEPTH,
 ): void {
   const label = scene.add
     .text(x, y, text, {
@@ -60,7 +63,7 @@ export function floatingText(
       strokeThickness: 8,
     })
     .setOrigin(0.5)
-    .setDepth(FX_DEPTH);
+    .setDepth(depth);
   scene.tweens.add({
     targets: label,
     y: y - 120,

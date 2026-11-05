@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { LANGUAGES, type Locale, getLocale, setLocale, t } from '../../i18n';
+import { ads } from '../ads/AdService';
 import { audio } from '../audio';
 import { PALETTE } from '../config';
 import { saveSettings, settings } from '../settings';
@@ -8,17 +9,21 @@ import { createModalCard, modalText } from './modalCard';
 
 const CARD_WIDTH = 760;
 const CARD_HEIGHT = 820;
+// Extra room for the privacy options button, shown only to players who need it.
+const PRIVACY_ROW = 120;
 const ROW_GAP = 130;
 const LANGUAGE_BUTTON = { width: 162, height: 84, gap: 12 };
 
 type Toggle = 'sound' | 'music';
 
-// Sound and music switches and the language. (Ad consent will join here before release.)
+// Sound and music switches, the language and (where the law requires it) the ad privacy choices.
 export class SettingsModal extends Phaser.GameObjects.Container {
   // onLanguageChange runs after a new language is chosen; the caller redraws its texts.
   constructor(scene: Phaser.Scene, depth: number, onLanguageChange: () => void) {
     super(scene, 0, 0);
-    const card = createModalCard(scene, CARD_WIDTH, CARD_HEIGHT, t('settings.title'));
+    const privacy = ads.privacyOptionsRequired;
+    const cardHeight = CARD_HEIGHT + (privacy ? PRIVACY_ROW : 0);
+    const card = createModalCard(scene, CARD_WIDTH, cardHeight, t('settings.title'));
     const { cx, top } = card;
     const left = cx - CARD_WIDTH / 2 + 70;
     const rows = (['sound', 'music'] as Toggle[]).flatMap((key, i) => {
@@ -52,10 +57,17 @@ export class SettingsModal extends Phaser.GameObjects.Container {
       return button;
     });
 
-    const close = new Button(scene, cx, top + CARD_HEIGHT - 80, 320, 90, () => this.destroy());
+    const extras: Phaser.GameObjects.GameObject[] = [];
+    if (privacy) {
+      const button = new Button(scene, cx, languageY + 110 + PRIVACY_ROW, 480, 84, () => void ads.showPrivacyOptions());
+      button.setLabel(t('settings.privacy')).setButtonStyle(BUTTON_STYLES.toggle);
+      extras.push(button);
+    }
+
+    const close = new Button(scene, cx, top + cardHeight - 80, 320, 90, () => this.destroy());
     close.setLabel(t('settings.close')).setButtonStyle(BUTTON_STYLES.primary);
 
-    this.add([...card.objects, ...rows, languageLabel, ...languages, close]);
+    this.add([...card.objects, ...rows, languageLabel, ...languages, ...extras, close]);
     this.setDepth(depth);
     scene.add.existing(this);
     this.setAlpha(0);

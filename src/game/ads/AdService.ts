@@ -11,6 +11,11 @@ export interface AdService {
   init(): Promise<void>;
   // Shows a rewarded ad. Resolves true only if the player watched it to the end.
   showRewarded(placement: AdPlacement): Promise<boolean>;
+  // Whether the player must be able to change their ad privacy choices from the settings
+  // (players under GDPR or US state privacy laws). Known after init().
+  readonly privacyOptionsRequired: boolean;
+  // Opens the privacy choices form (consent in the EU, "do not sell" in US states).
+  showPrivacyOptions(): Promise<void>;
 }
 
 const TEST_AD_SECONDS = 3;
@@ -18,7 +23,14 @@ const TEST_AD_SECONDS = 3;
 // Stand-in for a real ad network while developing in the browser: a full-screen overlay with a
 // short countdown. Closing it early forfeits the reward, like a real rewarded ad.
 export class TestAdService implements AdService {
+  // Dev only: /?privacy=1 shows the privacy options button in the settings.
+  readonly privacyOptionsRequired = new URLSearchParams(location.search).has('privacy');
+
   async init(): Promise<void> {}
+
+  async showPrivacyOptions(): Promise<void> {
+    window.alert('Privacy options form (shown by AdMob on Android)');
+  }
 
   showRewarded(placement: AdPlacement): Promise<boolean> {
     return new Promise((resolve) => {

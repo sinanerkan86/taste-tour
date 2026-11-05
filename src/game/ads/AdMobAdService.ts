@@ -14,6 +14,7 @@ const DEBUG_EEA = import.meta.env.VITE_ADS_DEBUG_EEA === '1';
 // Rewarded ads through the AdMob Capacitor plugin, used in the Android build.
 export class AdMobAdService implements AdService {
   private ready: Promise<void> | null = null;
+  privacyOptionsRequired = false;
 
   // Starts the SDK and asks for consent where the law requires it (EU/UK: GDPR), so the form
   // shows at launch rather than in the middle of the first ad. Safe to call more than once.
@@ -30,6 +31,17 @@ export class AdMobAdService implements AdService {
     const info = await AdMob.requestConsentInfo(DEBUG_EEA ? { debugGeography: AdmobConsentDebugGeography.EEA } : {});
     if (info.status === AdmobConsentStatus.REQUIRED && info.isConsentFormAvailable) {
       await AdMob.showConsentForm();
+    }
+    // The plugin does not export its PrivacyOptionsRequirementStatus enum; compare its value.
+    this.privacyOptionsRequired = String(info.privacyOptionsRequirementStatus) === 'REQUIRED';
+  }
+
+  async showPrivacyOptions(): Promise<void> {
+    try {
+      await this.init();
+      await AdMob.showPrivacyOptionsForm();
+    } catch (error) {
+      console.warn('Privacy options form failed', error);
     }
   }
 

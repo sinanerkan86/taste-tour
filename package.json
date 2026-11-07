@@ -1,7 +1,7 @@
 {
   "name": "taste-tour",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,7 @@
     "sim": "tsx tools/sim/cli.ts",
     "test": "vitest run",
     "android:sync": "npm run build && cap sync android",
-    "android:apk": "npm run android:sync && cd android && .\\gradlew.bat assembleDebug",
+    "android:apk": "npm run android:sync && cd android && .\\gradlew.bat assembleDebug && cd .. && node tools/android/copy-apk.mjs",
     "android:aab": "tsc --noEmit && vite build --mode release && cap sync android && cd android && .\\gradlew.bat bundleRelease"
   },
   "dependencies": {

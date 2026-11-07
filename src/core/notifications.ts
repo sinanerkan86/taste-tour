@@ -1,5 +1,7 @@
 import {
   baseIncomePerSecond,
+  dailyRewardReady,
+  dayNumber,
   offlineCapSeconds,
   type EconomyState,
   type ResearchId,
@@ -9,7 +11,7 @@ import {
 // comes back). This module only decides what to send and when; src/game/notifications.ts talks
 // to the system. Few and useful on purpose: a game that nags gets its notifications turned off.
 
-export type NotificationKind = 'lab' | 'offlineFull' | 'rushOver';
+export type NotificationKind = 'lab' | 'offlineFull' | 'rushOver' | 'daily';
 
 export interface PlannedNotification {
   kind: NotificationKind;
@@ -27,8 +29,10 @@ export const NOTIFY = {
   quietEndHour: 9,
   // Reminders closer together than this are merged (the earlier one is kept).
   minGapSeconds: 60 * 60,
-  // At most this many reminders per absence.
+  // At most this many reminders per absence, plus the daily reward one.
   maxCount: 2,
+  // Local hour of the "daily reward is waiting" reminder.
+  dailyHour: 11,
 };
 
 const SECOND = 1000;
@@ -44,6 +48,15 @@ export function outsideQuietHours(at: number): number {
   }
   date.setHours(NOTIFY.quietEndHour, 0, 0, 0);
   return date.getTime();
+}
+
+// The next morning reminder of a daily reward the player has not collected yet: today if today's is
+// still waiting and the hour is ahead, else tomorrow.
+export function nextDailyReminder(state: EconomyState, now: number): number {
+  const at = new Date(now);
+  at.setHours(NOTIFY.dailyHour, 0, 0, 0);
+  if (!dailyRewardReady(state.daily, dayNumber(now)) || at.getTime() <= now) at.setDate(at.getDate() + 1);
+  return at.getTime();
 }
 
 // What to remind the player of if they leave the game now.
@@ -77,5 +90,10 @@ export function planNotifications(state: EconomyState, now: number): PlannedNoti
       if (last && n.at - last.at < NOTIFY.minGapSeconds * SECOND) return;
       planned.push(n);
     });
+  // The daily reward reminder comes on top, unless another one is due around the same time.
+  const daily = nextDailyReminder(state, now);
+  if (planned.every((n) => Math.abs(n.at - daily) >= NOTIFY.minGapSeconds * SECOND)) {
+    planned.push({ kind: 'daily', at: daily });
+  }
   return planned;
 }

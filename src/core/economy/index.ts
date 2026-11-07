@@ -6,3 +6,4 @@ export * from './actions';
 export * from './lab';
 export * from './perks';
 export * from './goals';
+export * from './daily';

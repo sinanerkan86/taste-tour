@@ -34,7 +34,7 @@ export function sparkle(scene: Phaser.Scene, x: number, y: number, tint: number 
   explode(scene, x, y, 'spark', 10, config, depth);
 }
 
-export function confetti(scene: Phaser.Scene, x: number, y: number): void {
+export function confetti(scene: Phaser.Scene, x: number, y: number, depth = FX_DEPTH): void {
   explode(scene, x, y, 'confetti', 36, {
     speed: { min: 500, max: 1000 },
     angle: { min: 220, max: 320 },
@@ -43,7 +43,7 @@ export function confetti(scene: Phaser.Scene, x: number, y: number): void {
     scale: { start: 1.6, end: 1 },
     lifespan: 1400,
     tint: CONFETTI_TINTS,
-  }, FX_DEPTH);
+  }, depth);
 }
 
 export function floatingText(

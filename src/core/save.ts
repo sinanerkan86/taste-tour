@@ -1,6 +1,8 @@
 import {
+  DAILY,
   DISH_TIERS,
   PERK_IDS,
+  TASK_KINDS,
   RESEARCH_IDS,
   SECTION_IDS,
   cityCostScale,
@@ -10,6 +12,7 @@ import {
   newEconomy,
   perkMaxLevel,
   researchMaxLevel,
+  type DailyTask,
   type EconomyState,
   type LabSlot,
   type ResearchId,
@@ -71,6 +74,7 @@ export function parseSave(json: string): SaveData | null {
     timeSkipCooldown: Math.max(0, finiteOr(saved.timeSkipCooldown, 0)),
     lab: fresh.lab,
     perks: fresh.perks,
+    daily: fresh.daily,
   };
   for (const id of PERK_IDS) {
     economy.perks[id] = Math.min(perkMaxLevel(id), Math.max(0, Math.floor(finiteOr(saved.perks?.[id], 0))));
@@ -92,6 +96,30 @@ export function parseSave(json: string): SaveData | null {
   DISH_TIERS.forEach((_, i) => {
     economy.dishLevels[i] = Math.max(fresh.dishLevels[i], Math.floor(finiteOr(saved.dishLevels?.[i], 0)));
   });
+
+  // Daily rewards and tasks (saves from before them start fresh).
+  const daily = saved.daily;
+  if (typeof daily === 'object' && daily !== null) {
+    economy.daily.streak = Math.max(0, Math.floor(finiteOr(daily.streak, 0)));
+    economy.daily.lastClaimDay = Math.floor(finiteOr(daily.lastClaimDay, -1));
+    economy.daily.taskDay = Math.floor(finiteOr(daily.taskDay, -1));
+    economy.daily.chestClaimed = daily.chestClaimed === true;
+    const tasks = Array.isArray(daily.tasks) ? (daily.tasks as Partial<DailyTask>[]) : [];
+    economy.daily.tasks = tasks
+      .slice(0, DAILY.taskRewards.length)
+      .filter((task) => TASK_KINDS.includes(task?.kind as DailyTask['kind']))
+      .map((task) => {
+        const target = Math.max(1, finiteOr(task.target, 1));
+        return {
+          kind: task.kind as DailyTask['kind'],
+          target,
+          progress: Math.min(target, Math.max(0, finiteOr(task.progress, 0))),
+          claimed: task.claimed === true,
+        };
+      });
+    // A broken task list is rolled again.
+    if (economy.daily.tasks.length !== DAILY.taskRewards.length) economy.daily.taskDay = -1;
+  }
 
   const seenHints = Array.isArray(data.seenHints) ? data.seenHints.filter((id) => typeof id === 'string') : [];
 

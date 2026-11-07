@@ -9,7 +9,15 @@ import {
   buySectionLevels,
   canActivateRush,
   canFranchise,
+  claimChest,
+  claimDailyReward,
+  claimTask,
   collectResearch,
+  dailyNeedsAttention,
+  dailyRewardReady,
+  dayNumber,
+  recordTask,
+  refreshDaily,
   currentGoal,
   finishedResearch,
   managerBuy,
@@ -34,7 +42,9 @@ import {
   useTimeSkip,
   vipTip,
   type EconomyState,
+  type GrantedReward,
   type PerkId,
+  type TaskKind,
   type ResearchId,
   type SectionId,
 } from '../../core/economy';
@@ -49,6 +59,7 @@ import { notifications } from '../notifications';
 import { saves } from '../persistence';
 import { AdOfferModal } from '../ui/AdOfferModal';
 import { BUTTON_STYLES, Button } from '../ui/Button';
+import { DailyModal, dailyTaskLabel } from '../ui/DailyModal';
 import { FranchiseModal } from '../ui/FranchiseModal';
 import { PerkModal, PerksModal } from '../ui/PerkModal';
 import { researchName } from '../ui/progressText';
@@ -63,7 +74,7 @@ import { Decor } from '../view/decor';
 import { audio } from '../audio';
 import type { WorldMapData } from './WorldMapScene';
 import { SettingsModal } from '../ui/SettingsModal';
-import { gearIcon, globeIcon } from '../ui/icons';
+import { gearIcon, giftIcon, globeIcon } from '../ui/icons';
 import { counterPill, glossyButton, outlined, paintHudAwning } from '../ui/style';
 import { ROOM_MARGIN, RoomCamera } from '../view/RoomCamera';
 import { cityTheme } from '../view/themes';
@@ -81,6 +92,8 @@ const HUD_MARGIN = 30;
 const AD_BUTTON = { width: 130, height: 68, abovePanel: 80, gap: 14 };
 // The green "+" at the right end of the money pill: a time skip (money now) for a rewarded ad.
 const PLUS_SIZE = 66;
+// The daily rewards button sits in the bottom left corner of the room, level with Rush.
+const DAILY_BUTTON = 92;
 // Shown at the edge of the room view when the bottleneck marker is scrolled out of sight.
 const MARKER_ARROW = { inset: 62, radius: 34 };
 // World pixels the marker must be inside the view to count as visible.
@@ -90,6 +103,8 @@ const PAN_MS = 450;
 const GOAL_BAR_Y = 50;
 const BANNER_Y = 330;
 const AUTOSAVE_MS = 10_000;
+// The daily rewards open this long after the welcome-back dialog is collected.
+const DAILY_AFTER_WELCOME_MS = 900;
 // Shorter absences are paid out silently, as if the game had kept running.
 const WELCOME_BACK_MIN_SECONDS = 60;
 // The bottleneck tip appears this long into the first session.
@@ -146,6 +161,11 @@ export class RestaurantScene extends Phaser.Scene {
   // Lab projects already announced as done, so each one is announced once.
   private announcedResearch = new Set<ResearchId>();
   private sinceManager = 0;
+  private dailyButton!: Phaser.GameObjects.Container;
+  private dailyBadge!: Phaser.GameObjects.Container;
+  private dailyCaption!: Phaser.GameObjects.Text;
+  private dailyModal: DailyModal | null = null;
+  private dailyAttention: boolean | null = null;
 
   constructor() {
     super('Restaurant');
@@ -153,6 +173,9 @@ export class RestaurantScene extends Phaser.Scene {
 
   create(data: RestaurantSceneData): void {
     this.economy = data.save?.economy ?? newEconomy();
+    refreshDaily(this.economy, dayNumber(Date.now()));
+    this.dailyModal = null;
+    this.dailyAttention = null;
     this.seenHints = data.save?.seenHints ?? [];
     this.hint = null;
     this.franchiseReady = null;
@@ -194,7 +217,7 @@ export class RestaurantScene extends Phaser.Scene {
     this.refreshUi();
 
     this.setUpSaving();
-    if (data.save) this.payOffline(offlineReward(this.economy, data.save.savedAt, Date.now()));
+    if (data.save && !this.payOffline(offlineReward(this.economy, data.save.savedAt, Date.now()))) this.maybeOpenDaily();
     this.announcedResearch = new Set(finishedResearch(this.economy));
     if (!this.seenHints.includes(BOTTLENECK_HINT)) this.time.delayedCall(BOTTLENECK_HINT_DELAY_MS, () => this.showBottleneckHint());
     if (data.arrived) this.welcomeToCity();
@@ -326,6 +349,8 @@ export class RestaurantScene extends Phaser.Scene {
     const adY = top - AD_BUTTON.abovePanel;
     this.rushButton.setY(adY);
     this.rushCaption.setY(adY + AD_BUTTON.height / 2 + 18);
+    this.dailyButton.setY(adY - (DAILY_BUTTON - AD_BUTTON.height) / 2);
+    this.dailyCaption.setY(adY + AD_BUTTON.height / 2 + 18);
   }
 
   // A pulsing "!" with an arrow at the side of the room view, pointing to an off-screen
@@ -376,7 +401,7 @@ export class RestaurantScene extends Phaser.Scene {
     };
     const onVisible = () => {
       void notifications.cancel();
-      if (hiddenAt > 0) this.payOffline(offlineReward(this.economy, hiddenAt, Date.now()));
+      if (hiddenAt > 0 && !this.payOffline(offlineReward(this.economy, hiddenAt, Date.now()))) this.maybeOpenDaily();
       hiddenAt = 0;
     };
     this.time.addEvent({ delay: AUTOSAVE_MS, loop: true, callback: save });
@@ -390,14 +415,15 @@ export class RestaurantScene extends Phaser.Scene {
     });
   }
 
-  private payOffline(reward: OfflineReward): void {
+  // Returns whether the welcome-back dialog opened (the daily rewards then wait for it to close).
+  private payOffline(reward: OfflineReward): boolean {
     // The clock kept running for Rush, cooldowns and the lab, whether or not anything was earned.
     const doneBefore = finishedResearch(this.economy);
     passTime(this.economy, reward.secondsAway);
-    if (reward.amount <= 0) return;
+    if (reward.amount <= 0) return false;
     if (reward.secondsAway < WELCOME_BACK_MIN_SECONDS) {
       earn(this.economy, reward.amount);
-      return;
+      return false;
     }
     const doneAway = finishedResearch(this.economy).filter((id) => !doneBefore.includes(id));
     doneAway.forEach((id) => this.announcedResearch.add(id));
@@ -410,10 +436,50 @@ export class RestaurantScene extends Phaser.Scene {
         void this.saveGame();
         this.celebrateCollect();
         this.refreshUi();
+        this.time.delayedCall(DAILY_AFTER_WELCOME_MS, () => this.maybeOpenDaily());
       },
       () => ads.showRewarded('offlineDouble'),
       doneAway.map((id) => researchName(id)),
     );
+    return true;
+  }
+
+  // A returning player sees the daily rewards once a day, on their own, when a new reward is
+  // ready. Not before the first tip is seen, so the very first minutes stay about the restaurant.
+  private maybeOpenDaily(): void {
+    if (!this.seenHints.includes(BOTTLENECK_HINT)) return;
+    if (!dailyRewardReady(this.economy.daily, dayNumber(Date.now()))) return;
+    this.openDaily();
+  }
+
+  private openDaily(): void {
+    if (this.dailyModal?.active) return;
+    refreshDaily(this.economy, dayNumber(Date.now()));
+    const grant = (granted: GrantedReward | null) => {
+      if (granted) {
+        void this.saveGame();
+        this.refreshUi();
+      }
+      return granted;
+    };
+    this.dailyModal = new DailyModal(
+      this,
+      () => this.economy,
+      {
+        claimReward: () => grant(claimDailyReward(this.economy, dayNumber(Date.now()))),
+        claimTask: (index) => grant(claimTask(this.economy, index)),
+        claimChest: () => grant(claimChest(this.economy)),
+      },
+      UI_DEPTH + 100,
+    );
+  }
+
+  // Counts progress on today's tasks and announces the ones it finishes.
+  private track(kind: TaskKind, amount = 1): void {
+    for (const task of recordTask(this.economy, kind, amount)) {
+      audio.play('unlock', 0.7);
+      this.note(t('banner.taskDone', { task: dailyTaskLabel(task) }));
+    }
   }
 
   // A Lab row's button: collect a finished project, or start a new one.
@@ -426,6 +492,7 @@ export class RestaurantScene extends Phaser.Scene {
     } else {
       if (!startResearch(this.economy, id)) return;
       this.celebratePurchase();
+      this.track('research');
       // The first project is the moment a reminder makes sense, so the permission is asked then.
       void notifications.askOnce();
     }
@@ -497,6 +564,36 @@ export class RestaurantScene extends Phaser.Scene {
     this.rushButton = new Button(this, rushX, 0, AD_BUTTON.width, AD_BUTTON.height, () => this.offerRush(), 'ad');
     this.rushButton.setLabel(`${ADS.rushMultiplier}x`).setDepth(UI_DEPTH);
     this.rushCaption = caption(rushX);
+
+    // Daily rewards: a gift on a glossy square with a red "!" when something waits to be collected.
+    const dailyX = HUD_MARGIN + DAILY_BUTTON / 2;
+    const face = this.add.image(0, 0, glossyButton(this, DAILY_BUTTON, DAILY_BUTTON, { face: BUTTON_STYLES.toggle.face })).setScale(1 / ART_RES);
+    const gift = this.add.image(0, -5, giftIcon(this)).setScale(1 / ART_RES);
+    const dot = this.add.circle(0, 0, 20, PALETTE.pomegranate).setStrokeStyle(4, 0xffffff);
+    const mark = this.add.text(0, -2, '!', outlined(28)).setOrigin(0.5);
+    this.dailyBadge = this.add.container(DAILY_BUTTON / 2 - 8, -DAILY_BUTTON / 2 + 8, [dot, mark]).setVisible(false);
+    this.tweens.add({ targets: this.dailyBadge, scale: 1.18, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.dailyButton = this.add.container(dailyX, 0, [face, gift, this.dailyBadge]).setDepth(UI_DEPTH);
+    this.dailyButton.setSize(DAILY_BUTTON, DAILY_BUTTON).setInteractive({ useHandCursor: true });
+    this.dailyButton.on('pointerdown', () => {
+      audio.unlock();
+      audio.play('click');
+      this.tweens.add({ targets: this.dailyButton, scale: 0.92, duration: 60, yoyo: true });
+      this.openDaily();
+    });
+    this.dailyCaption = caption(dailyX).setText(t('daily.button'));
+  }
+
+  // The red "!" on the daily button; the button hops when something new is ready.
+  private refreshDaily(): void {
+    const day = dayNumber(Date.now());
+    if (refreshDaily(this.economy, day)) this.dailyModal?.render();
+    const attention = dailyNeedsAttention(this.economy.daily, day);
+    this.dailyBadge.setVisible(attention);
+    if (attention && this.dailyAttention === false) {
+      this.tweens.add({ targets: this.dailyButton, scale: 1.2, duration: 160, yoyo: true, repeat: 2, ease: 'Quad.easeOut' });
+    }
+    this.dailyAttention = attention;
   }
 
   private refreshAdButtons(): void {
@@ -589,6 +686,7 @@ export class RestaurantScene extends Phaser.Scene {
       async () => {
         const granted = await this.watchAd('vip', () => {
           earn(this.economy, tip);
+          this.track('vip');
           floatingText(this, at.x, at.y - 80, `+${formatNumber(tip)}`, PALETTE.saffron, 56, ROOM_FX_DEPTH);
           this.celebrateCollect();
         });
@@ -610,6 +708,7 @@ export class RestaurantScene extends Phaser.Scene {
   // Called every frame; delta is milliseconds since the previous frame.
   update(time: number, delta: number): void {
     advanceTime(this.economy, delta / 1000);
+    this.track('playTime', delta / 1000);
     this.room.update(delta);
     this.updateVip(delta / 1000);
     this.runManager(delta);
@@ -649,6 +748,7 @@ export class RestaurantScene extends Phaser.Scene {
 
   private tapRoom(at: Point, screen: Point): void {
     const amount = tap(this.economy);
+    this.track('taps');
     audio.play('tap');
     sparkle(this, at.x, at.y, PALETTE.saffron, ROOM_FX_DEPTH);
     floatingText(this, at.x, at.y - 40, `+${formatNumber(amount)}`, PALETTE.saffron, 38, ROOM_FX_DEPTH);
@@ -657,7 +757,9 @@ export class RestaurantScene extends Phaser.Scene {
 
   private buySection(id: SectionId): void {
     const level = this.economy.sectionLevels[id];
-    if (buySectionLevels(this.economy, id, this.panel.buyAmount) === 0) return;
+    const bought = buySectionLevels(this.economy, id, this.panel.buyAmount);
+    if (bought === 0) return;
+    this.track('upgrades', bought);
     void this.saveGame();
     this.panel.pulseSection(id);
     this.celebratePurchase();
@@ -683,7 +785,9 @@ export class RestaurantScene extends Phaser.Scene {
 
   private buyDish(index: number): void {
     const level = this.economy.dishLevels[index];
-    if (buyDishLevels(this.economy, index, this.panel.buyAmount) === 0) return;
+    const bought = buyDishLevels(this.economy, index, this.panel.buyAmount);
+    if (bought === 0) return;
+    this.track('dishLevels', bought);
     void this.saveGame();
     this.panel.pulseDish(index);
     this.celebratePurchase();
@@ -754,6 +858,7 @@ export class RestaurantScene extends Phaser.Scene {
     this.panel.refresh(this.economy);
     this.refreshFranchise();
     this.refreshAdButtons();
+    this.refreshDaily();
     this.refreshGoal();
     this.announceResearch();
     this.maybeShowLabHint();

@@ -166,9 +166,36 @@ Added 2026-11-07 as the first retention feature. When the game goes to the backg
 - **Till full:** offline earnings reach their cap (2h, more with Night Shift).
 - **Rush over:** Rush time runs out.
 
+- **Daily reward waiting:** at 11:00 local, today if today's reward is still waiting and it is before 11:00, else the next day. It comes on top of the limit below, but not within an hour of another reminder.
+
 Rules against nagging: nothing due in the first 5 minutes; reminders due in quiet hours (22:00-09:00 local) wait until 09:00; reminders less than an hour apart are merged (the earlier wins); at most 2 per absence. Delivery is inexact (no exact-alarm permission), so a reminder can come some minutes late. The permission (Android 13+) is asked once, when the player starts their first research project; Settings has a "Reminders" switch. Logic in `src/core/notifications.ts` (`NOTIFY`), system side in `src/game/notifications.ts`.
 
-Later ideas: a "your restaurant misses you" reminder after a day or two away, a daily-reward reminder once daily rewards exist.
+Later idea: a "your restaurant misses you" reminder after a day or two away.
+
+## 6d. Daily rewards and daily tasks
+
+Added 2026-11-07 (retention, second step after reminders). A gift button in the bottom left corner of the room (red "!" when something can be collected) opens the Daily Rewards dialog. It also opens on its own once a day for a returning player when a new reward is ready (after the welcome-back dialog; never before the first bottleneck tip is seen). Days are local calendar days.
+
+- **Daily reward streak:** a 7-day cycle; missing a day starts over at day 1, day 8 starts the cycle again. Money rewards are seconds of current income (without Rush), so they are worth the same at every stage and in every city.
+
+| Day | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+|---|---|---|---|---|---|---|---|
+| Reward | 10 min income | 20 min | Rush 1h | 30 min | 45 min | Rush 2h | 1h income + Rush 2h |
+
+- **Daily tasks:** three a day (easy, medium, hard), picked from the date with a seeded random, so they stay the same all day. Rewards 10 / 15 / 20 min of income; finishing all three opens a chest (30 min of income + Rush 1h). Rush rewards respect the usual Rush cap.
+
+| Task | Easy | Medium | Hard |
+|---|---|---|---|
+| Upgrade sections (levels bought by the player) | 10 | 25 | 50 |
+| Level up dishes | 10 | 25 | 50 |
+| Tap the restaurant | 30 | 60 | 100 |
+| Run the restaurant (game open) | 5 min | 10 min | 20 min |
+| Start a research project (left out once the lab is finished) | 1 | 1 | 1 |
+| Serve VIP guests (watch the VIP ad) | 1 | 1 | 2 |
+
+Manager perk purchases do not count. The daily state lives in the economy (`daily`) and moves along with a franchise. Code: `src/core/economy/daily.ts` (`DAILY`), `src/game/ui/DailyModal.ts`.
+
+Later ideas: double the daily reward with a rewarded ad (needs its own ad unit in AdMob); weekly tasks; a streak-saver.
 
 ## 7. Economy math
 

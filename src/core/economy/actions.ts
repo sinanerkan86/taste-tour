@@ -142,6 +142,7 @@ export function prestige(state: EconomyState, perk: PerkId | null = null): Econo
   next.timeSkipCooldown = state.timeSkipCooldown;
   next.lab = { levels: { ...state.lab.levels }, slots: state.lab.slots.map((slot) => ({ ...slot })) };
   next.perks = { ...state.perks };
+  next.daily = structuredClone(state.daily);
   if (perk && next.perks[perk] < perkMaxLevel(perk)) next.perks[perk]++;
   const level = startingSectionLevel(next);
   for (const id of SECTION_IDS) next.sectionLevels[id] = level;

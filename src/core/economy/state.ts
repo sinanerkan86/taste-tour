@@ -1,6 +1,7 @@
 import { ADS, DISH_TIERS, MILESTONE_BONUS, SECTION_IDS, SECTIONS, TAP, type SectionId } from './config';
 import { cityCostScale, cityPriceScale, scaledValue } from './formulas';
 import { incomeMultiplier, newLab, newPerks, type LabState, type PerkLevels } from './bonuses';
+import { newDaily, type DailyState } from './daily';
 
 export interface EconomyState {
   money: number;
@@ -24,6 +25,8 @@ export interface EconomyState {
   // Kitchen Lab research and franchise perks: permanent, they survive franchises.
   lab: LabState;
   perks: PerkLevels;
+  // Daily reward streak and today's tasks: they belong to the player, so they survive franchises.
+  daily: DailyState;
 }
 
 export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomyState {
@@ -42,6 +45,7 @@ export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomySt
     timeSkipCooldown: 0,
     lab: newLab(),
     perks: newPerks(),
+    daily: newDaily(),
   };
 }
 

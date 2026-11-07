@@ -1207,3 +1207,39 @@ export function progressIcon(scene: Phaser.Scene, id: string): string {
   const [color, glyph] = PROGRESS_GLYPHS[id] ?? PROGRESS_GLYPHS.lab;
   return paintTexture(scene, `icon-progress-${id}`, ICON_SIZE, ICON_SIZE, (ctx) => badge(ctx, color, glyph));
 }
+
+// A wrapped gift box for the daily rewards button.
+export function giftIcon(scene: Phaser.Scene): string {
+  return paintTexture(scene, 'icon-gift', 64, 64, (ctx) => {
+    ctx.translate(32, 34);
+    ctx.fillStyle = 'rgba(40,20,10,0.3)';
+    roundRect(ctx, -22, -8, 44, 34, 6);
+    ctx.fill();
+    // Box and lid.
+    ctx.fillStyle = vGradient(ctx, -6, 26, [
+      [0, '#ff6a55'],
+      [1, '#c0302a'],
+    ]);
+    roundRect(ctx, -20, -6, 40, 30, 5);
+    ctx.fill();
+    ctx.fillStyle = vGradient(ctx, -16, -4, [
+      [0, '#ff8a70'],
+      [1, '#e8463a'],
+    ]);
+    roundRect(ctx, -24, -16, 48, 13, 5);
+    ctx.fill();
+    // Ribbon and bow.
+    ctx.fillStyle = '#ffd23a';
+    ctx.fillRect(-5, -16, 10, 40);
+    ctx.beginPath();
+    ctx.ellipse(-10, -21, 10, 6, -0.5, 0, Math.PI * 2);
+    ctx.ellipse(10, -21, 10, 6, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#e8a800';
+    ellipse(ctx, 0, -19, 5, 5);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    roundRect(ctx, -20, -14, 16, 4, 2);
+    ctx.fill();
+  });
+}

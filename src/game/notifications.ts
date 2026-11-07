@@ -11,7 +11,7 @@ import { saveSettings, settings } from './settings';
 
 const CHANNEL_ID = 'restaurant';
 // One fixed id per kind, so scheduling again replaces instead of piling up.
-const IDS: Record<NotificationKind, number> = { lab: 1, offlineFull: 2, rushOver: 3 };
+const IDS: Record<NotificationKind, number> = { lab: 1, offlineFull: 2, rushOver: 3, daily: 4 };
 const ALL_IDS = Object.values(IDS).map((id) => ({ id }));
 
 const native = Capacitor.isNativePlatform();

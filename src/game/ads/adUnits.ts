@@ -14,6 +14,9 @@ const RELEASE_AD_UNITS: Record<AdPlacement, string> = {
   timeSkip: 'ca-app-pub-6709000702163453/6336249495', // Extra cash
   offlineDouble: 'ca-app-pub-6709000702163453/4465985811', // Offline double
   vip: 'ca-app-pub-6709000702163453/2885310839', // VIP tip
+  // Not created in AdMob yet: until they are, these placements show Google's test ad.
+  dailyDouble: '', // Daily double
+  busDouble: '', // Tour bus double
 };
 
 export function rewardedAdUnit(placement: AdPlacement): string {

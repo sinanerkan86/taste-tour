@@ -3,7 +3,7 @@ import { CELL, PEOPLE_TEXTURE, ensurePeopleAtlas, type Part } from './characterA
 import { depthScale, type Point } from './layout';
 import { ART_RES, type Ctx, addArt, ellipse, paintTexture, radial } from './paint';
 
-export type PersonKind = 'customer' | 'waiter' | 'chef' | 'cashier' | 'dishwasher' | 'vip';
+export type PersonKind = 'customer' | 'waiter' | 'chef' | 'cashier' | 'dishwasher' | 'vip' | 'critic' | 'tourist';
 
 const SKIN_TONES = [0xffdcbf, 0xf3c29b, 0xd9a27a, 0xb07a52, 0x82573a];
 const SHIRT_COLORS = [0xe0503f, 0x2f88a8, 0x5fae4a, 0xf5a623, 0x9466c0, 0x45b0d6, 0xec7aa6, 0x7d8a93];
@@ -20,6 +20,8 @@ const STAFF_SHIRTS: Record<Exclude<PersonKind, 'customer'>, number> = {
   cashier: 0xfff0d4,
   dishwasher: 0xb4def0,
   vip: 0x8e4fb0,
+  critic: 0x2a2a36,
+  tourist: 0x45b0d6,
 };
 const STAFF_PANTS = 0x2b2b3a;
 const CHEF_PANTS = 0x6f7b84;
@@ -59,6 +61,8 @@ const SCARF_TINT: Partial<Record<PersonKind, number>> = { chef: RED_SCARF, dishw
 // Fixed outfits for guests.
 const OUTFITS: Partial<Record<PersonKind, { body?: Part; head?: Part }>> = {
   vip: { body: 'sash', head: 'sunHat' },
+  critic: { body: 'notepad', head: 'beret' },
+  tourist: { body: 'sash', head: 'cap' },
 };
 
 function makePart(scene: Phaser.Scene, name: Part, tint?: number): Phaser.GameObjects.Image {
@@ -99,11 +103,12 @@ export class Person extends Phaser.GameObjects.Container {
     const pick = <T>(list: T[]): T => Phaser.Utils.Array.GetRandom(list);
     const skin = pick(SKIN_TONES);
     const hair = pick(HAIR_COLORS);
-    const shirt = kind === 'customer' ? pick(SHIRT_COLORS) : STAFF_SHIRTS[kind];
-    const pants = kind === 'chef' ? CHEF_PANTS : kind === 'customer' || kind === 'vip' ? pick(PANTS_COLORS) : STAFF_PANTS;
+    const guest = kind === 'customer' || kind === 'vip' || kind === 'tourist';
+    const shirt = kind === 'customer' || kind === 'tourist' ? pick(SHIRT_COLORS) : STAFF_SHIRTS[kind];
+    const pants = kind === 'chef' ? CHEF_PANTS : guest ? pick(PANTS_COLORS) : STAFF_PANTS;
     const female = Math.random() < FEMALE_SHARE;
     const hairStyle: HairStyle = female ? pick(FEMALE_HAIR) : 'short';
-    const skirt = female && (kind === 'customer' || kind === 'vip') && Math.random() < SKIRT_SHARE;
+    const skirt = female && guest && Math.random() < SKIRT_SHARE;
     const outfit = OUTFITS[kind] ?? {};
 
     const part = (name: Part, tint?: number) => makePart(scene, name, tint);

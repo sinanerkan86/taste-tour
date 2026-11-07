@@ -72,6 +72,7 @@ export function parseSave(json: string): SaveData | null {
     dishLevels: [...fresh.dishLevels],
     rushSeconds: Math.max(0, finiteOr(saved.rushSeconds, 0)),
     timeSkipCooldown: Math.max(0, finiteOr(saved.timeSkipCooldown, 0)),
+    reviewSeconds: Math.max(0, finiteOr(saved.reviewSeconds, 0)),
     lab: fresh.lab,
     perks: fresh.perks,
     daily: fresh.daily,

@@ -1,4 +1,4 @@
-import { ADS, DISH_TIERS, MILESTONE_BONUS, SECTION_IDS, SECTIONS, TAP, type SectionId } from './config';
+import { ADS, DISH_TIERS, EVENTS, MILESTONE_BONUS, SECTION_IDS, SECTIONS, TAP, type SectionId } from './config';
 import { cityCostScale, cityPriceScale, scaledValue } from './formulas';
 import { incomeMultiplier, newLab, newPerks, type LabState, type PerkLevels } from './bonuses';
 import { newDaily, type DailyState } from './daily';
@@ -22,6 +22,8 @@ export interface EconomyState {
   // Seconds of Rush (ad boost) left, and seconds until the next time skip. Both survive a franchise.
   rushSeconds: number;
   timeSkipCooldown: number;
+  // Seconds left of a food critic's good review (income boost). It belongs to this restaurant.
+  reviewSeconds: number;
   // Kitchen Lab research and franchise perks: permanent, they survive franchises.
   lab: LabState;
   perks: PerkLevels;
@@ -43,6 +45,7 @@ export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomySt
     dishLevels: DISH_TIERS.map((d) => (d.unlockCost === 0 ? 1 : 0)),
     rushSeconds: 0,
     timeSkipCooldown: 0,
+    reviewSeconds: 0,
     lab: newLab(),
     perks: newPerks(),
     daily: newDaily(),
@@ -91,19 +94,31 @@ export function baseIncomePerSecond(state: EconomyState): number {
   return throughput(state).customersPerSecond * billPerCustomer(state) * incomeMultiplier(state);
 }
 
+// The timed boosts on income right now (Rush and a good review multiply).
+export function boostMultiplier(state: EconomyState): number {
+  return (state.rushSeconds > 0 ? ADS.rushMultiplier : 1) * (state.reviewSeconds > 0 ? EVENTS.critic.reviewMultiplier : 1);
+}
+
 export function incomePerSecond(state: EconomyState): number {
-  return baseIncomePerSecond(state) * (state.rushSeconds > 0 ? ADS.rushMultiplier : 1);
+  return baseIncomePerSecond(state) * boostMultiplier(state);
 }
 
-// Income over the next `seconds`, counting Rush only for the part of it that Rush still covers.
+// Income over the next `seconds`, counting each boost only for the part of it that the boost
+// still covers: the integral of (1 + rush bonus while Rush lasts) * (1 + review bonus while it lasts).
 export function earningsOver(state: EconomyState, seconds: number): number {
-  const boosted = Math.min(Math.max(seconds, 0), state.rushSeconds);
-  return baseIncomePerSecond(state) * (Math.max(seconds, 0) + boosted * (ADS.rushMultiplier - 1));
+  const s = Math.max(seconds, 0);
+  const rush = Math.min(s, state.rushSeconds);
+  const review = Math.min(s, state.reviewSeconds);
+  const both = Math.min(rush, review);
+  const r = ADS.rushMultiplier - 1;
+  const v = EVENTS.critic.reviewMultiplier - 1;
+  return baseIncomePerSecond(state) * (s + rush * r + review * v + both * r * v);
 }
 
-// Runs down timed effects (Rush, time skip cooldown, lab research).
+// Runs down timed effects (Rush, review, time skip cooldown, lab research).
 export function passTime(state: EconomyState, seconds: number): void {
   state.rushSeconds = Math.max(0, state.rushSeconds - seconds);
+  state.reviewSeconds = Math.max(0, state.reviewSeconds - seconds);
   state.timeSkipCooldown = Math.max(0, state.timeSkipCooldown - seconds);
   for (const slot of state.lab.slots) slot.remaining = Math.max(0, slot.remaining - seconds);
 }

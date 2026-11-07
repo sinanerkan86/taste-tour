@@ -38,7 +38,10 @@ export type Part =
   | 'tailcoat'
   | 'waistApron'
   | 'neckerchief'
-  | 'tallToque';
+  | 'tallToque'
+  | 'beret'
+  | 'notepad'
+  | 'cap';
 
 const PAINTERS: Record<Part, (ctx: Ctx) => void> = {
   shadow: paintShadow,
@@ -70,6 +73,9 @@ const PAINTERS: Record<Part, (ctx: Ctx) => void> = {
   waistApron: paintWaistApron,
   neckerchief: paintNeckerchief,
   tallToque: (ctx) => paintToque(ctx, 22),
+  beret: paintBeret,
+  notepad: paintNotepad,
+  cap: paintCap,
 };
 
 // Grey ramps: lit side, middle, shadow side.
@@ -691,4 +697,80 @@ function paintNeckerchief(ctx: Ctx): void {
   ctx.arc(0, -80, 4, 0, Math.PI * 2);
   ctx.fill();
   outline(ctx, 1);
+}
+
+// Food critic: a dark red beret, slightly tilted, and round glasses.
+function paintBeret(ctx: Ctx): void {
+  ctx.strokeStyle = '#2a2a2a';
+  ctx.lineWidth = 2.2;
+  [-10, 10].forEach((x) => {
+    ctx.beginPath();
+    ctx.arc(x, -109, 6.5, 0, Math.PI * 2);
+    ctx.stroke();
+  });
+  ctx.beginPath();
+  ctx.moveTo(-3.5, -109);
+  ctx.lineTo(3.5, -109);
+  ctx.stroke();
+  ctx.save();
+  ctx.translate(4, -134);
+  ctx.rotate(0.12);
+  ctx.fillStyle = radial(ctx, 0, 0, 0, 26, [
+    [0, '#c0392b'],
+    [1, '#6e1a14'],
+  ], -6, -4);
+  ellipse(ctx, 0, 0, 25, 10);
+  ctx.fill();
+  outline(ctx, 1);
+  ctx.fillStyle = '#6e1a14';
+  roundRect(ctx, -2, -14, 4, 6, 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// Food critic: a notepad and a pen held in front of the body.
+function paintNotepad(ctx: Ctx): void {
+  ctx.save();
+  ctx.translate(14, -60);
+  ctx.rotate(-0.15);
+  ctx.fillStyle = '#7a4a2a';
+  roundRect(ctx, -11, -15, 22, 28, 3);
+  ctx.fill();
+  ctx.fillStyle = '#fffdf4';
+  roundRect(ctx, -9, -12, 18, 23, 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(60,90,160,0.6)';
+  ctx.lineWidth = 1.2;
+  [-6, -1, 4].forEach((y) => {
+    ctx.beginPath();
+    ctx.moveTo(-6, y);
+    ctx.lineTo(6, y);
+    ctx.stroke();
+  });
+  ctx.strokeStyle = '#2a2a2a';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(-14, 10);
+  ctx.lineTo(-4, -4);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Tourist: a bright orange cap with a visor.
+function paintCap(ctx: Ctx): void {
+  ctx.fillStyle = vGradient(ctx, -150, -126, [
+    [0, '#ffa64d'],
+    [1, '#e0701a'],
+  ]);
+  ctx.beginPath();
+  ctx.arc(0, -128, 21, Math.PI, 0);
+  ctx.closePath();
+  ctx.fill();
+  outline(ctx, 1);
+  ctx.fillStyle = '#c85a10';
+  roundRect(ctx, 6, -131, 26, 7, 3);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ellipse(ctx, -7, -141, 7, 3);
+  ctx.fill();
 }

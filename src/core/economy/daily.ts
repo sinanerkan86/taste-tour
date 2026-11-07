@@ -43,6 +43,8 @@ export const DAILY = {
     research: [1, 1, 1],
     vip: [1, 1, 2],
   } satisfies Record<TaskKind, number[]>,
+  // Today's reward can be doubled with a rewarded ad.
+  adMultiplier: 2,
   // Finishing all three tasks opens a chest.
   chest: { money: 30 * MINUTE, rush: 1 * HOUR } as DailyReward,
 };
@@ -146,12 +148,13 @@ export interface GrantedReward {
   rush: number;
 }
 
-// Pays a reward: money from seconds of income, Rush up to the usual cap.
-export function grantReward(state: EconomyState, reward: DailyReward): GrantedReward {
-  const money = (reward.money ?? 0) * baseIncomePerSecond(state);
+// Pays a reward (times `multiplier`, 2 after a rewarded ad): money from seconds of income, Rush
+// up to the usual cap.
+export function grantReward(state: EconomyState, reward: DailyReward, multiplier = 1): GrantedReward {
+  const money = (reward.money ?? 0) * baseIncomePerSecond(state) * multiplier;
   if (money > 0) earn(state, money);
   const before = state.rushSeconds;
-  if (reward.rush) state.rushSeconds = Math.min(Math.max(before, rushMaxSeconds(state)), before + reward.rush);
+  if (reward.rush) state.rushSeconds = Math.min(Math.max(before, rushMaxSeconds(state)), before + reward.rush * multiplier);
   return { money, rush: state.rushSeconds - before };
 }
 
@@ -160,12 +163,12 @@ export function rewardValue(state: EconomyState, reward: DailyReward): GrantedRe
   return { money: (reward.money ?? 0) * baseIncomePerSecond(state), rush: reward.rush ?? 0 };
 }
 
-export function claimDailyReward(state: EconomyState, day: number): GrantedReward | null {
+export function claimDailyReward(state: EconomyState, day: number, multiplier = 1): GrantedReward | null {
   const daily = state.daily;
   if (!dailyRewardReady(daily, day)) return null;
   daily.streak = nextStreak(daily, day);
   daily.lastClaimDay = day;
-  return grantReward(state, DAILY.rewards[(daily.streak - 1) % DAILY.rewards.length]);
+  return grantReward(state, DAILY.rewards[(daily.streak - 1) % DAILY.rewards.length], multiplier);
 }
 
 export function taskDone(task: DailyTask): boolean {

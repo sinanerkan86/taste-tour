@@ -9,6 +9,7 @@ import {
   CASHIER_LINE,
   CASHIER_STAFF,
   CLEAN_STACK,
+  CRITIC_SPOT,
   DIRTY_STACK,
   DISHPIT,
   DISHWASHER,
@@ -21,6 +22,7 @@ import {
   SECTION_ANCHORS,
   STOVES,
   TABLES,
+  TOURIST_SPOTS,
   VIP_SPOT,
   WAITER_HOME,
   type Point,
@@ -205,6 +207,8 @@ export class RestaurantView {
   private turnedAway = 0;
   private spawnTimer = 0;
   private vip: { person: Person; bubble: Bubble | null; leave: Phaser.Time.TimerEvent | null } | null = null;
+  private critic: { person: Person; bubble: Bubble | null } | null = null;
+  private tourists: Person[] = [];
   private state: ViewState | null = null;
   private readonly looks: SectionLooks;
   private flow: Flow | null = null;
@@ -319,6 +323,93 @@ export class RestaurantView {
     await person.walkTo(DOOR);
     await person.walkTo(OUTSIDE);
     this.removePerson(person);
+  }
+
+  // A food critic walks in and stands taking notes until dismissCritic().
+  async spawnCritic(): Promise<void> {
+    if (this.critic) return;
+    const person = this.addPerson(new Person(this.scene, OUTSIDE.x, OUTSIDE.y, 'critic'));
+    const critic: NonNullable<RestaurantView['critic']> = { person, bubble: null };
+    this.critic = critic;
+    await person.walkTo(DOOR);
+    await person.walkTo(CRITIC_SPOT);
+    if (this.critic !== critic) return;
+    person.face(1);
+    person.busy = true;
+    critic.bubble = this.showBubble(person, (g) => {
+      g.fillStyle(0xfffdf4, 1).fillRect(-14, -20, 28, 32);
+      g.lineStyle(2, 0x5a78b0, 0.7);
+      [-12, -5, 2].forEach((y) => g.lineBetween(-9, y, 9, y));
+      g.lineStyle(3, 0x2a2a2a, 1).lineBetween(14, -16, 2, 6);
+    });
+    this.scene.tweens.add({ targets: critic.bubble.container, angle: { from: -6, to: 6 }, duration: 400, yoyo: true, repeat: -1 });
+  }
+
+  // The critic leaves: five stars if the visit went well, a shrug if not.
+  async dismissCritic(happy: boolean): Promise<void> {
+    const critic = this.critic;
+    if (!critic) return;
+    this.critic = null;
+    critic.bubble?.close();
+    const person = critic.person;
+    if (!person.active) return;
+    person.busy = false;
+    const bubble = this.showBubble(
+      person,
+      (g) => {
+        if (happy) {
+          for (let i = 0; i < 5; i++) drawStar(g, -24 + i * 12, -4, 7, PALETTE.saffron);
+        } else {
+          g.fillStyle(PALETTE.muted, 1).fillCircle(0, -4, 18);
+          g.fillStyle(0xffffff, 1).fillCircle(-6, -8, 3).fillCircle(6, -8, 3);
+          g.lineStyle(3, 0xffffff, 1).lineBetween(-7, 4, 7, 4);
+        }
+      },
+      happy ? 1.2 : 1,
+    );
+    await this.delay(1600);
+    bubble.close();
+    await person.walkTo(DOOR);
+    await person.walkTo(OUTSIDE);
+    this.removePerson(person);
+  }
+
+  // A group of tourists from the tour bus walks in and gathers by the door.
+  spawnTourists(): void {
+    if (this.tourists.length > 0) return;
+    TOURIST_SPOTS.forEach((spot, i) => {
+      this.scene.time.delayedCall(i * 260, async () => {
+        const person = this.addPerson(new Person(this.scene, OUTSIDE.x, OUTSIDE.y, 'tourist'));
+        this.tourists.push(person);
+        await person.walkTo(DOOR, 260);
+        if (!this.tourists.includes(person)) return;
+        await person.walkTo(spot, 260);
+        if (this.tourists.includes(person)) person.face(1);
+      });
+    });
+  }
+
+  // A tap during the tour bus: a tourist takes a photo (a flash) and hops.
+  cheerTourist(): void {
+    const person = Phaser.Utils.Array.GetRandom(this.tourists.filter((p) => p.active && !p.isWalking));
+    if (!person) return;
+    const flash = this.scene.add.circle(person.x + 17 * person.scaleX, person.y - 53 * person.scaleY, 10, 0xffffff, 0.95).setDepth(person.depth + 1);
+    this.scene.tweens.add({ targets: flash, scale: 3, alpha: 0, duration: 260, onComplete: () => flash.destroy() });
+    this.scene.tweens.add({ targets: person, y: person.y - 14, duration: 110, yoyo: true, ease: 'Quad.easeOut' });
+  }
+
+  // The tourists head back to their bus.
+  dismissTourists(): void {
+    const leaving = this.tourists;
+    this.tourists = [];
+    leaving.forEach((person, i) =>
+      this.scene.time.delayedCall(i * 180, async () => {
+        if (!person.active) return;
+        await person.walkTo(DOOR, 260);
+        await person.walkTo(OUTSIDE, 260);
+        this.removePerson(person);
+      }),
+    );
   }
 
   // Called when a customer pays; the scene shows the popup.

@@ -2,9 +2,13 @@ import Phaser from 'phaser';
 import {
   ADS,
   DISH_MAX_LEVEL,
+  EVENTS,
   MILESTONE_BONUS,
   activateRush,
   advanceTime,
+  baseIncomePerSecond,
+  boostMultiplier,
+  busCombo,
   buyDishLevels,
   buySectionLevels,
   canActivateRush,
@@ -13,6 +17,14 @@ import {
   claimDailyReward,
   claimTask,
   collectResearch,
+  criticProgress,
+  criticTarget,
+  festivalBonusPerSecond,
+  grantReview,
+  nextEventGap,
+  payBusTip,
+  pickEvent,
+  pickFestivalDish,
   dailyNeedsAttention,
   dailyRewardReady,
   dayNumber,
@@ -42,6 +54,7 @@ import {
   useTimeSkip,
   vipTip,
   type EconomyState,
+  type EventKind,
   type GrantedReward,
   type PerkId,
   type TaskKind,
@@ -51,7 +64,7 @@ import {
 import { ART_RES } from '../view/paint';
 import { formatNumber } from '../../core/format';
 import { createSave, offlineReward, type OfflineReward, type SaveData } from '../../core/save';
-import { t, tDuration, type TranslationKey } from '../../i18n';
+import { t, tDuration, tDurationShort, type TranslationKey } from '../../i18n';
 import { ads, type AdPlacement } from '../ads/AdService';
 import { FONT, GAME_WIDTH, PALETTE, panelTop, toCss } from '../config';
 import { FX_DEPTH, ROOM_FX_DEPTH, UI_LAYER_DEPTH, banner, confetti, floatingText, sparkle } from '../fx';
@@ -60,6 +73,7 @@ import { saves } from '../persistence';
 import { AdOfferModal } from '../ui/AdOfferModal';
 import { BUTTON_STYLES, Button } from '../ui/Button';
 import { DailyModal, dailyTaskLabel } from '../ui/DailyModal';
+import { EventBar, type EventView } from '../ui/EventBar';
 import { FranchiseModal } from '../ui/FranchiseModal';
 import { PerkModal, PerksModal } from '../ui/PerkModal';
 import { researchName } from '../ui/progressText';
@@ -74,7 +88,7 @@ import { Decor } from '../view/decor';
 import { audio } from '../audio';
 import type { WorldMapData } from './WorldMapScene';
 import { SettingsModal } from '../ui/SettingsModal';
-import { gearIcon, giftIcon, globeIcon } from '../ui/icons';
+import { dishIcon, gearIcon, giftIcon, globeIcon } from '../ui/icons';
 import { counterPill, glossyButton, outlined, paintHudAwning } from '../ui/style';
 import { ROOM_MARGIN, RoomCamera } from '../view/RoomCamera';
 import { cityTheme } from '../view/themes';
@@ -118,6 +132,17 @@ const LAB_HINT = 'lab';
 const LAB_HINT_MENU_SIZE = 2;
 // How often the Manager perk looks for cheap upgrades.
 const MANAGER_INTERVAL_MS = 500;
+
+// The event card sits under the goal card.
+const EVENT_BAR_Y = GOAL_BAR_Y + 105;
+// Tour bus tips below this many seconds of income are not worth an ad offer.
+const BUS_OFFER_MIN_SECONDS = 20;
+
+// A scene event in progress (see core/economy/events.ts). Events live only while the game runs.
+type ActiveEvent =
+  | { kind: 'critic'; left: number; start: number; target: number }
+  | { kind: 'tourBus'; left: number; taps: number; sinceTap: number; tips: number }
+  | { kind: 'festival'; left: number; dish: number };
 
 export interface RestaurantSceneData {
   save: SaveData | null;
@@ -166,6 +191,11 @@ export class RestaurantScene extends Phaser.Scene {
   private dailyCaption!: Phaser.GameObjects.Text;
   private dailyModal: DailyModal | null = null;
   private dailyAttention: boolean | null = null;
+  private event: ActiveEvent | null = null;
+  private eventCountdown = 0;
+  private lastEvent: EventKind | null = null;
+  private forcedEvent: EventKind | null = null;
+  private eventBar!: EventBar;
 
   constructor() {
     super('Restaurant');
@@ -181,7 +211,12 @@ export class RestaurantScene extends Phaser.Scene {
     this.franchiseReady = null;
     this.sinceManager = 0;
     this.vipCountdown = ADS.vipFirstGapSeconds;
-    // Dev-only shortcuts for testing: /?money=1e6, /?city=2 (look and prices of another city), /?vip=1 (VIP right away)
+    this.event = null;
+    this.eventCountdown = EVENTS.firstGapSeconds;
+    this.lastEvent = null;
+    this.forcedEvent = null;
+    // Dev-only shortcuts for testing: /?money=1e6, /?city=2 (look and prices of another city), /?vip=1 (VIP right away),
+    // /?event=critic|tourBus|festival (that event in a few seconds)
     if (import.meta.env.DEV) {
       const params = new URLSearchParams(location.search);
       const money = Number(params.get('money'));
@@ -189,6 +224,11 @@ export class RestaurantScene extends Phaser.Scene {
       const city = Number(params.get('city'));
       if (Number.isInteger(city) && city > 0 && !data.arrived) this.economy.city = city;
       if (params.has('vip')) this.vipCountdown = 1;
+      const event = params.get('event') as EventKind | null;
+      if (event === 'critic' || event === 'tourBus' || event === 'festival') {
+        this.forcedEvent = event;
+        this.eventCountdown = 3;
+      }
     }
     this.setUpCameras();
     this.input.on('pointerdown', () => audio.unlock());
@@ -213,6 +253,7 @@ export class RestaurantScene extends Phaser.Scene {
     this.panel.setDepth(UI_DEPTH);
     this.createMarkerArrow();
     this.goalBar = new GoalBar(this, GAME_WIDTH / 2, ROOM.top + GOAL_BAR_Y, () => this.followGoal()).setDepth(FX_DEPTH - 3);
+    this.eventBar = new EventBar(this, GAME_WIDTH / 2, ROOM.top + EVENT_BAR_Y).setDepth(FX_DEPTH - 3);
     this.layout();
     this.refreshUi();
 
@@ -466,7 +507,8 @@ export class RestaurantScene extends Phaser.Scene {
       this,
       () => this.economy,
       {
-        claimReward: () => grant(claimDailyReward(this.economy, dayNumber(Date.now()))),
+        claimReward: (multiplier) => grant(claimDailyReward(this.economy, dayNumber(Date.now()), multiplier)),
+        watchAd: () => ads.showRewarded('dailyDouble'),
         claimTask: (index) => grant(claimTask(this.economy, index)),
         claimChest: () => grant(claimChest(this.economy)),
       },
@@ -696,6 +738,203 @@ export class RestaurantScene extends Phaser.Scene {
     );
   }
 
+  // --- Scene events -----------------------------------------------------------------------
+
+  // Counts down play time to the next event, then runs it. Events wait while the player is
+  // still in the first tips, or busy with the daily rewards or the world map.
+  private updateEvent(seconds: number): void {
+    const event = this.event;
+    if (!event) {
+      if (!this.seenHints.includes(BOTTLENECK_HINT) && !this.forcedEvent) return;
+      if (this.dailyModal?.active || this.scene.isActive('WorldMap')) return;
+      this.eventCountdown -= seconds;
+      if (this.eventCountdown <= 0) this.startEvent();
+      this.renderEventBar();
+      return;
+    }
+    event.left -= seconds;
+    if (event.kind === 'critic') {
+      if (criticProgress(this.economy, event.start, event.target) >= 1) this.finishCritic(true);
+      else if (event.left <= 0) this.finishCritic(false);
+    } else if (event.kind === 'tourBus') {
+      event.sinceTap += seconds * 1000;
+      if (event.sinceTap > EVENTS.tourBus.comboResetMs) event.taps = 0;
+      if (event.left <= 0) this.finishBus();
+    } else {
+      earn(this.economy, festivalBonusPerSecond(this.economy, event.dish) * seconds);
+      if (event.left <= 0) this.finishFestival();
+    }
+    this.renderEventBar();
+  }
+
+  private startEvent(): void {
+    let kind = this.forcedEvent ?? pickEvent(this.economy, Math.random(), this.lastEvent);
+    this.forcedEvent = null;
+    const target = kind === 'critic' ? criticTarget(this.economy) : null;
+    if (kind === 'critic' && target === null) kind = 'tourBus';
+    this.lastEvent = kind;
+    if (kind === 'critic' && target !== null) {
+      this.event = { kind, left: EVENTS.critic.seconds, start: throughput(this.economy).customersPerSecond, target };
+      void this.view.spawnCritic();
+      this.celebrate(t('event.critic.banner'), PALETTE.tileBlue);
+      // Point at what to do: the bottleneck's row in the panel.
+      this.time.delayedCall(1200, () => this.panel.focusSection(throughput(this.economy).bottleneck));
+    } else if (kind === 'tourBus') {
+      this.event = { kind, left: EVENTS.tourBus.seconds, taps: 0, sinceTap: 0, tips: 0 };
+      this.view.spawnTourists();
+      audio.play('vip');
+      this.celebrate(t('event.bus.banner'), PALETTE.saffronDark);
+    } else {
+      const dish = pickFestivalDish(this.economy, Math.random());
+      this.event = { kind: 'festival', left: EVENTS.festival.seconds, dish };
+      this.celebrate(
+        t('event.festival.banner', { dish: this.dishName(dish), multiplier: EVENTS.festival.priceMultiplier }),
+        PALETTE.success,
+      );
+    }
+  }
+
+  private endEvent(): void {
+    this.event = null;
+    this.eventCountdown = nextEventGap(Math.random());
+    this.renderEventBar();
+  }
+
+  private finishCritic(success: boolean): void {
+    void this.view.dismissCritic(success);
+    this.endEvent();
+    if (success) {
+      grantReview(this.economy);
+      void this.saveGame();
+      this.celebrate(
+        t('event.critic.success', {
+          bonus: Math.round((EVENTS.critic.reviewMultiplier - 1) * 100),
+          time: tDurationShort(EVENTS.critic.reviewSeconds),
+        }),
+        PALETTE.success,
+      );
+    } else {
+      this.note(t('event.critic.fail'));
+    }
+    this.refreshUi();
+  }
+
+  // A tap while the tour bus is here: a tip that grows with the combo.
+  private tapForBus(at: Point): void {
+    const event = this.event;
+    if (event?.kind !== 'tourBus') return;
+    event.taps++;
+    event.sinceTap = 0;
+    const combo = busCombo(event.taps);
+    const tip = payBusTip(this.economy, combo);
+    event.tips += tip;
+    this.view.cheerTourist();
+    floatingText(this, at.x + 40, at.y - 90, `+${formatNumber(tip)}`, PALETTE.cream, 34 + combo * 4, ROOM_FX_DEPTH);
+    if (combo > busCombo(event.taps - 1)) {
+      audio.play('unlock', 0.8);
+      floatingText(this, at.x, at.y - 160, t('event.bus.combo', { combo }), PALETTE.saffron, 64, ROOM_FX_DEPTH);
+    }
+  }
+
+  private finishBus(): void {
+    const event = this.event;
+    if (event?.kind !== 'tourBus') return;
+    this.view.dismissTourists();
+    this.endEvent();
+    const tips = event.tips;
+    if (tips < baseIncomePerSecond(this.economy) * BUS_OFFER_MIN_SECONDS) {
+      this.note(t('event.bus.over'));
+      return;
+    }
+    void this.saveGame();
+    const offer = {
+      title: t('event.bus.doneTitle'),
+      body: t('event.bus.doneBody', { amount: formatNumber(tips), multiplier: EVENTS.tourBus.adMultiplier }),
+      reward: `+${formatNumber(tips * (EVENTS.tourBus.adMultiplier - 1))}`,
+      rewardIcon: 'coin',
+    };
+    new AdOfferModal(this, offer, UI_DEPTH + 100, () =>
+      this.watchAd('busDouble', () => {
+        earn(this.economy, tips * (EVENTS.tourBus.adMultiplier - 1));
+        this.celebrateCollect();
+      }),
+    );
+  }
+
+  private finishFestival(): void {
+    this.endEvent();
+    this.note(t('event.festival.over'));
+  }
+
+  // Extra income from a running festival.
+  private festivalBonus(): number {
+    return this.event?.kind === 'festival' ? festivalBonusPerSecond(this.economy, this.event.dish) : 0;
+  }
+
+  private dishName(index: number): string {
+    return t(`dish.${cityConfig(this.economy.city).dishes[index]}` as TranslationKey);
+  }
+
+  // The event card: the running event, else a good review that is still boosting income.
+  private renderEventBar(): void {
+    const view = this.eventView();
+    if (view) this.eventBar.show(view);
+    else this.eventBar.hide();
+  }
+
+  private eventView(): EventView | null {
+    const event = this.event;
+    const timer = (left: number) => tDuration(Math.max(0, Math.ceil(left)));
+    if (event?.kind === 'critic') {
+      const progress = criticProgress(this.economy, event.start, event.target);
+      return {
+        icon: 'star',
+        iconSize: 60,
+        title: t('event.critic.title'),
+        // Rounded up, so reaching the number shown always satisfies the critic.
+        detail: t('event.critic.detail', { target: event.target >= 10 ? formatNumber(Math.ceil(event.target)) : (Math.ceil(event.target * 100) / 100).toFixed(2) }),
+        progress,
+        barColor: progress >= 1 ? 0x4fb030 : 0x2f88a8,
+        timer: timer(event.left),
+      };
+    }
+    if (event?.kind === 'tourBus') {
+      return {
+        icon: 'coin',
+        iconSize: 60,
+        title: t('event.bus.title'),
+        detail: t('event.bus.detail', { combo: busCombo(Math.max(1, event.taps)), amount: formatNumber(event.tips) }),
+        progress: event.left / EVENTS.tourBus.seconds,
+        barColor: 0xf0a020,
+        timer: timer(event.left),
+      };
+    }
+    if (event?.kind === 'festival') {
+      const dishId = cityConfig(this.economy.city).dishes[event.dish];
+      return {
+        icon: dishIcon(this, dishId, DISH_COLORS[event.dish]),
+        iconSize: 70,
+        title: t('event.festival.title', { city: this.cityName(this.economy.city) }),
+        detail: t('event.festival.detail', { dish: this.dishName(event.dish), multiplier: EVENTS.festival.priceMultiplier }),
+        progress: event.left / EVENTS.festival.seconds,
+        barColor: 0x4fb030,
+        timer: timer(event.left),
+      };
+    }
+    if (this.economy.reviewSeconds > 0) {
+      return {
+        icon: 'star',
+        iconSize: 60,
+        title: t('event.review.title'),
+        detail: t('event.review.detail', { multiplier: EVENTS.critic.reviewMultiplier }),
+        progress: this.economy.reviewSeconds / EVENTS.critic.reviewSeconds,
+        barColor: 0x4fb030,
+        timer: timer(this.economy.reviewSeconds),
+      };
+    }
+    return null;
+  }
+
   private celebrateCollect(): void {
     confetti(this, GAME_WIDTH / 2, BANNER_Y + 200);
     for (let i = 0; i < 8; i++) {
@@ -711,6 +950,7 @@ export class RestaurantScene extends Phaser.Scene {
     this.track('playTime', delta / 1000);
     this.room.update(delta);
     this.updateVip(delta / 1000);
+    this.updateEvent(delta / 1000);
     this.runManager(delta);
     const flow = throughput(this.economy);
     this.view.update(
@@ -718,7 +958,7 @@ export class RestaurantScene extends Phaser.Scene {
         rates: sectionRates(this.economy),
         levels: this.economy.sectionLevels,
         customersPerSecond: flow.customersPerSecond,
-        incomePerSecond: incomePerSecond(this.economy),
+        incomePerSecond: incomePerSecond(this.economy) + this.festivalBonus(),
         bottleneck: flow.bottleneck,
         menu: this.economy.dishLevels.flatMap((level, i) => (level > 0 ? [i] : [])),
       },
@@ -749,6 +989,7 @@ export class RestaurantScene extends Phaser.Scene {
   private tapRoom(at: Point, screen: Point): void {
     const amount = tap(this.economy);
     this.track('taps');
+    if (this.event?.kind === 'tourBus') this.tapForBus(at);
     audio.play('tap');
     sparkle(this, at.x, at.y, PALETTE.saffron, ROOM_FX_DEPTH);
     floatingText(this, at.x, at.y - 40, `+${formatNumber(amount)}`, PALETTE.saffron, 38, ROOM_FX_DEPTH);
@@ -848,10 +1089,11 @@ export class RestaurantScene extends Phaser.Scene {
 
   private refreshUi(): void {
     this.moneyText.setText(formatNumber(this.economy.money, 0));
-    const income = formatNumber(incomePerSecond(this.economy));
+    const income = formatNumber(incomePerSecond(this.economy) + this.festivalBonus());
+    const boost = boostMultiplier(this.economy);
     this.incomeText.setText(
-      this.economy.rushSeconds > 0
-        ? t('hud.perSecondRush', { amount: income, multiplier: ADS.rushMultiplier })
+      boost > 1
+        ? t('hud.perSecondRush', { amount: income, multiplier: Number(boost.toFixed(2)) })
         : t('hud.perSecond', { amount: income }),
     );
     this.starsText.setText(formatNumber(this.economy.stars, 0));

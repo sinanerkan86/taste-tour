@@ -128,6 +128,45 @@ export const ADS = {
   vipStaySeconds: 40,
 };
 
+// Scene events: something happens every few minutes of play (see events.ts and GDD 6e).
+export const EVENTS = {
+  // Seconds of play before the first event, and between events (random in the range).
+  firstGapSeconds: 150,
+  minGapSeconds: 240,
+  maxGapSeconds: 360,
+  critic: {
+    // The critic stays this long; the player must raise customers/s to the target meanwhile.
+    seconds: 60,
+    // The target is what greedy bottleneck upgrades reach with this share of the money plus
+    // this many seconds of income, but no more than maxGain times now (a handful of taps);
+    // it must be at least minGain times now, or no critic comes.
+    moneyShare: 0.5,
+    incomeSeconds: 30,
+    minGain: 1.05,
+    maxGain: 1.3,
+    // A good review: income multiplied by this for this long (it keeps running offline).
+    reviewMultiplier: 1.5,
+    reviewSeconds: 15 * 60,
+  },
+  tourBus: {
+    seconds: 25,
+    // Each tap during the bus tips this many seconds of income times the combo.
+    tipSeconds: 1,
+    // The combo goes up one step every `comboTaps` taps, up to `maxCombo`, and drops back to 1
+    // after `comboResetMs` without a tap.
+    comboTaps: 6,
+    maxCombo: 5,
+    comboResetMs: 1200,
+    // The bus's tips can be doubled with a rewarded ad.
+    adMultiplier: 2,
+  },
+  festival: {
+    seconds: 180,
+    // One dish of the menu sells for this many times its price.
+    priceMultiplier: 3,
+  },
+};
+
 export const OFFLINE = {
   // Offline earnings are capped to this many seconds at first.
   baseCapSeconds: 2 * 60 * 60,

@@ -195,7 +195,17 @@ Added 2026-11-07 (retention, second step after reminders). A gift button in the 
 
 Manager perk purchases do not count. The daily state lives in the economy (`daily`) and moves along with a franchise. Code: `src/core/economy/daily.ts` (`DAILY`), `src/game/ui/DailyModal.ts`.
 
-Later ideas: double the daily reward with a rewarded ad (needs its own ad unit in AdMob); weekly tasks; a streak-saver.
+Next to "Collect", a "Collect 2x" button doubles the day's reward (money and Rush) for a rewarded ad (placement `dailyDouble`).
+
+Later ideas: weekly tasks; a streak-saver.
+
+## 6e. Scene events
+
+Added 2026-11-07 (retention, third step) so a session has surprises and short goals. While the game is open, one event starts 2.5 minutes in and then every 4-6 minutes (never the same kind twice in a row; paused before the first bottleneck tip and while the daily dialog or the world map is open). A card under the goal bar shows the event's title, detail, progress bar and time left. Events are not saved: closing the game ends them. Numbers live in `EVENTS` in the economy config, logic in `src/core/economy/events.ts`.
+
+- **Food critic (60 s):** a critic in a beret with a notepad stands among the tables. The goal is a customer rate a bit above the current one: what spending half the current money plus 30 s of income on the bottleneck would reach, clamped to 1.05x-1.3x of now (no critic when even 1.05x is out of reach). Reaching it in time gives a 5-star review: income x1.5 for 15 minutes (stacks with Rush, runs offline like Rush, does not carry through a franchise). Missing it: the critic shrugs and leaves.
+- **Tour bus (25 s):** five tourists with cameras gather by the door. Every tap pays a tip of 1 s of income times the combo; six quick taps raise the combo by one (up to x5), a pause over 1.2 s resets it. If the tips reach at least 20 s of income, the player may watch an ad to get them again (2x, placement `busDouble`).
+- **Food festival (3 min):** a random unlocked dish of the city sells at 3x its price; the extra income shows in the HUD.
 
 ## 7. Economy math
 
@@ -237,6 +247,8 @@ Before the Lab and perks every city took 1h 31m (each one a copy of the first). 
 Implemented (7a): Rush gives 2x income for 4 hours per ad and stacks up to 12 hours; its time keeps running while the player is away, so offline earnings use the boosted rate only for the Rush part. Time skip ("Extra cash") pays one hour of current income at once and then has a 30 minute cooldown; it is offered from a green "+" at the right end of the money counter, which turns grey while cooling down (tapping it then shows the time left). The welcome-back dialog offers "Collect 2x". Every ad starts from a dialog that shows the reward, and a skipped ad gives nothing. Rush time and the cooldown carry over through a franchise. Numbers live in `ADS` in the economy config.
 
 Implemented (7b): a VIP guest (a food tourist with a sun hat and a star bubble) walks in after 4 minutes of play and then every 8-12 minutes (kept rare so ads never feel pushed), and waits near the door for 40 s. Tapping them offers a tip worth 15 minutes of income (Rush does not raise it) for an ad; saying no or ignoring them sends them away. The staff discount placement is left for later.
+
+Added with the retention features: "Collect 2x" on the daily reward (`dailyDouble`, section 6d) and doubling the tour bus tips (`busDouble`, section 6e). Each placement has its own ad unit in AdMob (`src/game/ads/adUnits.ts`).
 
 IAP: Remove ads (grants ad rewards without ads), permanent 2x income, starter packs.
 

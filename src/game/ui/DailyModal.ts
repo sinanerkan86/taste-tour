@@ -35,7 +35,10 @@ const BAR = { width: 470, height: 18 };
 const REFRESH_MS = 500;
 
 export interface DailyActions {
-  claimReward(): GrantedReward | null;
+  // multiplier is DAILY.adMultiplier after a watched ad.
+  claimReward(multiplier: number): GrantedReward | null;
+  // Plays the rewarded ad for a double reward; resolves whether it was watched.
+  watchAd(): Promise<boolean>;
   claimTask(index: number): GrantedReward | null;
   claimChest(): GrantedReward | null;
 }
@@ -65,6 +68,8 @@ export class DailyModal extends Phaser.GameObjects.Container {
   private readonly tiles: DayTile[] = [];
   private readonly rows: TaskRow[] = [];
   private readonly claimButton: Button;
+  private readonly adButton: Button;
+  private busy = false;
   private readonly chestButton: Button;
   private readonly chestText: Phaser.GameObjects.Text;
   private readonly tasksTimer: Phaser.GameObjects.Text;
@@ -92,8 +97,10 @@ export class DailyModal extends Phaser.GameObjects.Container {
       this.tiles.push(tile);
       children.push(tile.container);
     });
-    this.claimButton = new Button(scene, cx, top + 525, 440, 110, () => this.claimReward());
-    children.push(this.claimButton);
+    this.claimButton = new Button(scene, cx, top + 525, 380, 110, () => this.claimReward(1));
+    this.adButton = new Button(scene, cx + 205, top + 525, 380, 110, () => void this.claimWithAd(), 'ad');
+    this.adButton.setLabel(t('daily.collectMore', { multiplier: DAILY.adMultiplier })).setButtonStyle(BUTTON_STYLES.buy);
+    children.push(this.claimButton, this.adButton);
 
     // Today's tasks.
     const tasksTitle = scene.add.text(cx, top + 650, t('daily.tasksTitle'), outlined(46, { color: PALETTE.cream })).setOrigin(0.5);
@@ -209,7 +216,11 @@ export class DailyModal extends Phaser.GameObjects.Container {
     const ready = dailyRewardReady(state.daily, day);
     if (ready) {
       this.claimButton.setLabel(t('daily.collect')).setButtonStyle(BUTTON_STYLES.go);
+      this.claimButton.setX(this.adButton.x - 410);
+      this.adButton.setVisible(true);
     } else {
+      this.claimButton.setX(this.adButton.x - 205);
+      this.adButton.setVisible(false);
       this.claimButton.setLabel(t('daily.nextIn', { time: tDuration(secondsToNextDay(now)) })).setButtonStyle(BUTTON_STYLES.disabled, false);
     }
     this.tasksTimer.setText(t('daily.newTasksIn', { time: tDuration(secondsToNextDay(now)) }));
@@ -245,8 +256,18 @@ export class DailyModal extends Phaser.GameObjects.Container {
     else this.chestButton.setLabel(t('daily.open')).setButtonStyle(chestReady(state.daily) ? BUTTON_STYLES.go : BUTTON_STYLES.disabled, chestReady(state.daily));
   }
 
-  private claimReward(): void {
-    const granted = this.actions.claimReward();
+  // A skipped ad leaves the reward waiting, so the player can still take the normal one.
+  private async claimWithAd(): Promise<void> {
+    if (this.busy) return;
+    this.busy = true;
+    const watched = await this.actions.watchAd();
+    this.busy = false;
+    if (watched && this.active) this.claimReward(DAILY.adMultiplier);
+  }
+
+  private claimReward(multiplier: number): void {
+    if (this.busy) return;
+    const granted = this.actions.claimReward(multiplier);
     if (!granted) return;
     const tile = this.tiles[dailyCycle(this.economy().daily, dayNumber(Date.now())).index];
     this.celebrate(granted, tile.container.x, tile.container.y, true);

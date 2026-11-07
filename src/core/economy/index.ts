@@ -7,3 +7,4 @@ export * from './lab';
 export * from './perks';
 export * from './goals';
 export * from './daily';
+export * from './events';

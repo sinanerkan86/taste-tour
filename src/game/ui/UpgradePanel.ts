@@ -4,7 +4,15 @@ import {
   DISH_MAX_LEVEL,
   DISH_TIERS,
   MILESTONE_BONUS,
+  RESEARCH_IDS,
   SECTION_IDS,
+  freeLabSlots,
+  labNeedsAttention,
+  labSlotCount,
+  researchDuration,
+  researchMaxLevel,
+  researchMaxed,
+  researchSlot,
   cityConfig,
   dishBuyPlan,
   dishCost,
@@ -16,16 +24,18 @@ import {
   throughput,
   type BuyAmount,
   type EconomyState,
+  type ResearchId,
   type SectionId,
 } from '../../core/economy';
 import { formatNumber } from '../../core/format';
-import { t, type TranslationKey } from '../../i18n';
+import { t, tDuration, tDurationShort, type TranslationKey } from '../../i18n';
+import { researchEffect, researchName } from './progressText';
 import { FONT, GAME_WIDTH, LAYOUT, PALETTE, toCss } from '../config';
 import { DISH_COLORS, SECTION_COLORS } from '../colors';
 import { BUTTON_STYLES, Button } from './Button';
-import { dishIcon, lockIcon, sectionIcon } from './icons';
+import { dishIcon, lockIcon, progressIcon, sectionIcon } from './icons';
 import { ART_RES, paintTexture, roundRect, vGradient } from '../view/paint';
-import { card } from './style';
+import { card, outlined } from './style';
 import { saveSettings, settings } from '../settings';
 
 const MARGIN = 24;
@@ -34,10 +44,9 @@ const ROW_GAP = 6;
 const TAB_HEIGHT = 90;
 const BUTTON_WIDTH = 270;
 const AMOUNT_WIDTH = 150;
+const PROGRESS_BAR = { width: 360, height: 18 };
 
-
-
-type Tab = 'restaurant' | 'menu';
+export type Tab = 'restaurant' | 'menu' | 'lab';
 
 const ROW_CARDS = {
   normal: { top: 0xffffff, bottom: 0xfff0d6, border: 0xe6c49a, radius: 24 },
@@ -169,6 +178,85 @@ class UpgradeRow extends Phaser.GameObjects.Container {
   }
 }
 
+interface LabRowView {
+  title: string;
+  level: string;
+  detail: string;
+  // 0..1 while the project runs, null otherwise.
+  progress: number | null;
+  buttonLabel: string;
+  state: 'start' | 'running' | 'ready' | 'blocked' | 'maxed';
+}
+
+// One research project in the Lab tab: start it, watch its progress bar, collect it.
+class LabRow extends Phaser.GameObjects.Container {
+  private readonly title: Phaser.GameObjects.Text;
+  private readonly level: Phaser.GameObjects.Text;
+  private readonly detail: Phaser.GameObjects.Text;
+  private readonly bar: Phaser.GameObjects.Graphics;
+  private readonly icon: Phaser.GameObjects.Image;
+  readonly button: Button;
+  private lastState: LabRowView['state'] | null = null;
+
+  constructor(scene: Phaser.Scene, y: number, id: ResearchId, onPress: () => void) {
+    super(scene, 0, y);
+    const width = GAME_WIDTH - MARGIN * 2;
+    const bg = scene.add
+      .image(GAME_WIDTH / 2, 0, card(scene, 'row-plain', width, ROW_HEIGHT, ROW_CARDS.normal))
+      .setScale(1 / ART_RES);
+    this.icon = scene.add.image(MARGIN + 56, 0, progressIcon(scene, id)).setScale(1 / ART_RES);
+    this.title = scene.add
+      .text(MARGIN + 112, -20, '', { fontFamily: FONT, fontSize: '32px', fontStyle: 'bold', color: toCss(PALETTE.ink) })
+      .setOrigin(0, 0.5);
+    this.level = scene.add
+      .text(0, -18, '', { fontFamily: FONT, fontSize: '26px', color: toCss(PALETTE.muted) })
+      .setOrigin(0, 0.5);
+    this.detail = scene.add
+      .text(MARGIN + 112, 22, '', { fontFamily: FONT, fontSize: '24px', color: toCss(PALETTE.muted) })
+      .setOrigin(0, 0.5);
+    this.bar = scene.add.graphics();
+    this.button = new Button(scene, MARGIN + width - BUTTON_WIDTH / 2 - 14, 0, BUTTON_WIDTH, 80, onPress);
+    this.add([bg, this.icon, this.title, this.level, this.detail, this.bar, this.button]);
+    scene.add.existing(this);
+  }
+
+  render(view: LabRowView): void {
+    if (this.title.text !== view.title) this.title.setText(view.title);
+    this.level.setText(view.level);
+    this.level.x = this.title.x + this.title.width + 12;
+    this.detail.setText(view.detail).setVisible(view.progress === null);
+    // Long effect texts shrink to stay clear of the button.
+    this.detail.setScale(1);
+    this.detail.setScale(Math.min(1, (GAME_WIDTH - MARGIN * 2 - BUTTON_WIDTH - 150) / Math.max(1, this.detail.width)));
+    this.bar.clear();
+    if (view.progress !== null) {
+      const x = MARGIN + 112;
+      const y = 22 - PROGRESS_BAR.height / 2;
+      const r = PROGRESS_BAR.height / 2;
+      this.bar.fillStyle(0x3a2618, 0.18).fillRoundedRect(x, y, PROGRESS_BAR.width, PROGRESS_BAR.height, r);
+      const fill = Math.max(PROGRESS_BAR.height, PROGRESS_BAR.width * view.progress);
+      this.bar.fillStyle(PALETTE.success, 1).fillRoundedRect(x, y, fill, PROGRESS_BAR.height, r);
+    }
+    this.button.setLabel(view.buttonLabel, false);
+    const style =
+      view.state === 'ready' ? BUTTON_STYLES.go : view.state === 'start' ? BUTTON_STYLES.buy : BUTTON_STYLES.disabled;
+    this.button.setButtonStyle(style, view.state === 'ready' || view.state === 'start');
+    // A finished project bounces its button until it is collected.
+    if (view.state === 'ready' && this.lastState !== 'ready') {
+      this.scene.tweens.add({ targets: this.button, scale: 1.08, duration: 420, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    } else if (view.state !== 'ready' && this.lastState === 'ready') {
+      this.scene.tweens.killTweensOf(this.button);
+      this.button.setScale(1);
+    }
+    this.lastState = view.state;
+    this.icon.setAlpha(view.state === 'maxed' ? 0.7 : 1);
+  }
+
+  pulse(): void {
+    this.scene.tweens.add({ targets: this.icon, scale: 1.25, duration: 90, yoyo: true, ease: 'Quad.easeOut' });
+  }
+}
+
 // "Lv 5", or "Lv 5 (+10)" when a tap buys more than one level.
 function levelText(level: number, levels: number): string {
   return levels > 1 ? t('row.levelGain', { level, gain: levels }) : t('row.level', { level });
@@ -181,9 +269,13 @@ function milestoneText(level: number, bonus: number): string {
 
 export class UpgradePanel extends Phaser.GameObjects.Container {
   private tab: Tab = 'restaurant';
+  onTabChange: ((tab: Tab) => void) | null = null;
   private lastState: EconomyState | null = null;
   private readonly sectionRows: UpgradeRow[];
   private readonly dishRows: UpgradeRow[];
+  private readonly labRows: LabRow[];
+  private readonly labInfo: Phaser.GameObjects.Text;
+  private readonly labBadge: Phaser.GameObjects.Container;
   private readonly tabButtons: Record<Tab, Button>;
   private readonly amountButton: Button;
 
@@ -191,32 +283,52 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     scene: Phaser.Scene,
     onBuySection: (id: SectionId) => void,
     onBuyDish: (index: number) => void,
+    onResearch: (id: ResearchId) => void,
   ) {
     // The scene places the panel at the bottom of the screen.
     super(scene, 0, 0);
     const bg = scene.add.image(0, -8, paintPanelBackground(scene)).setOrigin(0).setScale(1 / ART_RES);
     this.add(bg);
 
-    // Two tabs, then a button that cycles how many levels a buy tap gets.
-    const tabWidth = (GAME_WIDTH - MARGIN * 4 - AMOUNT_WIDTH) / 2;
+    // Three tabs, then a button that cycles how many levels a buy tap gets.
+    const gap = MARGIN / 2;
+    const tabWidth = (GAME_WIDTH - MARGIN * 3 - gap * 2 - AMOUNT_WIDTH) / 3;
     const tabY = 20 + TAB_HEIGHT / 2;
+    const tabX = (i: number) => MARGIN + tabWidth / 2 + i * (tabWidth + gap);
     this.tabButtons = {
-      restaurant: new Button(scene, MARGIN + tabWidth / 2, tabY, tabWidth, TAB_HEIGHT, () => this.showTab('restaurant')),
-      menu: new Button(scene, MARGIN * 2 + tabWidth * 1.5, tabY, tabWidth, TAB_HEIGHT, () => this.showTab('menu')),
+      restaurant: new Button(scene, tabX(0), tabY, tabWidth, TAB_HEIGHT, () => this.showTab('restaurant')),
+      menu: new Button(scene, tabX(1), tabY, tabWidth, TAB_HEIGHT, () => this.showTab('menu')),
+      lab: new Button(scene, tabX(2), tabY, tabWidth, TAB_HEIGHT, () => this.showTab('lab')),
     };
     this.tabButtons.restaurant.setLabel(t('tab.restaurant'));
     this.tabButtons.menu.setLabel(t('tab.menu'));
+    this.tabButtons.lab.setLabel(t('tab.lab'));
     this.amountButton = new Button(scene, GAME_WIDTH - MARGIN - AMOUNT_WIDTH / 2, tabY, AMOUNT_WIDTH, TAB_HEIGHT, () => this.cycleAmount());
     this.amountButton.setButtonStyle(BUTTON_STYLES.toggle);
     this.showAmount();
-    this.add([this.tabButtons.restaurant, this.tabButtons.menu, this.amountButton]);
+    // A red "!" on the Lab tab when a project is done or a lab stands idle.
+    const dot = scene.add.circle(0, 0, 22, PALETTE.pomegranate).setStrokeStyle(4, 0xffffff);
+    const mark = scene.add.text(0, -2, '!', outlined(30)).setOrigin(0.5);
+    this.labBadge = scene.add.container(tabX(2) + tabWidth / 2 - 14, tabY - TAB_HEIGHT / 2 + 8, [dot, mark]).setVisible(false);
+    scene.tweens.add({ targets: this.labBadge, scale: 1.18, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.add([this.tabButtons.restaurant, this.tabButtons.menu, this.tabButtons.lab, this.amountButton, this.labBadge]);
 
     const rowY = (i: number) => 20 + TAB_HEIGHT + 24 + ROW_HEIGHT / 2 + i * (ROW_HEIGHT + ROW_GAP);
     this.sectionRows = SECTION_IDS.map(
       (id, i) => new UpgradeRow(scene, rowY(i), () => onBuySection(id)),
     );
     this.dishRows = DISH_TIERS.map((_, i) => new UpgradeRow(scene, rowY(i), () => onBuyDish(i)));
-    this.add([...this.sectionRows, ...this.dishRows]);
+    this.labRows = RESEARCH_IDS.map((id, i) => new LabRow(scene, rowY(i), id, () => onResearch(id)));
+    this.labInfo = scene.add
+      .text(GAME_WIDTH / 2, rowY(RESEARCH_IDS.length), '', {
+        fontFamily: FONT,
+        fontSize: '26px',
+        color: toCss(PALETTE.muted),
+        align: 'center',
+        lineSpacing: 6,
+      })
+      .setOrigin(0.5);
+    this.add([...this.sectionRows, ...this.dishRows, ...this.labRows, this.labInfo]);
 
     this.showTab('restaurant');
     scene.add.existing(this);
@@ -257,20 +369,77 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     this.dishRows[index].pulse();
   }
 
-  private showTab(tab: Tab): void {
+  pulseResearch(id: ResearchId): void {
+    this.labRows[RESEARCH_IDS.indexOf(id)].pulse();
+  }
+
+  // Screen position of the bottom edge of the Lab tab, for the first-time hint.
+  get labTabPosition(): { x: number; y: number } {
+    const tab = this.tabButtons.lab;
+    return { x: tab.x, y: this.y + tab.y + TAB_HEIGHT / 2 };
+  }
+
+  showTab(tab: Tab): void {
     this.tab = tab;
     this.sectionRows.forEach((row) => row.setVisible(tab === 'restaurant'));
     this.dishRows.forEach((row) => row.setVisible(tab === 'menu'));
-    this.tabButtons.restaurant.setButtonStyle(tab === 'restaurant' ? BUTTON_STYLES.primary : BUTTON_STYLES.disabled);
-    this.tabButtons.menu.setButtonStyle(tab === 'menu' ? BUTTON_STYLES.primary : BUTTON_STYLES.disabled);
+    this.labRows.forEach((row) => row.setVisible(tab === 'lab'));
+    this.labInfo.setVisible(tab === 'lab');
+    this.amountButton.setVisible(tab !== 'lab');
+    for (const id of ['restaurant', 'menu', 'lab'] as Tab[]) {
+      this.tabButtons[id].setButtonStyle(tab === id ? BUTTON_STYLES.primary : BUTTON_STYLES.disabled);
+    }
+    this.onTabChange?.(tab);
     // Draw the new tab right away instead of on the next refresh tick.
     if (this.lastState) this.refresh(this.lastState);
   }
 
   refresh(state: EconomyState): void {
     this.lastState = state;
+    this.labBadge.setVisible(labNeedsAttention(state));
     if (this.tab === 'restaurant') this.refreshSections(state);
-    else this.refreshDishes(state);
+    else if (this.tab === 'menu') this.refreshDishes(state);
+    else this.refreshLab(state);
+  }
+
+  private refreshLab(state: EconomyState): void {
+    const free = freeLabSlots(state) > 0;
+    RESEARCH_IDS.forEach((id, i) => {
+      const row = this.labRows[i];
+      const level = state.lab.levels[id];
+      const slot = researchSlot(state, id);
+      const title = researchName(id);
+      const levelLabel = t('row.level', { level: `${level}/${researchMaxLevel(id)}` });
+      if (researchMaxed(state, id)) {
+        row.render({ title, level: levelLabel, detail: researchEffect(id, level), progress: null, buttonLabel: t('lab.maxed'), state: 'maxed' });
+        return;
+      }
+      const detail = t('lab.next', { effect: researchEffect(id, level + 1) });
+      if (slot && slot.remaining <= 0) {
+        row.render({ title, level: levelLabel, detail, progress: null, buttonLabel: t('lab.collect'), state: 'ready' });
+      } else if (slot) {
+        // The Research Grant may have sped up the lab since this level started.
+        const total = Math.max(slot.remaining, researchDuration(state, id));
+        row.render({
+          title,
+          level: levelLabel,
+          detail,
+          progress: 1 - slot.remaining / total,
+          buttonLabel: t('lab.left', { time: tDuration(Math.ceil(slot.remaining)) }),
+          state: 'running',
+        });
+      } else {
+        row.render({
+          title,
+          level: levelLabel,
+          detail,
+          progress: null,
+          buttonLabel: free ? t('lab.start', { time: tDurationShort(researchDuration(state, id)) }) : t('lab.busy'),
+          state: free ? 'start' : 'blocked',
+        });
+      }
+    });
+    this.labInfo.setText(`${t('lab.info')}\n${t('lab.slots', { used: state.lab.slots.length, total: labSlotCount(state) })}`);
   }
 
   private refreshSections(state: EconomyState): void {

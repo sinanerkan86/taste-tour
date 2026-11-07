@@ -6,7 +6,7 @@ import { BUTTON_STYLES, Button } from './Button';
 import { createModalCard, modalText } from './modalCard';
 
 const CARD_WIDTH = 900;
-const CARD_HEIGHT = 820;
+const CARD_HEIGHT = 900;
 
 export interface FranchiseOffer {
   // Localized name of the next city.
@@ -39,6 +39,7 @@ export class FranchiseModal extends Phaser.GameObjects.Container {
       true,
     );
     const reset = text(top + 530, t('franchise.reset'), 28, PALETTE.muted);
+    const perk = text(top + 600, t('franchise.perk'), 32, PALETTE.tileBlue, true);
 
     const confirm = new Button(scene, cx, top + CARD_HEIGHT - 200, 520, 120, () => {
       this.destroy();
@@ -48,7 +49,7 @@ export class FranchiseModal extends Phaser.GameObjects.Container {
     const cancel = new Button(scene, cx, top + CARD_HEIGHT - 75, 360, 90, () => this.destroy());
     cancel.setLabel(t('franchise.cancel')).setButtonStyle(BUTTON_STYLES.disabled, true);
 
-    this.add([...card.objects, body, star, stars, bonus, reset, confirm, cancel]);
+    this.add([...card.objects, body, star, stars, bonus, reset, perk, confirm, cancel]);
     this.setDepth(depth);
     scene.add.existing(this);
 

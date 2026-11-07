@@ -1,5 +1,5 @@
-// Usage: npm run sim [-- --boost 2 --hours 12 --cycles 5 --stay 1.5]
-import { DISH_TIERS, SECTION_IDS } from '../../src/core/economy';
+// Usage: npm run sim [-- --boost 2 --hours 12 --cycles 5 --stay 1.5 --lab 4 --perks 1]
+import { DISH_TIERS, RESEARCH_IDS, SECTION_IDS } from '../../src/core/economy';
 import { formatDuration, formatNumber } from '../../src/core/format';
 import { dishLabel, simulate, type SimOptions } from './simulate';
 
@@ -11,6 +11,8 @@ function parseArgs(argv: string[]): Partial<SimOptions> {
     if (argv[i] === '--hours') options.maxSeconds = value * 3600;
     if (argv[i] === '--cycles') options.maxCycles = value;
     if (argv[i] === '--stay') options.stayFactor = value;
+    if (argv[i] === '--lab') options.labTimeFactor = value;
+    if (argv[i] === '--perks') options.perks = value !== 0;
   }
   return options;
 }
@@ -28,6 +30,8 @@ console.table(
     'final income/s': formatNumber(c.finalIncome),
     purchases: c.purchases,
     'longest wait': formatDuration(c.longestWait),
+    perk: c.perk ?? '-',
+    lab: RESEARCH_IDS.map((id) => c.labLevels[id]).join('/'),
   })),
 );
 

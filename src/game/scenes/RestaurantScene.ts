@@ -9,7 +9,13 @@ import {
   buySectionLevels,
   canActivateRush,
   canFranchise,
+  collectResearch,
   currentGoal,
+  finishedResearch,
+  managerBuy,
+  perkOffers,
+  researchSlot,
+  startResearch,
   cityConfig,
   earn,
   incomePerSecond,
@@ -28,6 +34,8 @@ import {
   useTimeSkip,
   vipTip,
   type EconomyState,
+  type PerkId,
+  type ResearchId,
   type SectionId,
 } from '../../core/economy';
 import { ART_RES } from '../view/paint';
@@ -41,6 +49,8 @@ import { saves } from '../persistence';
 import { AdOfferModal } from '../ui/AdOfferModal';
 import { BUTTON_STYLES, Button } from '../ui/Button';
 import { FranchiseModal } from '../ui/FranchiseModal';
+import { PerkModal, PerksModal } from '../ui/PerkModal';
+import { researchName } from '../ui/progressText';
 import { DISH_COLORS } from '../colors';
 import { GoalBar } from '../ui/GoalBar';
 import { HintBubble } from '../ui/HintBubble';
@@ -87,6 +97,11 @@ const BOTTLENECK_HINT = 'bottleneck';
 // The hint card sits below the marker and its label.
 const HINT_OFFSET_Y = 85;
 const FRANCHISE_FADE_MS = 600;
+const LAB_HINT = 'lab';
+// The lab tip appears once this many dishes are on the menu.
+const LAB_HINT_MENU_SIZE = 2;
+// How often the Manager perk looks for cheap upgrades.
+const MANAGER_INTERVAL_MS = 500;
 
 export interface RestaurantSceneData {
   save: SaveData | null;
@@ -100,6 +115,7 @@ export class RestaurantScene extends Phaser.Scene {
   private economy!: EconomyState;
   private seenHints: string[] = [];
   private hint: HintBubble | null = null;
+  private hintId: string | null = null;
   private view!: RestaurantView;
   private decor!: Decor;
   private decorShown = false;
@@ -126,6 +142,9 @@ export class RestaurantScene extends Phaser.Scene {
   private goalBar!: GoalBar;
   private markerArrow!: Phaser.GameObjects.Container;
   private markerArrowTip!: Phaser.GameObjects.Triangle;
+  // Lab projects already announced as done, so each one is announced once.
+  private announcedResearch = new Set<ResearchId>();
+  private sinceManager = 0;
 
   constructor() {
     super('Restaurant');
@@ -136,6 +155,7 @@ export class RestaurantScene extends Phaser.Scene {
     this.seenHints = data.save?.seenHints ?? [];
     this.hint = null;
     this.franchiseReady = null;
+    this.sinceManager = 0;
     this.vipCountdown = ADS.vipFirstGapSeconds;
     // Dev-only shortcuts for testing: /?money=1e6, /?city=2 (look and prices of another city), /?vip=1 (VIP right away)
     if (import.meta.env.DEV) {
@@ -161,7 +181,11 @@ export class RestaurantScene extends Phaser.Scene {
       this,
       (id) => this.buySection(id),
       (index) => this.buyDish(index),
+      (id) => this.pressResearch(id),
     );
+    this.panel.onTabChange = (tab) => {
+      if (tab === 'lab' && this.hint && this.hintId === LAB_HINT) this.hint.close();
+    };
     this.panel.setDepth(UI_DEPTH);
     this.createMarkerArrow();
     this.goalBar = new GoalBar(this, GAME_WIDTH / 2, ROOM.top + GOAL_BAR_Y, () => this.followGoal()).setDepth(FX_DEPTH - 3);
@@ -170,6 +194,7 @@ export class RestaurantScene extends Phaser.Scene {
 
     this.setUpSaving();
     if (data.save) this.payOffline(offlineReward(this.economy, data.save.savedAt, Date.now()));
+    this.announcedResearch = new Set(finishedResearch(this.economy));
     if (!this.seenHints.includes(BOTTLENECK_HINT)) this.time.delayedCall(BOTTLENECK_HINT_DELAY_MS, () => this.showBottleneckHint());
     if (data.arrived) this.welcomeToCity();
     if (data.reopenSettings) this.openSettings();
@@ -192,13 +217,24 @@ export class RestaurantScene extends Phaser.Scene {
       starsNow: this.economy.stars,
       starsGained: pendingStars(this.economy),
     };
-    new FranchiseModal(this, offer, UI_DEPTH + 100, () => this.franchise());
+    new FranchiseModal(this, offer, UI_DEPTH + 100, () => this.choosePerk());
+  }
+
+  // After confirming a franchise the player picks a perk, then moves on.
+  private choosePerk(): void {
+    const offers = perkOffers(this.economy);
+    if (offers.length === 0) {
+      this.franchise(null);
+      return;
+    }
+    audio.play('celebrate');
+    new PerkModal(this, offers, this.economy.perks, UI_DEPTH + 100, (perk) => this.franchise(perk));
   }
 
   // Sell the restaurant: save the fresh one in the next city and restart the scene with it.
-  private franchise(): void {
+  private franchise(perk: PerkId | null): void {
     if (!canFranchise(this.economy)) return;
-    this.economy = prestige(this.economy);
+    this.economy = prestige(this.economy, perk);
     const save = createSave(this.economy, Date.now(), this.seenHints);
     void this.saveGame();
     this.input.enabled = false;
@@ -247,8 +283,10 @@ export class RestaurantScene extends Phaser.Scene {
       if (this.hint) return;
       const marker = this.room.toScreen(anchor);
       const at = { x: marker.x, y: marker.y + HINT_OFFSET_Y * this.room.zoom };
+      this.hintId = BOTTLENECK_HINT;
       this.hint = new HintBubble(this, at, t('hint.bottleneck'), FX_DEPTH - 1, () => {
         this.hint = null;
+        this.hintId = null;
         this.seenHints.push(BOTTLENECK_HINT);
         void this.saveGame();
       });
@@ -350,13 +388,16 @@ export class RestaurantScene extends Phaser.Scene {
   }
 
   private payOffline(reward: OfflineReward): void {
-    // The clock kept running for Rush and cooldowns, whether or not anything was earned.
+    // The clock kept running for Rush, cooldowns and the lab, whether or not anything was earned.
+    const doneBefore = finishedResearch(this.economy);
     passTime(this.economy, reward.secondsAway);
     if (reward.amount <= 0) return;
     if (reward.secondsAway < WELCOME_BACK_MIN_SECONDS) {
       earn(this.economy, reward.amount);
       return;
     }
+    const doneAway = finishedResearch(this.economy).filter((id) => !doneBefore.includes(id));
+    doneAway.forEach((id) => this.announcedResearch.add(id));
     new WelcomeBackModal(
       this,
       reward,
@@ -368,7 +409,69 @@ export class RestaurantScene extends Phaser.Scene {
         this.refreshUi();
       },
       () => ads.showRewarded('offlineDouble'),
+      doneAway.map((id) => researchName(id)),
     );
+  }
+
+  // A Lab row's button: collect a finished project, or start a new one.
+  private pressResearch(id: ResearchId): void {
+    const slot = researchSlot(this.economy, id);
+    if (slot && slot.remaining <= 0) {
+      if (!collectResearch(this.economy, id)) return;
+      this.announcedResearch.delete(id);
+      this.celebrate(t('banner.researched', { name: researchName(id), level: this.economy.lab.levels[id] }), PALETTE.success);
+    } else {
+      if (!startResearch(this.economy, id)) return;
+      this.celebratePurchase();
+    }
+    this.panel.pulseResearch(id);
+    void this.saveGame();
+    this.refreshUi();
+  }
+
+  // Projects that finish while the player is in the game get a short announcement.
+  private announceResearch(): void {
+    for (const id of finishedResearch(this.economy)) {
+      if (this.announcedResearch.has(id)) continue;
+      this.announcedResearch.add(id);
+      audio.play('look');
+      this.note(t('banner.researchDone', { name: researchName(id) }));
+    }
+  }
+
+  // The Manager perk buys cheap bottleneck levels by itself.
+  private runManager(delta: number): void {
+    this.sinceManager += delta;
+    if (this.sinceManager < MANAGER_INTERVAL_MS) return;
+    this.sinceManager = 0;
+    const before = { ...this.economy.sectionLevels };
+    const bought = managerBuy(this.economy);
+    if (bought.length === 0) return;
+    for (const id of new Set(bought)) {
+      this.panel.pulseSection(id);
+      this.announceSectionLevels(id, before[id]);
+    }
+  }
+
+  // First-session tip about the Kitchen Lab, once the second dish is on the menu.
+  private maybeShowLabHint(): void {
+    if (this.hint || this.seenHints.includes(LAB_HINT) || menuSize(this.economy) < LAB_HINT_MENU_SIZE) return;
+    if (!this.seenHints.includes(BOTTLENECK_HINT)) return;
+    // A player who already found the lab needs no tip.
+    const lab = this.economy.lab;
+    if (lab.slots.length > 0 || Object.values(lab.levels).some((level) => level > 0)) {
+      this.seenHints.push(LAB_HINT);
+      return;
+    }
+    const at = this.panel.labTabPosition;
+    this.hintId = LAB_HINT;
+    this.hint = new HintBubble(this, at, t('hint.lab'), UI_DEPTH + 50, () => {
+      this.hint = null;
+      this.hintId = null;
+      this.seenHints.push(LAB_HINT);
+      this.panel.showTab('lab');
+      void this.saveGame();
+    });
   }
 
   private createAdButtons(): void {
@@ -461,7 +564,7 @@ export class RestaurantScene extends Phaser.Scene {
     if (this.view.hasVip) return;
     this.vipCountdown -= seconds;
     if (this.vipCountdown > 0) return;
-    this.vipCountdown = nextVipGap(Math.random());
+    this.vipCountdown = nextVipGap(Math.random(), this.economy);
     void this.view.spawnVip(ADS.vipStaySeconds);
     audio.play('vip');
   }
@@ -504,6 +607,7 @@ export class RestaurantScene extends Phaser.Scene {
     advanceTime(this.economy, delta / 1000);
     this.room.update(delta);
     this.updateVip(delta / 1000);
+    this.runManager(delta);
     const flow = throughput(this.economy);
     this.view.update(
       {
@@ -547,12 +651,19 @@ export class RestaurantScene extends Phaser.Scene {
   }
 
   private buySection(id: SectionId): void {
-    const before = milestonesReached(this.economy.sectionLevels[id]);
-    const lookBefore = styleTier(this.economy.sectionLevels[id]);
+    const level = this.economy.sectionLevels[id];
     if (buySectionLevels(this.economy, id, this.panel.buyAmount) === 0) return;
     void this.saveGame();
     this.panel.pulseSection(id);
     this.celebratePurchase();
+    this.announceSectionLevels(id, level);
+    this.refreshUi();
+  }
+
+  // A new look or a milestone reached by going from level `from` to the current level.
+  private announceSectionLevels(id: SectionId, from: number): void {
+    const before = milestonesReached(from);
+    const lookBefore = styleTier(from);
     if (styleTier(this.economy.sectionLevels[id]) > lookBefore) {
       // The section gets a new look: make sure the player sees it.
       this.note(t(`look.${id}` as TranslationKey));
@@ -563,7 +674,6 @@ export class RestaurantScene extends Phaser.Scene {
       const name = t(`section.${id}` as TranslationKey);
       this.note(t('banner.milestone', { name, bonus: MILESTONE_BONUS.section }));
     }
-    this.refreshUi();
   }
 
   private buyDish(index: number): void {
@@ -640,6 +750,8 @@ export class RestaurantScene extends Phaser.Scene {
     this.refreshFranchise();
     this.refreshAdButtons();
     this.refreshGoal();
+    this.announceResearch();
+    this.maybeShowLabHint();
     // New decor pops in when a dish unlocks; a loaded game shows its decor right away.
     this.decor.setStage(menuSize(this.economy), this.decorShown);
     this.decorShown = true;
@@ -718,7 +830,14 @@ export class RestaurantScene extends Phaser.Scene {
       this.tweens.add({ targets: [cityPill, globe, cityText], scale: '*=0.94', duration: 70, yoyo: true });
       this.openWorldMap();
     });
-    this.add.image(HUD_MARGIN + STARS_PILL.width / 2 + 10, 132, counterPill(this, STARS_PILL.width, STARS_PILL.height)).setScale(1 / ART_RES).setDepth(UI_DEPTH);
+    const starsPill = this.add
+      .image(HUD_MARGIN + STARS_PILL.width / 2 + 10, 132, counterPill(this, STARS_PILL.width, STARS_PILL.height))
+      .setScale(1 / ART_RES)
+      .setDepth(UI_DEPTH);
+    starsPill.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+      audio.play('click');
+      new PerksModal(this, this.economy.stars, this.economy.perks, UI_DEPTH + 100);
+    });
     this.add.image(HUD_MARGIN + 18, 130, 'star').setScale(0.85).setDepth(UI_DEPTH);
     this.starsText = this.add
       .text(HUD_MARGIN + 62, 130, '0', outlined(36))

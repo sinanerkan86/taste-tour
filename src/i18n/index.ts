@@ -49,6 +49,16 @@ export function tDuration(seconds: number): string {
   return t('time.s', { s });
 }
 
+// Rounded duration for fixed lengths: 10800 -> "3h", 5400 -> "1h 30m", 180 -> "3m".
+export function tDurationShort(seconds: number): string {
+  const total = Math.round(seconds);
+  const h = Math.floor(total / 3600);
+  const m = Math.round((total % 3600) / 60);
+  if (h > 0) return m > 0 ? t('time.hm', { h, m }) : t('time.h', { h });
+  if (m > 0) return t('time.m', { m });
+  return t('time.s', { s: total });
+}
+
 // t('row.level', { level: 5 }) -> "Lv 5"
 export function t(key: TranslationKey, params: Record<string, string | number> = {}): string {
   const template = LOCALES[current][key] ?? LOCALES.en[key] ?? key;

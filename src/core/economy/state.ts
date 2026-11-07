@@ -1,5 +1,6 @@
 import { ADS, DISH_TIERS, MILESTONE_BONUS, SECTION_IDS, SECTIONS, TAP, type SectionId } from './config';
-import { cityCostScale, cityPriceScale, scaledValue, starMultiplier } from './formulas';
+import { cityCostScale, cityPriceScale, scaledValue } from './formulas';
+import { incomeMultiplier, newLab, newPerks, type LabState, type PerkLevels } from './bonuses';
 
 export interface EconomyState {
   money: number;
@@ -20,6 +21,9 @@ export interface EconomyState {
   // Seconds of Rush (ad boost) left, and seconds until the next time skip. Both survive a franchise.
   rushSeconds: number;
   timeSkipCooldown: number;
+  // Kitchen Lab research and franchise perks: permanent, they survive franchises.
+  lab: LabState;
+  perks: PerkLevels;
 }
 
 export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomyState {
@@ -36,6 +40,8 @@ export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomySt
     dishLevels: DISH_TIERS.map((d) => (d.unlockCost === 0 ? 1 : 0)),
     rushSeconds: 0,
     timeSkipCooldown: 0,
+    lab: newLab(),
+    perks: newPerks(),
   };
 }
 
@@ -78,7 +84,7 @@ export function throughput(state: EconomyState): Throughput {
 
 // Income without the Rush boost.
 export function baseIncomePerSecond(state: EconomyState): number {
-  return throughput(state).customersPerSecond * billPerCustomer(state) * starMultiplier(state.stars);
+  return throughput(state).customersPerSecond * billPerCustomer(state) * incomeMultiplier(state);
 }
 
 export function incomePerSecond(state: EconomyState): number {
@@ -91,10 +97,11 @@ export function earningsOver(state: EconomyState, seconds: number): number {
   return baseIncomePerSecond(state) * (Math.max(seconds, 0) + boosted * (ADS.rushMultiplier - 1));
 }
 
-// Runs down timed effects (Rush, time skip cooldown).
+// Runs down timed effects (Rush, time skip cooldown, lab research).
 export function passTime(state: EconomyState, seconds: number): void {
   state.rushSeconds = Math.max(0, state.rushSeconds - seconds);
   state.timeSkipCooldown = Math.max(0, state.timeSkipCooldown - seconds);
+  for (const slot of state.lab.slots) slot.remaining = Math.max(0, slot.remaining - seconds);
 }
 
 export function earn(state: EconomyState, amount: number): void {
@@ -106,7 +113,7 @@ export function earn(state: EconomyState, amount: number): void {
 
 // Tip earned by one tap on the restaurant. Returns the amount earned.
 export function tap(state: EconomyState): number {
-  const amount = billPerCustomer(state) * starMultiplier(state.stars) * TAP.billFraction;
+  const amount = billPerCustomer(state) * incomeMultiplier(state) * TAP.billFraction;
   earn(state, amount);
   return amount;
 }

@@ -946,3 +946,264 @@ export function globeIcon(scene: Phaser.Scene): string {
     ctx.fill();
   });
 }
+
+// --- Kitchen Lab and franchise perks -------------------------------------------------------
+
+function star5(ctx: Ctx, x: number, y: number, outer: number, inner: number): void {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? outer : inner;
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+  }
+  ctx.closePath();
+}
+
+// A round-bottomed lab flask with green liquid and bubbles.
+function flask(ctx: Ctx, x: number, scale: number, liquid: string): void {
+  ctx.save();
+  ctx.translate(x, 0);
+  ctx.scale(scale, scale);
+  ctx.beginPath();
+  ctx.moveTo(-6, -22);
+  ctx.lineTo(-6, -6);
+  ctx.quadraticCurveTo(-22, 4, -18, 14);
+  ctx.quadraticCurveTo(-14, 24, 0, 24);
+  ctx.quadraticCurveTo(14, 24, 18, 14);
+  ctx.quadraticCurveTo(22, 4, 6, -6);
+  ctx.lineTo(6, -22);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(235,250,255,0.9)';
+  ctx.fill();
+  outline(ctx, 2.5);
+  ctx.save();
+  ctx.clip();
+  ctx.fillStyle = liquid;
+  ctx.fillRect(-24, 4, 48, 24);
+  ctx.restore();
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ellipse(ctx, -4, 12, 3, 3);
+  ctx.fill();
+  ellipse(ctx, 5, 8, 2, 2);
+  ctx.fill();
+  ctx.fillStyle = '#c98a4a';
+  roundRect(ctx, -9, -26, 18, 6, 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+const PROGRESS_GLYPHS: Record<string, [number, Painter]> = {
+  // Kitchen Lab tab badge.
+  lab: [0x4a8c3a, (ctx) => flask(ctx, 0, 1, '#7ad65a')],
+  // Secret Spices: a red chili.
+  spices: [
+    0xd8452b,
+    (ctx) => {
+      ctx.beginPath();
+      ctx.moveTo(-18, -12);
+      ctx.quadraticCurveTo(12, -16, 18, 4);
+      ctx.quadraticCurveTo(20, 18, 8, 22);
+      ctx.quadraticCurveTo(10, 4, -16, -2);
+      ctx.closePath();
+      ctx.fillStyle = vGradient(ctx, -14, 22, [
+        [0, '#ff5a3c'],
+        [1, '#b8261a'],
+      ]);
+      ctx.fill();
+      outline(ctx);
+      ctx.fillStyle = '#5aa03c';
+      roundRect(ctx, -24, -16, 10, 8, 3);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ellipse(ctx, 0, -9, 7, 2.5);
+      ctx.fill();
+    },
+  ],
+  // Local Suppliers: a wooden crate.
+  suppliers: [
+    0xb8693d,
+    (ctx) => {
+      ctx.fillStyle = vGradient(ctx, -18, 18, [
+        [0, '#e0a868'],
+        [1, '#a8683a'],
+      ]);
+      roundRect(ctx, -20, -16, 40, 34, 4);
+      ctx.fill();
+      outline(ctx);
+      ctx.strokeStyle = 'rgba(90,50,25,0.7)';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(-20, -4);
+      ctx.lineTo(20, -4);
+      ctx.moveTo(-20, 8);
+      ctx.lineTo(20, 8);
+      ctx.moveTo(-18, -14);
+      ctx.lineTo(18, 16);
+      ctx.stroke();
+    },
+  ],
+  // Night Shift: a moon and a star.
+  nightShift: [
+    0x3d4f9a,
+    (ctx) => {
+      ctx.fillStyle = '#ffe066';
+      ctx.beginPath();
+      ctx.arc(-2, 2, 18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath();
+      ctx.arc(8, -4, 15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = '#fff4c0';
+      star5(ctx, 14, 10, 7, 3);
+      ctx.fill();
+    },
+  ],
+  // Tour Guide: a little guide flag.
+  tourGuide: [
+    0x2f8fb0,
+    (ctx) => {
+      ctx.fillStyle = '#6e3e22';
+      ctx.fillRect(-14, -22, 4, 44);
+      ctx.beginPath();
+      ctx.moveTo(-10, -20);
+      ctx.lineTo(20, -12);
+      ctx.lineTo(-10, -2);
+      ctx.closePath();
+      ctx.fillStyle = '#ffbe1a';
+      ctx.fill();
+      outline(ctx);
+      ctx.fillStyle = '#fff';
+      star5(ctx, 0, -11, 5, 2);
+      ctx.fill();
+    },
+  ],
+  // Event Planner: a lightning bolt (Rush).
+  eventPlanner: [
+    0xe08e0b,
+    (ctx) => {
+      ctx.beginPath();
+      ctx.moveTo(4, -24);
+      ctx.lineTo(-14, 4);
+      ctx.lineTo(-1, 4);
+      ctx.lineTo(-6, 24);
+      ctx.lineTo(14, -6);
+      ctx.lineTo(1, -6);
+      ctx.closePath();
+      ctx.fillStyle = '#fff2a0';
+      ctx.fill();
+      outline(ctx);
+    },
+  ],
+  // Manager: a clipboard with a check mark.
+  manager: [
+    0x7b4fa0,
+    (ctx) => {
+      ctx.fillStyle = '#a0623a';
+      roundRect(ctx, -16, -20, 32, 42, 4);
+      ctx.fill();
+      outline(ctx);
+      ctx.fillStyle = '#fffaf0';
+      ctx.fillRect(-12, -14, 24, 32);
+      ctx.fillStyle = '#c9ccd2';
+      roundRect(ctx, -8, -24, 16, 8, 3);
+      ctx.fill();
+      ctx.strokeStyle = '#4a8c3a';
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-6, 2);
+      ctx.lineTo(-1, 8);
+      ctx.lineTo(8, -4);
+      ctx.stroke();
+    },
+  ],
+  // Head Start: an up arrow.
+  headStart: [
+    0x4a8c3a,
+    (ctx) => {
+      ctx.beginPath();
+      ctx.moveTo(0, -24);
+      ctx.lineTo(20, 0);
+      ctx.lineTo(8, 0);
+      ctx.lineTo(8, 22);
+      ctx.lineTo(-8, 22);
+      ctx.lineTo(-8, 0);
+      ctx.lineTo(-20, 0);
+      ctx.closePath();
+      ctx.fillStyle = '#d6ffb8';
+      ctx.fill();
+      outline(ctx);
+    },
+  ],
+  // Famous Chain: a crown.
+  chain: [
+    0xc0392b,
+    (ctx) => {
+      ctx.beginPath();
+      ctx.moveTo(-20, 14);
+      ctx.lineTo(-22, -12);
+      ctx.lineTo(-10, 0);
+      ctx.lineTo(0, -18);
+      ctx.lineTo(10, 0);
+      ctx.lineTo(22, -12);
+      ctx.lineTo(20, 14);
+      ctx.closePath();
+      ctx.fillStyle = vGradient(ctx, -18, 14, [
+        [0, '#ffe066'],
+        [1, '#e0a00b'],
+      ]);
+      ctx.fill();
+      outline(ctx);
+      ctx.fillStyle = '#e8463a';
+      ellipse(ctx, 0, 6, 4, 4);
+      ctx.fill();
+    },
+  ],
+  // Brand Value: a star medal.
+  brand: [
+    0xe0a00b,
+    (ctx) => {
+      ctx.fillStyle = '#e8463a';
+      ctx.beginPath();
+      ctx.moveTo(-10, 4);
+      ctx.lineTo(-16, 24);
+      ctx.lineTo(-6, 20);
+      ctx.lineTo(0, 26);
+      ctx.lineTo(6, 20);
+      ctx.lineTo(16, 24);
+      ctx.lineTo(10, 4);
+      ctx.fill();
+      ctx.fillStyle = '#ffe066';
+      star5(ctx, 0, -4, 20, 9);
+      ctx.fill();
+      outline(ctx);
+    },
+  ],
+  // Research Grant: a flask with a coin.
+  grant: [
+    0x1f6f8b,
+    (ctx) => {
+      flask(ctx, -4, 0.9, '#7ad65a');
+      ctx.fillStyle = '#ffd23a';
+      ellipse(ctx, 14, 12, 9, 9);
+      ctx.fill();
+      outline(ctx);
+    },
+  ],
+  // Second Lab: two flasks.
+  secondLab: [
+    0x5f8fa6,
+    (ctx) => {
+      flask(ctx, -10, 0.75, '#7ad65a');
+      flask(ctx, 11, 0.75, '#ff8a5a');
+    },
+  ],
+};
+
+// Badges for the Kitchen Lab tab, its research projects, and the franchise perks.
+export function progressIcon(scene: Phaser.Scene, id: string): string {
+  const [color, glyph] = PROGRESS_GLYPHS[id] ?? PROGRESS_GLYPHS.lab;
+  return paintTexture(scene, `icon-progress-${id}`, ICON_SIZE, ICON_SIZE, (ctx) => badge(ctx, color, glyph));
+}

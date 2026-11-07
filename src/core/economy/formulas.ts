@@ -25,9 +25,10 @@ export function levelCost(baseCost: number, growth: number, level: number): numb
   return baseCost * growth ** (level - 1);
 }
 
-export function starsForReputation(reputation: number): number {
+// `multiplier` is the Brand Value perk bonus.
+export function starsForReputation(reputation: number, multiplier = 1): number {
   // The epsilon keeps exact powers (1000 ** (1/3) = 9.999...) from rounding down.
-  return Math.floor((reputation / PRESTIGE.starDivisor) ** PRESTIGE.starExponent + 1e-9);
+  return Math.floor((reputation / PRESTIGE.starDivisor) ** PRESTIGE.starExponent * multiplier + 1e-9);
 }
 
 export function starMultiplier(stars: number): number {
@@ -44,5 +45,5 @@ export function cityPriceScale(city: number): number {
 }
 
 export function cityCostScale(city: number): number {
-  return cityPriceScale(city) * starMultiplier(CITY.expectedStarsPerCity * city);
+  return cityPriceScale(city) * starMultiplier(CITY.expectedStarsPerCity * city) * (1 + CITY.expectedBonusPerCity * city);
 }

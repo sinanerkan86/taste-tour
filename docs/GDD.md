@@ -1,6 +1,6 @@
 # Taste Tour: Idle Restaurant — Game Design Document (GDD)
 
-> Status: Draft v0.2 (2026-11-02). Decisions may change through discussion; this document is updated when they do.
+> Status: Draft v0.3 (2026-11-07). Decisions may change through discussion; this document is updated when they do.
 
 ## 1. Overview
 
@@ -130,17 +130,43 @@ A small card under the HUD always names the next goal with a progress bar: the n
 - Each city also has its own color palette (wall, tiles, floor, table cloths) and a framed poster of its landmark on the wall: mosque (Istanbul), Colosseum (Rome), Eiffel Tower over rooftops (Paris), pyramids and a palm (Cairo), the arched gateway by the sea (Mumbai), temple spires (Bangkok), torii gate and mountain (Tokyo), Sugarloaf with its cable car (Rio), stepped pyramid (Mexico City), skyline (New York). City music comes later.
 - New cities = ready-made content for future updates.
 - **World tour map:** tapping the city pill in the HUD opens a scrolling map where a road winds up through a meadow (trees, ponds, drifting clouds) from the first city to the next ones. Each city is a round window with its landmark: finished cities show the stars they gave (stored per city in the save as `cityStars`), the current one glows under a bouncing pin with its menu progress, and the cities ahead wait under a padlock with their first dish floating beside them. Golden footsteps mark the road travelled. After the sixth city the list repeats with "II", "III".
+- **Franchise perks** (added 2026-11-07, because cities felt like reskins of each other): after confirming a franchise the player picks one of three perks (the first franchise always offers Manager, Head Start and Famous Chain; later offers are a stable shuffle per city, so reloading does not reroll them). Perks are permanent:
+
+| Perk | Max level | Effect |
+|---|---|---|
+| Restaurant Manager | 1 | Buys bottleneck levels by itself when one costs at most 30 s of income (the cheap taps a player would make anyway) |
+| Head Start | 3 | New restaurants open with every section at level 10 / 25 / 50 |
+| Famous Chain | no cap | Income +50% per level |
+| Brand Value | 5 | Franchises award +20% stars per level |
+| Research Grant | 3 | Kitchen Lab projects run 25% faster per level |
+| Second Lab | 1 | Two lab projects at once |
+
+  Tapping the Chef Stars counter lists the star bonus and the perks owned.
 - **In the game:** the HUD shows the city and the Chef Stars. When the menu is complete a "Franchise" button appears in the HUD with the stars on offer (it keeps counting up while the player stays). Its dialog shows the stars to gain, the income bonus before → after, and that money, sections and dishes start over. Confirming fades to the new city, which greets the player with a banner.
+
+## 6b. Kitchen Lab
+
+Added 2026-11-07 after playtesting: the game had no reason to come back and little to decide. The Lab is the panel's third tab. The player starts a research project; it runs on real time, also while the game is closed, and when it is done it waits for the player to tap "Collect" (a return hook: the welcome-back dialog names the projects that finished while away). Research is free; the cost is time. One project at a time (two with the Second Lab perk). A red "!" on the Lab tab shows when a project is done or the lab is idle; a one-time tip points at the tab once the second dish is on the menu. Lab levels survive franchises.
+
+| Project | Levels | Per level | Durations |
+|---|---|---|---|
+| Secret Spices | 10 | Income +25% | 3m, 15m, 45m, 1.5h, 3h, 5h, 8h, 12h, 16h, 24h |
+| Local Suppliers | 10 | Upgrade and unlock costs ×0.94 | 5m, 20m, 1h, 2h, 4h, 6h, 9h, 12h, 18h, 24h |
+| Night Shift | 6 | Offline earnings counted for 1 more hour (2h → 8h) | 10m, 45m, 2h, 4h, 8h, 12h |
+| Tour Guide | 5 | VIP tips +30%, VIPs come 12% sooner | 15m, 1h, 3h, 6h, 12h |
+| Event Planner | 4 | Rush +1h per ad, Rush cap +3h | 30m, 2h, 6h, 12h |
+
+The short first levels teach the Lab in the first session; the long ones fill a night or a work day. Numbers live in `RESEARCH` / `LAB` in the economy config. Later idea: a rewarded ad that halves the time left (needs its own ad unit).
 
 ## 7. Economy math
 
 All numbers live in `src/core/economy/config.ts`. Balance is checked with the simulation (`npm run sim`, or `/sim.html` on the dev server for charts).
 
-- **Income/s** = `min(section rates) × bill per customer × (1 + 0.1 × stars)`
+- **Income/s** = `min(section rates) × bill per customer × (1 + 0.1 × stars) × (1 + 0.25 × Secret Spices) × (1 + 0.5 × Famous Chain)`
 - **Section rate** = `baseRate × level × 1.5^milestones`. **Dish price** = `basePrice × level × 2^milestones`. Milestones: 10, 25, 50, 75, 100, 150, 200, …
 - **Upgrade cost:** `cost(level) = baseCost × r^(level-1)`. Sections have r = 1.20–1.22 and dishes r = 1.25. Each section has its own curve, so the bottleneck moves around as the restaurant grows (entrance and waiters early, kitchen and seating later).
 - **Dish unlock costs** are calibrated so that each new dish arrives just as growth from the previous one starts to stall.
-- **Cities:** every dish tier (`DISH_TIERS`) is reused in each city. In the n-th city prices are ×1000ⁿ (bigger numbers feel like progress) and all costs are ×1000ⁿ × (1 + 0.1 × 10n), i.e. also scaled by the star bonus a player is expected to bring. So each city plays like the first one for an on-pace player, and faster for a player who collected more stars.
+- **Cities:** every dish tier (`DISH_TIERS`) is reused in each city. In the n-th city prices are ×1000ⁿ (bigger numbers feel like progress) and all costs are ×1000ⁿ × (1 + 0.1 × 10n) × (1 + 0.6n), i.e. also scaled by the star bonus and part of the lab/perk bonus a player is expected to bring. Players get ahead of that scale in the first cities (they feel stronger), then cities settle at about 35-40 minutes. Local Suppliers lowers costs on top.
 - **Prestige reward:** see section 6; +10% income per star.
 - **Offline earnings:** income/s × time away, capped at 2 hours at first (upgradable later). Applies both when the game was closed and when it was in the background; absences over 1 minute show a "Welcome back" dialog.
 - **Saving:** every 10 s, after each purchase and when the game goes to the background. Saves are repaired on load (missing sections/dishes get starting values), so adding content later does not break old saves.
@@ -148,17 +174,16 @@ All numbers live in `src/core/economy/config.ts`. Balance is checked with the si
 
 ### Simulated pacing (greedy bot, active play, no ads)
 
-The bot franchises once the menu is complete and its stars per hour peak.
+The bot franchises once the menu is complete and its stars per hour peak. It keeps the Lab busy (Secret Spices / Local Suppliers, whichever finishes sooner) and picks Famous Chain whenever offered. The Lab runs on real time, so the simulation assumes the player is in the game a quarter of the time (`--lab 4`: 4 real seconds per second of play).
 
-| City | Duration | Stars gained | Dishes unlocked at (min) | Income at the end |
-|---|---|---|---|---|
-| Istanbul | 1h 31m | 10 | 3, 14, 28, 40, 50, 60 | 93.7B/s |
-| Rome | 1h 31m | 10 | same | 187T/s |
-| Paris … New York | 1h 31m each | 10 each | same | ×1000 per city |
+| City | Duration | Stars gained | Lab (Spices/Suppliers) at the end |
+|---|---|---|---|
+| Istanbul | 57m | 11 | 3/3 |
+| Rome | 40m | 10 | 4/4 |
+| Paris | 44m | 11 | 5/4 |
+| Cairo … Rio | 34-39m | 9-11 | 5-6/4-5 |
 
-A full first tour of the 10 cities takes about 15 hours of active play. Prices grow ×1000 per city, so even many tours stay far below the 1e308 limit of plain JS numbers.
-
-If the bot stays 1.5× longer per city it collects 15 stars per city (Istanbul 2h 17m), and the following cities get shorter (1h 49m, 1h 43m, … 1h 36m) with the menu complete at ~45 min: lingering is rewarded but not required.
+Before the Lab and perks every city took 1h 31m (each one a copy of the first). A player who barely leaves the game (`--lab 1`) sees 1h 9m, 52m, 50m, 47m. Prices grow ×1000 per city, so even many tours stay far below the 1e308 limit of plain JS numbers.
 
 ## 8. Rewarded ad placements
 

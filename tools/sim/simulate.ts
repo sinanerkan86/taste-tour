@@ -3,6 +3,16 @@
 import {
   DISH_TIERS,
   PRESTIGE,
+  RESEARCH_IDS,
+  collectResearch,
+  finishedResearch,
+  passTime,
+  researchDuration,
+  perkOffers,
+  startResearch,
+  starGainMultiplier,
+  type PerkId,
+  type ResearchId,
   SECTION_IDS,
   canFranchise,
   cityConfig,
@@ -31,7 +41,17 @@ export interface SimOptions {
   incomeBoost: number;
   // Stop the first time no useful purchase is affordable within this many seconds (used for calibration).
   stopAfterWait: number;
+  // Real seconds per second of active play, for the Kitchen Lab (it also runs while the game is
+  // closed): 4 means the player is in the game a quarter of the time. 0 turns the lab off.
+  labTimeFactor: number;
+  // Whether the bot picks franchise perks.
+  perks: boolean;
 }
+
+// The bot researches whatever of these finishes soonest (the others do not change active play),
+// and picks perks in this order (first one offered wins).
+const RESEARCH_PRIORITY: ResearchId[] = ['spices', 'suppliers'];
+const PERK_PRIORITY: PerkId[] = ['chain', 'brand', 'headStart', 'grant', 'secondLab', 'manager'];
 
 export const DEFAULT_OPTIONS: SimOptions = {
   maxSeconds: 12 * 3600,
@@ -39,6 +59,8 @@ export const DEFAULT_OPTIONS: SimOptions = {
   stayFactor: 1,
   incomeBoost: 1,
   stopAfterWait: Infinity,
+  labTimeFactor: 4,
+  perks: true,
 };
 
 export interface Sample {
@@ -65,6 +87,9 @@ export interface CycleResult {
   dishUnlocks: { dish: number; time: number }[];
   finalSectionLevels: Record<SectionId, number>;
   finalDishLevels: number[];
+  // Perk picked at the end of the cycle, and research levels at its end.
+  perk: PerkId | null;
+  labLevels: Record<ResearchId, number>;
 }
 
 export interface SimResult {
@@ -138,11 +163,17 @@ export function dishLabel(index: number): string {
 // Stars per second of the current run, without rounding down, after earning `extra` more.
 function starRate(state: EconomyState, elapsed: number, extra = 0, extraTime = 0): number {
   const reputation = state.runReputation + extra / cityCostScale(state.city);
-  return (reputation / PRESTIGE.starDivisor) ** PRESTIGE.starExponent / Math.max(elapsed + extraTime, 1);
+  return ((reputation / PRESTIGE.starDivisor) ** PRESTIGE.starExponent * starGainMultiplier(state)) / Math.max(elapsed + extraTime, 1);
 }
 
 function clone(state: EconomyState): EconomyState {
-  return { ...state, sectionLevels: { ...state.sectionLevels }, dishLevels: [...state.dishLevels] };
+  return {
+    ...state,
+    sectionLevels: { ...state.sectionLevels },
+    dishLevels: [...state.dishLevels],
+    lab: { levels: { ...state.lab.levels }, slots: state.lab.slots.map((slot) => ({ ...slot })) },
+    perks: { ...state.perks },
+  };
 }
 
 function emptyBottleneckTimes(): Record<SectionId, number> {
@@ -177,14 +208,31 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
       dishUnlocks: [{ dish: 0, time: 0 }],
       finalSectionLevels: { ...state.sectionLevels },
       finalDishLevels: [...state.dishLevels],
+      perk: null,
+      labLevels: { ...state.lab.levels },
     };
   }
 
   const income = (s: EconomyState) => incomePerSecond(s) * options.incomeBoost;
 
+  // Collects finished research and keeps every lab slot busy.
+  function tendLab(): void {
+    if (options.labTimeFactor <= 0) return;
+    for (const id of finishedResearch(state)) collectResearch(state, id);
+    const byDuration = (ids: ResearchId[]) => [...ids].sort((a, b) => researchDuration(state, a) - researchDuration(state, b));
+    for (const id of [...byDuration(RESEARCH_PRIORITY), ...byDuration([...RESEARCH_IDS])]) startResearch(state, id);
+  }
+
+  // Active seconds until the next lab project finishes.
+  function nextLabEvent(): number {
+    if (options.labTimeFactor <= 0 || state.lab.slots.length === 0) return Infinity;
+    return Math.min(...state.lab.slots.map((slot) => slot.remaining)) / options.labTimeFactor;
+  }
+
   function advance(seconds: number): void {
     const inc = income(state);
     earn(state, inc * seconds);
+    if (options.labTimeFactor > 0) passTime(state, seconds * options.labTimeFactor);
     cycle.bottleneckSeconds[throughput(state).bottleneck] += seconds;
     cycle.longestWait = Math.max(cycle.longestWait, seconds);
     time += seconds;
@@ -201,11 +249,13 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
     cycle.finalIncome = income(state);
     cycle.finalSectionLevels = { ...state.sectionLevels };
     cycle.finalDishLevels = [...state.dishLevels];
+    cycle.labLevels = { ...state.lab.levels };
     cycles.push(cycle);
   }
 
   sample();
   while (time < options.maxSeconds) {
+    tendLab();
     const inc = income(state);
     const elapsed = time - cycle.startTime;
 
@@ -242,13 +292,22 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
       timeToPrestige = Math.max(timeToPrestige, (reputationForOne * cityCostScale(state.city)) / inc);
     }
 
+    // A lab project finishing first changes the numbers: go there and decide again.
+    const labEvent = nextLabEvent();
+    if (labEvent < Math.min(timeToPrestige, best ? bestWait : Infinity)) {
+      advance(labEvent);
+      continue;
+    }
+
     if (timeToPrestige <= bestWait || !best) {
       if (!Number.isFinite(timeToPrestige)) break;
       advance(timeToPrestige);
       cycle.starsGained = pendingStars(state);
       closeCycle();
+      const offers = options.perks ? perkOffers(state) : [];
+      cycle.perk = PERK_PRIORITY.find((id) => offers.includes(id)) ?? null;
       if (cycles.length >= options.maxCycles) break;
-      state = prestige(state);
+      state = prestige(state, cycle.perk);
       cycle = newCycle(cycles.length, time, state.stars);
       lastSampleTime = -Infinity;
       peakTime = null;

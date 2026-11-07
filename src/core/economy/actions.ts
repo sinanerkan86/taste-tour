@@ -1,10 +1,25 @@
-import { ADS, DISH_MAX_LEVEL, DISH_TIERS, SECTIONS, type SectionId } from './config';
+import { ADS, DISH_MAX_LEVEL, DISH_TIERS, PERK, SECTION_IDS, SECTIONS, type PerkId, type SectionId } from './config';
 import { cityCostScale, levelCost, starsForReputation } from './formulas';
+import {
+  costMultiplier,
+  perkMaxLevel,
+  rushMaxSeconds,
+  rushSeconds,
+  starGainMultiplier,
+  vipGapMultiplier,
+  vipTipMultiplier,
+} from './bonuses';
 import { baseIncomePerSecond, earn, earningsOver, newEconomy, type EconomyState } from './state';
+
+// What every upgrade and unlock in this restaurant is multiplied by: the city's scale, minus the
+// Local Suppliers discount.
+export function costScale(state: EconomyState): number {
+  return cityCostScale(state.city) * costMultiplier(state);
+}
 
 export function sectionUpgradeCost(state: EconomyState, id: SectionId): number {
   const cfg = SECTIONS[id];
-  return levelCost(cfg.baseCost, cfg.costGrowth, state.sectionLevels[id]) * cityCostScale(state.city);
+  return levelCost(cfg.baseCost, cfg.costGrowth, state.sectionLevels[id]) * costScale(state);
 }
 
 // Unlock cost if the dish is not on the menu yet, otherwise the next level's cost.
@@ -14,7 +29,7 @@ export function dishCost(state: EconomyState, index: number): number {
   const level = state.dishLevels[index];
   if (level >= DISH_MAX_LEVEL) return Infinity;
   const cost = level === 0 ? tier.unlockCost : levelCost(tier.baseUpgradeCost, tier.costGrowth, level);
-  return cost * cityCostScale(state.city);
+  return cost * costScale(state);
 }
 
 // Dishes unlock strictly in order. Returns -1 when every dish is on the menu.
@@ -59,7 +74,7 @@ const MAX_LEVELS_PER_BUY = 1000;
 export function sectionBuyPlan(state: EconomyState, id: SectionId, amount: BuyAmount): BuyPlan {
   const cfg = SECTIONS[id];
   const level = state.sectionLevels[id];
-  const scale = cityCostScale(state.city);
+  const scale = costScale(state);
   return planLevels((k) => levelCost(cfg.baseCost, cfg.costGrowth, level + k) * scale, amount, MAX_LEVELS_PER_BUY, state.money);
 }
 
@@ -69,7 +84,7 @@ export function dishBuyPlan(state: EconomyState, index: number, amount: BuyAmoun
   const level = state.dishLevels[index];
   if (level === 0 && index !== nextLockedDish(state)) return { levels: 0, cost: Infinity };
   if (level >= DISH_MAX_LEVEL) return { levels: 0, cost: Infinity };
-  const scale = cityCostScale(state.city);
+  const scale = costScale(state);
   const costOf = (k: number) => {
     const at = level + k;
     return (at === 0 ? tier.unlockCost : levelCost(tier.baseUpgradeCost, tier.costGrowth, at)) * scale;
@@ -102,7 +117,7 @@ export function buyDish(state: EconomyState, index: number): boolean {
 
 // Stars a franchise would award right now.
 export function pendingStars(state: EconomyState): number {
-  return starsForReputation(state.runReputation);
+  return starsForReputation(state.runReputation, starGainMultiplier(state));
 }
 
 // A franchise opens once the city's whole menu is unlocked and it would award a star.
@@ -110,24 +125,36 @@ export function canFranchise(state: EconomyState): boolean {
   return nextLockedDish(state) < 0 && pendingStars(state) > 0;
 }
 
-// Franchise: sell the restaurant and start over in the next city, keeping the stars.
-export function prestige(state: EconomyState): EconomyState {
+// Section level a new restaurant opens with (Head Start perk).
+export function startingSectionLevel(state: EconomyState): number {
+  const head = Math.min(state.perks.headStart, PERK.headStartLevels.length);
+  return head > 0 ? PERK.headStartLevels[head - 1] : 1;
+}
+
+// Franchise: sell the restaurant and start over in the next city, keeping the stars, the lab
+// and the perks. `perk` is the franchise perk the player picked (see perkOffers).
+export function prestige(state: EconomyState, perk: PerkId | null = null): EconomyState {
   const gained = pendingStars(state);
   const next = newEconomy(state.stars + gained, state.lifetimeEarnings, state.city + 1);
   next.cityStars = [...state.cityStars, gained];
   // Ad rewards were earned by the player, not the restaurant, so they move along.
   next.rushSeconds = state.rushSeconds;
   next.timeSkipCooldown = state.timeSkipCooldown;
+  next.lab = { levels: { ...state.lab.levels }, slots: state.lab.slots.map((slot) => ({ ...slot })) };
+  next.perks = { ...state.perks };
+  if (perk && next.perks[perk] < perkMaxLevel(perk)) next.perks[perk]++;
+  const level = startingSectionLevel(next);
+  for (const id of SECTION_IDS) next.sectionLevels[id] = level;
   return next;
 }
 
 // Rush (rewarded ad): adds boosted time, up to the cap.
 export function activateRush(state: EconomyState): void {
-  state.rushSeconds = Math.min(state.rushSeconds + ADS.rushSeconds, ADS.rushMaxSeconds);
+  state.rushSeconds = Math.min(state.rushSeconds + rushSeconds(state), rushMaxSeconds(state));
 }
 
 export function canActivateRush(state: EconomyState): boolean {
-  return state.rushSeconds + ADS.rushSeconds <= ADS.rushMaxSeconds;
+  return state.rushSeconds + rushSeconds(state) <= rushMaxSeconds(state);
 }
 
 // What a time skip (rewarded ad) pays right now.
@@ -146,10 +173,12 @@ export function useTimeSkip(state: EconomyState): number {
 
 // What a VIP guest tips for a rewarded ad. Rush does not raise it, so the two do not stack.
 export function vipTip(state: EconomyState): number {
-  return baseIncomePerSecond(state) * ADS.vipTipSeconds;
+  return baseIncomePerSecond(state) * ADS.vipTipSeconds * vipTipMultiplier(state);
 }
 
 // Picks the seconds of play until the next VIP visit; random in [0, 1) comes from the caller.
-export function nextVipGap(random: number): number {
-  return ADS.vipMinGapSeconds + random * (ADS.vipMaxGapSeconds - ADS.vipMinGapSeconds);
+// With a state, the Tour Guide research brings them sooner.
+export function nextVipGap(random: number, state?: EconomyState): number {
+  const gap = ADS.vipMinGapSeconds + random * (ADS.vipMaxGapSeconds - ADS.vipMinGapSeconds);
+  return state ? gap * vipGapMultiplier(state) : gap;
 }

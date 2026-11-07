@@ -1,11 +1,18 @@
 import {
   DISH_TIERS,
-  OFFLINE,
+  PERK_IDS,
+  RESEARCH_IDS,
   SECTION_IDS,
   cityCostScale,
   earningsOver,
+  labSlotCount,
+  offlineCapSeconds,
   newEconomy,
+  perkMaxLevel,
+  researchMaxLevel,
   type EconomyState,
+  type LabSlot,
+  type ResearchId,
 } from './economy';
 
 export const SAVE_VERSION = 1;
@@ -62,7 +69,23 @@ export function parseSave(json: string): SaveData | null {
     dishLevels: [...fresh.dishLevels],
     rushSeconds: Math.max(0, finiteOr(saved.rushSeconds, 0)),
     timeSkipCooldown: Math.max(0, finiteOr(saved.timeSkipCooldown, 0)),
+    lab: fresh.lab,
+    perks: fresh.perks,
   };
+  for (const id of PERK_IDS) {
+    economy.perks[id] = Math.min(perkMaxLevel(id), Math.max(0, Math.floor(finiteOr(saved.perks?.[id], 0))));
+  }
+  for (const id of RESEARCH_IDS) {
+    economy.lab.levels[id] = Math.min(researchMaxLevel(id), Math.max(0, Math.floor(finiteOr(saved.lab?.levels?.[id], 0))));
+  }
+  // Running projects: known, not maxed, one slot each, no more than the slots the perks allow.
+  const slots = Array.isArray(saved.lab?.slots) ? (saved.lab.slots as Partial<LabSlot>[]) : [];
+  for (const slot of slots) {
+    const id = slot?.research as ResearchId;
+    if (!RESEARCH_IDS.includes(id) || economy.lab.slots.some((s) => s.research === id)) continue;
+    if (economy.lab.levels[id] >= researchMaxLevel(id) || economy.lab.slots.length >= labSlotCount(economy)) continue;
+    economy.lab.slots.push({ research: id, remaining: Math.max(0, finiteOr(slot.remaining, 0)) });
+  }
   for (const id of SECTION_IDS) {
     economy.sectionLevels[id] = Math.max(1, Math.floor(finiteOr(saved.sectionLevels?.[id], 1)));
   }
@@ -78,6 +101,8 @@ export function parseSave(json: string): SaveData | null {
 export interface OfflineReward {
   // Seconds that count toward the reward (after the cap).
   seconds: number;
+  // The cap that applied (Night Shift research raises it).
+  capSeconds: number;
   // Real time away, for display.
   secondsAway: number;
   amount: number;
@@ -88,10 +113,10 @@ export function offlineReward(
   economy: EconomyState,
   awaySince: number,
   now: number,
-  capSeconds: number = OFFLINE.baseCapSeconds,
+  capSeconds: number = offlineCapSeconds(economy),
 ): OfflineReward {
   const secondsAway = Math.max(0, (now - awaySince) / 1000);
   const seconds = Math.min(secondsAway, capSeconds);
   // Rush keeps running while the player is away.
-  return { seconds, secondsAway, amount: earningsOver(economy, seconds) };
+  return { seconds, capSeconds, secondsAway, amount: earningsOver(economy, seconds) };
 }

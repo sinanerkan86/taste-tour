@@ -74,6 +74,10 @@ export const CITY = {
   // Costs grow on top of that by the star bonus a player is expected to bring along, so every city
   // takes about as long as the first one. Players with more stars than this get through faster.
   expectedStarsPerCity: 10,
+  // ...and also by the lab and perk bonuses a player is expected to have gathered: costs in the
+  // n-th city are multiplied by (1 + expectedBonusPerCity * n). Players ahead of that (more
+  // research, better perks) get through faster.
+  expectedBonusPerCity: 0.6,
 };
 
 // A dish stops leveling here ("mastered"), so growth has to come from new dishes.
@@ -127,4 +131,73 @@ export const ADS = {
 export const OFFLINE = {
   // Offline earnings are capped to this many seconds at first.
   baseCapSeconds: 2 * 60 * 60,
+};
+
+const MINUTE = 60;
+const HOUR = 60 * MINUTE;
+
+// Kitchen Lab: research projects that take real time (they keep running while the game is
+// closed) and give permanent bonuses that survive franchises. A finished project waits for the
+// player to collect it, which gives a reason to come back.
+export const RESEARCH_IDS = ['spices', 'suppliers', 'nightShift', 'tourGuide', 'eventPlanner'] as const;
+export type ResearchId = (typeof RESEARCH_IDS)[number];
+
+export interface ResearchConfig {
+  // Seconds each next level takes; the list length is the max level.
+  durations: number[];
+}
+
+export const RESEARCH: Record<ResearchId, ResearchConfig> = {
+  // Short first steps teach the lab in the first session; later ones fill a night or a day.
+  spices: { durations: [3, 15, 45, 90, 180, 300, 480, 720, 960, 1440].map((m) => m * MINUTE) },
+  suppliers: { durations: [5, 20, 60, 120, 240, 360, 540, 720, 1080, 1440].map((m) => m * MINUTE) },
+  nightShift: { durations: [10, 45, 120, 240, 480, 720].map((m) => m * MINUTE) },
+  tourGuide: { durations: [15, 60, 180, 360, 720].map((m) => m * MINUTE) },
+  eventPlanner: { durations: [30, 120, 360, 720].map((m) => m * MINUTE) },
+};
+
+export const LAB = {
+  // Secret Spices: income +25% per level.
+  spicesIncome: 0.25,
+  // Local Suppliers: every upgrade and unlock costs 6% less per level (multiplied, not added).
+  suppliersDiscount: 0.06,
+  // Night Shift: offline earnings are counted for one more hour per level.
+  nightShiftSeconds: HOUR,
+  // Tour Guide: VIP guests tip 30% more and come 12% sooner per level.
+  tourGuideTip: 0.3,
+  tourGuideSooner: 0.12,
+  // Event Planner: each Rush ad lasts one more hour, and Rush stacks three more hours, per level.
+  eventPlannerSeconds: HOUR,
+  eventPlannerMaxSeconds: 3 * HOUR,
+};
+
+// Franchise perks: each franchise lets the player pick one of a few perks. They are permanent.
+export const PERK_IDS = ['manager', 'headStart', 'chain', 'brand', 'grant', 'secondLab'] as const;
+export type PerkId = (typeof PERK_IDS)[number];
+
+export const PERKS: Record<PerkId, { maxLevel: number }> = {
+  manager: { maxLevel: 1 },
+  headStart: { maxLevel: 3 },
+  chain: { maxLevel: Infinity },
+  brand: { maxLevel: 5 },
+  grant: { maxLevel: 3 },
+  secondLab: { maxLevel: 1 },
+};
+
+export const PERK = {
+  // Perks offered at each franchise.
+  offers: 3,
+  // The first franchise always offers these, so the manager shows up early.
+  firstOffers: ['manager', 'headStart', 'chain'] as PerkId[],
+  // Manager: buys the bottleneck section by itself whenever a level costs at most this many
+  // seconds of income (cheap upgrades a player would buy anyway).
+  managerSeconds: 30,
+  // Head start: a new restaurant opens with every section at this level (per perk level).
+  headStartLevels: [10, 25, 50],
+  // Famous Chain: income +50% per level.
+  chainIncome: 0.5,
+  // Brand Value: franchises award 20% more stars per level.
+  brandStars: 0.2,
+  // Research Grant: lab projects run 25% faster per level.
+  grantSpeed: 0.25,
 };

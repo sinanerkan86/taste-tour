@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { ADS, OFFLINE } from '../../core/economy';
+import { ADS } from '../../core/economy';
 import { formatNumber } from '../../core/format';
 import type { OfflineReward } from '../../core/save';
 import { t, tDuration } from '../../i18n';
@@ -9,6 +9,8 @@ import { createModalCard, modalText } from './modalCard';
 
 const CARD_WIDTH = 860;
 const CARD_HEIGHT = 640;
+// Extra room for the "research finished" line.
+const RESEARCH_HEIGHT = 80;
 const BUTTON_WIDTH = 370;
 
 // Blocks the game until the player collects what the restaurant earned while they were away,
@@ -22,9 +24,12 @@ export class WelcomeBackModal extends Phaser.GameObjects.Container {
     depth: number,
     onCollect: (multiplier: number) => void,
     watchAd: () => Promise<boolean>,
+    // Names of lab projects that finished while the player was away.
+    research: string[] = [],
   ) {
     super(scene, 0, 0);
-    const card = createModalCard(scene, CARD_WIDTH, CARD_HEIGHT, t('offline.title'));
+    const height = CARD_HEIGHT + (research.length > 0 ? RESEARCH_HEIGHT : 0);
+    const card = createModalCard(scene, CARD_WIDTH, height, t('offline.title'));
     const { cx, top } = card;
     const cy = top + CARD_HEIGHT / 2;
 
@@ -36,11 +41,16 @@ export class WelcomeBackModal extends Phaser.GameObjects.Container {
     const children: Phaser.GameObjects.GameObject[] = [...card.objects, body, coin, amount];
     if (reward.secondsAway > reward.seconds) {
       children.push(
-        modalText(scene, card, CARD_WIDTH, cy + 105, t('offline.capped', { time: tDuration(OFFLINE.baseCapSeconds) }), 28, PALETTE.muted),
+        modalText(scene, card, CARD_WIDTH, cy + 105, t('offline.capped', { time: tDuration(reward.capSeconds) }), 28, PALETTE.muted),
       );
     }
+    if (research.length > 0) {
+      const line = modalText(scene, card, CARD_WIDTH, cy + 170, t('offline.research', { names: research.join(', ') }), 32, PALETTE.success, true);
+      children.push(line);
+      scene.tweens.add({ targets: line, scale: 1.06, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    }
 
-    const buttonY = top + CARD_HEIGHT - 100;
+    const buttonY = top + height - 100;
     const collect = new Button(scene, cx - BUTTON_WIDTH / 2 - 15, buttonY, BUTTON_WIDTH, 120, () => {
       if (this.busy) return;
       this.destroy();

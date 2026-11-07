@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { LANGUAGES, type Locale, getLocale, setLocale, t } from '../../i18n';
 import { ads } from '../ads/AdService';
 import { audio } from '../audio';
+import { notifications } from '../notifications';
 import { PRIVACY_POLICY_URL, openExternal } from '../native';
 import { PALETTE } from '../config';
 import { saveSettings, settings } from '../settings';
@@ -10,15 +11,15 @@ import { createModalCard, modalText } from './modalCard';
 import { plain } from './style';
 
 const CARD_WIDTH = 760;
-const CARD_HEIGHT = 900;
+const CARD_HEIGHT = 1030;
 // Extra room for the privacy options button, shown only to players who need it.
 const PRIVACY_ROW = 120;
 const ROW_GAP = 130;
 const LANGUAGE_BUTTON = { width: 162, height: 84, gap: 12 };
 
-type Toggle = 'sound' | 'music';
+type Toggle = 'sound' | 'music' | 'notifications';
 
-// Sound and music switches, the language and (where the law requires it) the ad privacy choices.
+// Sound, music and reminder switches, the language and (where the law requires it) the ad privacy choices.
 export class SettingsModal extends Phaser.GameObjects.Container {
   // onLanguageChange runs after a new language is chosen; the caller redraws its texts.
   constructor(scene: Phaser.Scene, depth: number, onLanguageChange: () => void) {
@@ -28,16 +29,21 @@ export class SettingsModal extends Phaser.GameObjects.Container {
     const card = createModalCard(scene, CARD_WIDTH, cardHeight, t('settings.title'));
     const { cx, top } = card;
     const left = cx - CARD_WIDTH / 2 + 70;
-    const rows = (['sound', 'music'] as Toggle[]).flatMap((key, i) => {
+    const toggles: Toggle[] = ['sound', 'music', 'notifications'];
+    const rows = toggles.flatMap((key, i) => {
       const y = top + 220 + i * ROW_GAP;
       const label = modalText(scene, card, CARD_WIDTH, y, t(`settings.${key}`), 42, PALETTE.ink, true).setOrigin(0, 0.5);
       label.x = left;
-      const button = new Button(scene, cx + CARD_WIDTH / 2 - 160, y, 200, 90, () => {
-        settings[key] = !settings[key];
+      const button = new Button(scene, cx + CARD_WIDTH / 2 - 160, y, 200, 90, () => void flip());
+      const flip = async () => {
+        // Turning reminders on needs the system permission; refused, the switch stays off.
+        const on = !settings[key];
+        settings[key] = on && key === 'notifications' ? await notifications.requestPermission() : on;
+        if (key === 'notifications') settings.notificationsAsked = true;
         saveSettings();
         audio.applySettings();
-        show();
-      });
+        if (button.active) show();
+      };
       const show = () =>
         button
           .setLabel(t(settings[key] ? 'settings.on' : 'settings.off'))
@@ -47,7 +53,7 @@ export class SettingsModal extends Phaser.GameObjects.Container {
     });
 
     // Language: one button per language, the current one highlighted.
-    const languageY = top + 220 + 2 * ROW_GAP;
+    const languageY = top + 220 + toggles.length * ROW_GAP;
     const languageLabel = modalText(scene, card, CARD_WIDTH, languageY, t('settings.language'), 42, PALETTE.ink, true).setOrigin(0, 0.5);
     languageLabel.x = left;
     const { width, height, gap } = LANGUAGE_BUTTON;

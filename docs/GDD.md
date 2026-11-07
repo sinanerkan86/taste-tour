@@ -158,6 +158,18 @@ Added 2026-11-07 after playtesting: the game had no reason to come back and litt
 
 The short first levels teach the Lab in the first session; the long ones fill a night or a work day. Numbers live in `RESEARCH` / `LAB` in the economy config. Later idea: a rewarded ad that halves the time left (needs its own ad unit).
 
+## 6c. Reminders (local notifications)
+
+Added 2026-11-07 as the first retention feature. When the game goes to the background it schedules phone reminders; when it comes back they are cancelled (and shown ones cleared). No server: the phone schedules them itself.
+
+- **Research done:** the first running project that finishes ("Night Shift is ready in your Kitchen Lab").
+- **Till full:** offline earnings reach their cap (2h, more with Night Shift).
+- **Rush over:** Rush time runs out.
+
+Rules against nagging: nothing due in the first 5 minutes; reminders due in quiet hours (22:00-09:00 local) wait until 09:00; reminders less than an hour apart are merged (the earlier wins); at most 2 per absence. Delivery is inexact (no exact-alarm permission), so a reminder can come some minutes late. The permission (Android 13+) is asked once, when the player starts their first research project; Settings has a "Reminders" switch. Logic in `src/core/notifications.ts` (`NOTIFY`), system side in `src/game/notifications.ts`.
+
+Later ideas: a "your restaurant misses you" reminder after a day or two away, a daily-reward reminder once daily rewards exist.
+
 ## 7. Economy math
 
 All numbers live in `src/core/economy/config.ts`. Balance is checked with the simulation (`npm run sim`, or `/sim.html` on the dev server for charts).

@@ -2,6 +2,7 @@ import { App } from '@capacitor/app';
 import type Phaser from 'phaser';
 import { Capacitor } from '@capacitor/core';
 import { ads } from './ads/AdService';
+import { notifications } from './notifications';
 
 // Android-only behavior.
 export function setUpNativeApp(game: Phaser.Game): void {
@@ -17,6 +18,8 @@ export function setUpNativeApp(game: Phaser.Game): void {
     else void App.minimizeApp();
   });
   void ads.init();
+  // Reminders from the last absence are of no use once the game is open.
+  void notifications.cancel();
 }
 
 export const PRIVACY_POLICY_URL = 'https://sinanerkan86.github.io/taste-tour-privacy/';

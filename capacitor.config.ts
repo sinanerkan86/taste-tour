@@ -8,6 +8,8 @@ const config: CapacitorConfig = {
   plugins: {
     // Full screen game: status and navigation bars stay hidden until the player swipes.
     SystemBars: { hidden: true },
+    // Status bar icon (a white chef's hat, android/app/src/main/res/drawable/ic_stat_notify.xml) and its tint.
+    LocalNotifications: { smallIcon: 'ic_stat_notify', iconColor: '#D8342A' },
   },
   android: {
     // Game assets are bundled, so the WebView never needs plain HTTP.

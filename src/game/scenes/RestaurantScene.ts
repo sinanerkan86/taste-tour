@@ -45,6 +45,7 @@ import { t, tDuration, type TranslationKey } from '../../i18n';
 import { ads, type AdPlacement } from '../ads/AdService';
 import { FONT, GAME_WIDTH, PALETTE, panelTop, toCss } from '../config';
 import { FX_DEPTH, ROOM_FX_DEPTH, UI_LAYER_DEPTH, banner, confetti, floatingText, sparkle } from '../fx';
+import { notifications } from '../notifications';
 import { saves } from '../persistence';
 import { AdOfferModal } from '../ui/AdOfferModal';
 import { BUTTON_STYLES, Button } from '../ui/Button';
@@ -371,8 +372,10 @@ export class RestaurantScene extends Phaser.Scene {
     const onHidden = () => {
       hiddenAt = Date.now();
       save();
+      void notifications.schedule(this.economy);
     };
     const onVisible = () => {
+      void notifications.cancel();
       if (hiddenAt > 0) this.payOffline(offlineReward(this.economy, hiddenAt, Date.now()));
       hiddenAt = 0;
     };
@@ -423,6 +426,8 @@ export class RestaurantScene extends Phaser.Scene {
     } else {
       if (!startResearch(this.economy, id)) return;
       this.celebratePurchase();
+      // The first project is the moment a reminder makes sense, so the permission is asked then.
+      void notifications.askOnce();
     }
     this.panel.pulseResearch(id);
     void this.saveGame();

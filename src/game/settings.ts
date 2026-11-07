@@ -9,11 +9,14 @@ export interface Settings {
   music: boolean;
   // Chosen language; null follows the device language.
   language: Locale | null;
+  // Phone reminders (lab done, till full, Rush over), and whether the system permission was asked for.
+  notifications: boolean;
+  notificationsAsked: boolean;
 }
 
 const SETTINGS_KEY = 'taste-tour.settings';
 
-export const settings: Settings = { buyAmount: 1, sound: true, music: true, language: null };
+export const settings: Settings = { buyAmount: 1, sound: true, music: true, language: null, notifications: true, notificationsAsked: false };
 
 export async function loadSettings(): Promise<void> {
   const json = await saves.store.get(SETTINGS_KEY);
@@ -24,6 +27,8 @@ export async function loadSettings(): Promise<void> {
     if (typeof raw.sound === 'boolean') settings.sound = raw.sound;
     if (typeof raw.music === 'boolean') settings.music = raw.music;
     if (isLocale(raw.language)) settings.language = raw.language;
+    if (typeof raw.notifications === 'boolean') settings.notifications = raw.notifications;
+    if (typeof raw.notificationsAsked === 'boolean') settings.notificationsAsked = raw.notificationsAsked;
   } catch {
     // Broken settings: keep the defaults.
   }

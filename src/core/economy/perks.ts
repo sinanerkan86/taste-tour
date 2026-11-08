@@ -1,7 +1,6 @@
-import { PERK, PERK_IDS, type PerkId, type SectionId } from './config';
+import { PERK, PERK_IDS, type PerkId } from './config';
 import { perkMaxLevel } from './bonuses';
-import { sectionUpgradeCost } from './actions';
-import { baseIncomePerSecond, throughput, type EconomyState } from './state';
+import type { EconomyState } from './state';
 
 // Small deterministic random generator (mulberry32), so the perks offered at a franchise do
 // not change when the game is reloaded.
@@ -32,24 +31,4 @@ export function perkOffers(state: EconomyState): PerkId[] {
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
   return pool.slice(0, PERK.offers);
-}
-
-// Safety net: one call never buys more than this many levels.
-const MANAGER_MAX_LEVELS = 100;
-
-// The Manager perk: buys bottleneck levels that cost at most a few seconds of income, the cheap
-// upgrades a player would buy anyway. Returns the sections it upgraded (one entry per level).
-export function managerBuy(state: EconomyState): SectionId[] {
-  const bought: SectionId[] = [];
-  if (state.perks.manager <= 0) return bought;
-  const budget = baseIncomePerSecond(state) * PERK.managerSeconds;
-  while (bought.length < MANAGER_MAX_LEVELS) {
-    const id = throughput(state).bottleneck;
-    const cost = sectionUpgradeCost(state, id);
-    if (cost > budget || cost > state.money) break;
-    state.money -= cost;
-    state.sectionLevels[id]++;
-    bought.push(id);
-  }
-  return bought;
 }

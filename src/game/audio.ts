@@ -4,7 +4,7 @@ import { settings } from './settings';
 // Sound effects are short envelopes on oscillators; the music is a small sequencer that plays a
 // relaxed café loop (electric piano chords, upright-style bass, brushes and a vibraphone tune).
 
-export type Sfx = 'tap' | 'coin' | 'buy' | 'unlock' | 'celebrate' | 'click' | 'vip' | 'look';
+export type Sfx = 'tap' | 'coin' | 'buy' | 'unlock' | 'celebrate' | 'click' | 'vip' | 'look' | 'firework';
 
 const SFX_VOLUME = 0.45;
 const MUSIC_VOLUME = 0.16;
@@ -129,6 +129,11 @@ const SFX: Record<Sfx, (v: Voice, t: number) => void> = {
     v.bell(86, t + 0.18);
   },
   look: (v, t) => [84, 88, 91, 96, 100].forEach((n, i) => v.mallet(n, t + i * 0.06, 0.5, 0.15)),
+  // A soft thump with a little crackle on top.
+  firework: (v, t) => {
+    v.tone('triangle', 170, t, 0.22, 0.4, 0.4);
+    [0.05, 0.1, 0.16].forEach((at, i) => v.tone('square', 1900 + i * 500, t + at, 0.05, 0.035, 0.7));
+  },
 };
 
 // --- Music -------------------------------------------------------------------------------

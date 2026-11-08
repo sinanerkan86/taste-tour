@@ -134,7 +134,7 @@ A small card under the HUD always names the next goal with a progress bar: the n
 
 | Perk | Max level | Effect |
 |---|---|---|
-| Restaurant Manager | 1 | Buys bottleneck levels by itself when one costs at most 30 s of income (the cheap taps a player would make anyway) |
+| Restaurant Manager | 1 | Restaurant section upgrades cost 30% less. (It used to buy levels by itself; playtesting showed that took away the choice between upgrading and saving for a dish, so nothing may spend the player's money automatically.) |
 | Head Start | 3 | New restaurants open with every section at level 10 / 25 / 50 |
 | Famous Chain | no cap | Income +50% per level |
 | Brand Value | 5 | Franchises award +20% stars per level |
@@ -193,7 +193,7 @@ Added 2026-11-07 (retention, second step after reminders). A gift button in the 
 | Start a research project (left out once the lab is finished) | 1 | 1 | 1 |
 | Serve VIP guests (watch the VIP ad) | 1 | 1 | 2 |
 
-Manager perk purchases do not count. The daily state lives in the economy (`daily`) and moves along with a franchise. Code: `src/core/economy/daily.ts` (`DAILY`), `src/game/ui/DailyModal.ts`.
+The daily state lives in the economy (`daily`) and moves along with a franchise. Code: `src/core/economy/daily.ts` (`DAILY`), `src/game/ui/DailyModal.ts`.
 
 Next to "Collect", a "Collect 2x" button doubles the day's reward (money and Rush) for a rewarded ad (placement `dailyDouble`).
 

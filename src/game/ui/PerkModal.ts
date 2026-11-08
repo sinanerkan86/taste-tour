@@ -10,18 +10,18 @@ import { perkDescription, perkName } from './progressText';
 import { card, wrapStyle } from './style';
 
 const CARD_WIDTH = 940;
-const OPTION = { width: 860, height: 250, gap: 30 };
-const LIST_ROW = 130;
+const OPTION = { width: 860, height: 280, gap: 26 };
+const LIST_ROW = 150;
 
 const OPTION_CARD = { top: 0xffffff, bottom: 0xfff0d6, border: 0xe6c49a, radius: 28 };
 
 function optionTexts(scene: Phaser.Scene, x: number, y: number, id: PerkId, level: number, textWidth: number) {
   const name = scene.add
-    .text(x, y - 30, perkName(id), { fontFamily: FONT, fontSize: '38px', fontStyle: 'bold', color: toCss(PALETTE.ink) })
+    .text(x, y - 62, perkName(id), { fontFamily: FONT, fontSize: '38px', fontStyle: 'bold', color: toCss(PALETTE.ink) })
     .setOrigin(0, 1);
   name.setScale(Math.min(1, (textWidth - 120) / name.width));
   const tag = scene.add
-    .text(x + name.displayWidth + 14, y - 34, level <= 1 ? t('perk.new') : t('perk.level', { level }), {
+    .text(x + name.displayWidth + 14, y - 66, level <= 1 ? t('perk.new') : t('perk.level', { level }), {
       fontFamily: FONT,
       fontSize: '22px',
       fontStyle: 'bold',
@@ -31,9 +31,9 @@ function optionTexts(scene: Phaser.Scene, x: number, y: number, id: PerkId, leve
     })
     .setOrigin(0, 1);
   const desc = scene.add
-    .text(x, y - 16, perkDescription(id, level), {
+    .text(x, y - 48, perkDescription(id, level), {
       fontFamily: FONT,
-      fontSize: '28px',
+      fontSize: '26px',
       color: toCss(PALETTE.muted),
       lineSpacing: 4,
       wordWrap: wrapStyle(textWidth),
@@ -116,7 +116,7 @@ export class PerksModal extends Phaser.GameObjects.Container {
       const y = top + 260 + LIST_ROW / 2 + i * LIST_ROW;
       const icon = scene.add.image(left + 60, y, progressIcon(scene, id)).setScale(1.1 / ART_RES);
       const name = scene.add
-        .text(left + 130, y - 4, `${perkName(id)}  ${t('perk.level', { level: perks[id] })}`, {
+        .text(left + 130, y - 22, `${perkName(id)}  ${t('perk.level', { level: perks[id] })}`, {
           fontFamily: FONT,
           fontSize: '32px',
           fontStyle: 'bold',
@@ -124,13 +124,13 @@ export class PerksModal extends Phaser.GameObjects.Container {
         })
         .setOrigin(0, 1);
       const desc = scene.add
-        .text(left + 130, y + 4, perkDescription(id, perks[id]), {
+        .text(left + 130, y - 14, perkDescription(id, perks[id]), {
           fontFamily: FONT,
           fontSize: '26px',
           color: toCss(PALETTE.muted),
+          wordWrap: wrapStyle(OPTION.width - 150),
         })
         .setOrigin(0, 0);
-      desc.setScale(Math.min(1, (OPTION.width - 150) / desc.width));
       children.push(icon, name, desc);
     });
     const close = new Button(scene, cx, top + height - 90, 360, 100, () => this.destroy());

@@ -32,6 +32,8 @@ export function perkName(id: PerkId): string {
 export function perkDescription(id: PerkId, level: number): string {
   const key = `perk.${id}.desc` as TranslationKey;
   switch (id) {
+    case 'manager':
+      return t(key, { value: Math.round(PERK.managerDiscount * 100) });
     case 'headStart':
       return t(key, { value: PERK.headStartLevels[Math.min(level, PERK.headStartLevels.length) - 1] ?? 1 });
     case 'chain':

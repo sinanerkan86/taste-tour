@@ -50,6 +50,11 @@ export function costMultiplier(state: Bonuses): number {
   return (1 - LAB.suppliersDiscount) ** state.lab.levels.suppliers;
 }
 
+// Extra discount on restaurant section upgrades only (Restaurant Manager perk).
+export function sectionCostMultiplier(state: Bonuses): number {
+  return state.perks.manager > 0 ? 1 - PERK.managerDiscount : 1;
+}
+
 export function offlineCapSeconds(state: Bonuses): number {
   return OFFLINE.baseCapSeconds + state.lab.levels.nightShift * LAB.nightShiftSeconds;
 }

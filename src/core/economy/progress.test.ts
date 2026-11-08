@@ -13,20 +13,21 @@ import {
   baseIncomePerSecond,
   canStartResearch,
   collectResearch,
+  dishCost,
   finishedResearch,
   freeLabSlots,
   labNeedsAttention,
-  managerBuy,
   newEconomy,
+  nextLockedDish,
   nextVipGap,
   offlineCapSeconds,
   pendingStars,
   perkOffers,
   prestige,
   researchDuration,
+  sectionBuyPlan,
   sectionUpgradeCost,
   startResearch,
-  throughput,
   vipTip,
 } from './index';
 import { createSave, offlineReward, parseSave, serializeSave } from '../save';
@@ -155,16 +156,14 @@ describe('franchise perks', () => {
     expect(freeLabSlots(state)).toBe(0);
   });
 
-  it('lets the manager buy only cheap bottleneck levels', () => {
+  it('makes the manager discount section upgrades only', () => {
     const state = newEconomy();
-    state.money = 1e6;
-    expect(managerBuy(state)).toEqual([]);
+    const section = sectionUpgradeCost(state, 'kitchen');
+    const tenLevels = sectionBuyPlan(state, 'kitchen', 10).cost;
+    const dish = dishCost(state, nextLockedDish(state));
     state.perks.manager = 1;
-    const budget = baseIncomePerSecond(state) * PERK.managerSeconds;
-    const bought = managerBuy(state);
-    expect(bought.length).toBeGreaterThan(0);
-    expect(bought[0]).toBe(throughput(newEconomy()).bottleneck);
-    // Whatever is left costs more than the budget the manager had.
-    expect(sectionUpgradeCost(state, throughput(state).bottleneck)).toBeGreaterThan(budget);
+    expect(sectionUpgradeCost(state, 'kitchen')).toBeCloseTo(section * (1 - PERK.managerDiscount));
+    expect(sectionBuyPlan(state, 'kitchen', 10).cost).toBeCloseTo(tenLevels * (1 - PERK.managerDiscount));
+    expect(dishCost(state, nextLockedDish(state))).toBeCloseTo(dish);
   });
 });

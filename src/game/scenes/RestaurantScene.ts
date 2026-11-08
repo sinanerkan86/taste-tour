@@ -32,7 +32,6 @@ import {
   refreshDaily,
   currentGoal,
   finishedResearch,
-  managerBuy,
   perkOffers,
   researchSlot,
   startResearch,
@@ -67,7 +66,7 @@ import { createSave, offlineReward, type OfflineReward, type SaveData } from '..
 import { t, tDuration, tDurationShort, type TranslationKey } from '../../i18n';
 import { ads, type AdPlacement } from '../ads/AdService';
 import { FONT, GAME_WIDTH, PALETTE, panelTop, toCss } from '../config';
-import { FX_DEPTH, ROOM_FX_DEPTH, UI_LAYER_DEPTH, banner, confetti, floatingText, sparkle } from '../fx';
+import { FX_DEPTH, ROOM_FX_DEPTH, UI_LAYER_DEPTH, banner, confetti, fireworksShow, floatingText, sparkle } from '../fx';
 import { notifications } from '../notifications';
 import { saves } from '../persistence';
 import { AdOfferModal } from '../ui/AdOfferModal';
@@ -130,8 +129,6 @@ const FRANCHISE_FADE_MS = 600;
 const LAB_HINT = 'lab';
 // The lab tip appears once this many dishes are on the menu.
 const LAB_HINT_MENU_SIZE = 2;
-// How often the Manager perk looks for cheap upgrades.
-const MANAGER_INTERVAL_MS = 500;
 
 // The event card sits under the goal card.
 const EVENT_BAR_Y = GOAL_BAR_Y + 105;
@@ -185,7 +182,6 @@ export class RestaurantScene extends Phaser.Scene {
   private markerArrowTip!: Phaser.GameObjects.Triangle;
   // Lab projects already announced as done, so each one is announced once.
   private announcedResearch = new Set<ResearchId>();
-  private sinceManager = 0;
   private dailyButton!: Phaser.GameObjects.Container;
   private dailyBadge!: Phaser.GameObjects.Container;
   private dailyCaption!: Phaser.GameObjects.Text;
@@ -209,7 +205,6 @@ export class RestaurantScene extends Phaser.Scene {
     this.seenHints = data.save?.seenHints ?? [];
     this.hint = null;
     this.franchiseReady = null;
-    this.sinceManager = 0;
     this.vipCountdown = ADS.vipFirstGapSeconds;
     this.event = null;
     this.eventCountdown = EVENTS.firstGapSeconds;
@@ -550,20 +545,6 @@ export class RestaurantScene extends Phaser.Scene {
       this.announcedResearch.add(id);
       audio.play('look');
       this.note(t('banner.researchDone', { name: researchName(id) }));
-    }
-  }
-
-  // The Manager perk buys cheap bottleneck levels by itself.
-  private runManager(delta: number): void {
-    this.sinceManager += delta;
-    if (this.sinceManager < MANAGER_INTERVAL_MS) return;
-    this.sinceManager = 0;
-    const before = { ...this.economy.sectionLevels };
-    const bought = managerBuy(this.economy);
-    if (bought.length === 0) return;
-    for (const id of new Set(bought)) {
-      this.panel.pulseSection(id);
-      this.announceSectionLevels(id, before[id]);
     }
   }
 
@@ -951,7 +932,6 @@ export class RestaurantScene extends Phaser.Scene {
     this.room.update(delta);
     this.updateVip(delta / 1000);
     this.updateEvent(delta / 1000);
-    this.runManager(delta);
     const flow = throughput(this.economy);
     this.view.update(
       {
@@ -1035,7 +1015,7 @@ export class RestaurantScene extends Phaser.Scene {
     const name = t(`dish.${cityConfig(this.economy.city).dishes[index]}` as TranslationKey);
     const newLevel = this.economy.dishLevels[index];
     if (level === 0) {
-      this.celebrate(t('banner.newDish', { name }), PALETTE.success);
+      this.celebrateNewDish(t('banner.newDish', { name }));
     } else if (newLevel === DISH_MAX_LEVEL) {
       this.celebrate(t('banner.mastered', { name }), PALETTE.tileBlue);
     } else if (milestonesReached(newLevel) > milestonesReached(level)) {
@@ -1055,6 +1035,14 @@ export class RestaurantScene extends Phaser.Scene {
     audio.play('celebrate');
     banner(this, BANNER_Y, message, color);
     confetti(this, GAME_WIDTH / 2, BANNER_Y + 40);
+  }
+
+  // A new dish on the menu is the game's main reward: fireworks over the whole screen, under
+  // any open dialog, with the banner on top so it stays readable.
+  private celebrateNewDish(message: string): void {
+    audio.play('celebrate');
+    fireworksShow(this, UI_DEPTH + 50, () => audio.play('firework', 0.8));
+    banner(this, BANNER_Y, message, PALETTE.success, UI_DEPTH + 51);
   }
 
   // Small moments (level milestones), which happen often: a short note above the panel.

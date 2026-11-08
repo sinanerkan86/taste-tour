@@ -228,9 +228,9 @@ export const PERK = {
   offers: 3,
   // The first franchise always offers these, so the manager shows up early.
   firstOffers: ['manager', 'headStart', 'chain'] as PerkId[],
-  // Manager: buys the bottleneck section by itself whenever a level costs at most this many
-  // seconds of income (cheap upgrades a player would buy anyway).
-  managerSeconds: 30,
+  // Manager: restaurant section upgrades cost this much less. It must never spend the player's
+  // money by itself: choosing between an upgrade and saving for a dish is the game.
+  managerDiscount: 0.3,
   // Head start: a new restaurant opens with every section at this level (per perk level).
   headStartLevels: [10, 25, 50],
   // Famous Chain: income +50% per level.

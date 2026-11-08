@@ -5,6 +5,7 @@ import {
   perkMaxLevel,
   rushMaxSeconds,
   rushSeconds,
+  sectionCostMultiplier,
   starGainMultiplier,
   vipGapMultiplier,
   vipTipMultiplier,
@@ -17,9 +18,14 @@ export function costScale(state: EconomyState): number {
   return cityCostScale(state.city) * costMultiplier(state);
 }
 
+// Section upgrades also get the Restaurant Manager discount.
+function sectionCostScale(state: EconomyState): number {
+  return costScale(state) * sectionCostMultiplier(state);
+}
+
 export function sectionUpgradeCost(state: EconomyState, id: SectionId): number {
   const cfg = SECTIONS[id];
-  return levelCost(cfg.baseCost, cfg.costGrowth, state.sectionLevels[id]) * costScale(state);
+  return levelCost(cfg.baseCost, cfg.costGrowth, state.sectionLevels[id]) * sectionCostScale(state);
 }
 
 // Unlock cost if the dish is not on the menu yet, otherwise the next level's cost.
@@ -74,7 +80,7 @@ const MAX_LEVELS_PER_BUY = 1000;
 export function sectionBuyPlan(state: EconomyState, id: SectionId, amount: BuyAmount): BuyPlan {
   const cfg = SECTIONS[id];
   const level = state.sectionLevels[id];
-  const scale = costScale(state);
+  const scale = sectionCostScale(state);
   return planLevels((k) => levelCost(cfg.baseCost, cfg.costGrowth, level + k) * scale, amount, MAX_LEVELS_PER_BUY, state.money);
 }
 

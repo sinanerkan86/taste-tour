@@ -289,3 +289,42 @@ IAP: Remove ads (grants ad rewards without ads), permanent 2x income, starter pa
 - Should delivery be in the first release, or come with an update?
 - Final list of dishes and cities
 - Music/sound: synthesized in code for now (see section 9); real recordings later if needed
+
+## 13. Idea notes (not decided)
+
+Nothing in this section is built or committed to. Items move into the design above when they are picked.
+
+### The street outside (noted 2026-11-08)
+
+A bigger scene with a street in front of the restaurant, where customers visibly arrive on foot, by car and by bus, each with its own rhythm and upgrades.
+
+**Scene.** The door is on the left wall and customers already spawn just outside it, so the street extends the world to the left of the room (about 600-700 px: pavement, road, parking, bus stop). In portrait the room already fills the width, so the street is reached by dragging the camera; a small arrow or a short automatic pan announces a bus. Each city keeps its palette and can get its own vehicles (Istanbul dolmuş, New York yellow cab, Bangkok tuk-tuk, Rome scooter).
+
+**Three ways to arrive.**
+
+| | Rhythm | Character | Limited by |
+|---|---|---|---|
+| On foot | Steady, one by one | The base flow, normal bill | Entrance level |
+| By car | Steady but slower, 1-4 people per car | Higher bill or a tip | Parking spaces, how long a car stays |
+| By bus | Timed, a group of 8-12 at once | Lower bill each, big total | Free seats when it arrives |
+
+**Mechanics to choose from (each can be added on its own).**
+
+- *Parking:* a lot that grows with upgrades (more spaces, then a second row or a multi-storey). A full lot makes cars drive past, which is a visible symptom like the door queue.
+- *Valet:* bought once parking reaches some level. Cars are handed over at the door, so spaces turn over faster and car customers tip. A rewarded "valet shift" (more capacity for 15 minutes) is a possible ad placement.
+- *Bus timetable:* a sign at the stop counts down to the next bus (every 3-5 minutes), which gives the player a reason to get seats ready. Upgrades: more frequent buses, group tables.
+- *Tour bus event:* the existing event (section 6e) can arrive on the real street instead of appearing at the door.
+- *Lunch and dinner waves:* a timed wave of walkers and cars, which also covers the planned "rush hour" event.
+- *Delivery:* the planned delivery section can share the street with couriers leaving on mopeds.
+
+**How it fits the economy.** Income is `min(section rates) × bill` and offline earnings depend on that being a steady rate, so:
+
+- Walkers and cars stay inside the rate: entrance rate = walkers + min(cars wanted, parking capacity). Parking must not be a seventh section in the `min()`, because a full lot only stops cars and walkers still come in.
+- Buses stay outside the rate, as a lump payment worth the group's bills, limited by free seats. That is the simplest model: no change to the bottleneck math, and buses do not pay offline.
+- Any change to the entrance rate needs a new balance pass with `npm run sim`, and old saves need starting values for the new levels.
+
+**Rules to keep.** Nothing spends the player's money by itself, so valet and parking are upgrades the player buys. The scene stays calm (section 9): a bus group walks in as a short line, not a crowd.
+
+**Suggested order.** 1) The street as pure visuals, with the economy unchanged, to judge the look. 2) Parking and valet. 3) Timed buses. 4) City vehicles and waves.
+
+**Open questions.** Should the street be visible by default on tall screens? Do parking and valet get their own panel tab or rows under Entrance? Does the street grow visually with the entrance level from a quiet road to a busy one?

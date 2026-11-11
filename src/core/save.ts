@@ -1,8 +1,11 @@
 import {
+  CHEF,
   CHEF_IDS,
   DAILY,
   PRODUCT_IDS,
+  SAFE,
   chefMaxLevel,
+  chefOfCity,
   DISH_TIERS,
   PERK_IDS,
   TASK_KINDS,
@@ -21,7 +24,8 @@ import {
   type ResearchId,
 } from './economy';
 
-export const SAVE_VERSION = 1;
+// 2: chef collection (saves from version 1 get the chef cards their past cities would have given).
+export const SAVE_VERSION = 2;
 
 export interface SaveData {
   version: number;
@@ -81,12 +85,14 @@ export function parseSave(json: string): SaveData | null {
     daily: fresh.daily,
     chefs: fresh.chefs,
     purchases: fresh.purchases,
+    safeLevel: 0,
   };
   for (const id of CHEF_IDS) {
     economy.chefs.levels[id] = Math.min(chefMaxLevel(), Math.max(0, Math.floor(finiteOr(saved.chefs?.levels?.[id], 0))));
     economy.chefs.cards[id] = Math.max(0, Math.floor(finiteOr(saved.chefs?.cards?.[id], 0)));
   }
   for (const id of PRODUCT_IDS) economy.purchases[id] = saved.purchases?.[id] === true;
+  economy.safeLevel = Math.min(SAFE.costs.length, Math.max(0, Math.floor(finiteOr(saved.safeLevel, 0))));
   for (const id of PERK_IDS) {
     economy.perks[id] = Math.min(perkMaxLevel(id), Math.max(0, Math.floor(finiteOr(saved.perks?.[id], 0))));
   }
@@ -132,9 +138,26 @@ export function parseSave(json: string): SaveData | null {
     if (economy.daily.tasks.length !== DAILY.taskRewards.length) economy.daily.taskDay = -1;
   }
 
+  if (finiteOr(data.version, 1) < 2) backPayChefCards(economy);
+
   const seenHints = Array.isArray(data.seenHints) ? data.seenHints.filter((id) => typeof id === 'string') : [];
 
   return { version: SAVE_VERSION, savedAt: finiteOr(data.savedAt, Date.now()), economy, seenHints };
+}
+
+// Saves from before the chef collection: every finished city pays the cards it would have given
+// (its dishes and the franchise), and the current city's chef is topped up for the dishes already
+// on the menu (cards given since the update are counted).
+function backPayChefCards(economy: EconomyState): void {
+  const dishCards = (DISH_TIERS.length - 1) * CHEF.dishCards;
+  for (let city = 0; city < economy.city; city++) {
+    economy.chefs.cards[chefOfCity(city)] += dishCards + CHEF.franchiseCards;
+  }
+  const local = chefOfCity(economy.city);
+  const unlocked = economy.dishLevels.filter((level, i) => level > 0 && DISH_TIERS[i].unlockCost > 0).length;
+  const spent = CHEF.cardsPerLevel.slice(0, economy.chefs.levels[local]).reduce((sum, n) => sum + n, 0);
+  const missing = unlocked * CHEF.dishCards - (economy.chefs.cards[local] + spent);
+  if (missing > 0) economy.chefs.cards[local] += missing;
 }
 
 export interface OfflineReward {

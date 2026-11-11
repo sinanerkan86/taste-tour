@@ -294,5 +294,12 @@
   "chef.kenji": "Kenji",
   "chef.lucas": "Lucas",
   "chef.sofia": "Sofía",
-  "chef.jordan": "Jordan"
+  "chef.jordan": "Jordan",
+  "notify.missYou.title": "Votre restaurant vous attend !",
+  "notify.missYou.chefTitle": "Le chef {name} vous attend !",
+  "notify.missYou.body": "Vos clients à {city} vous réclament. Revenez pour une caisse pleine et votre récompense du jour !",
+  "row.safe": "Coffre de nuit",
+  "row.safeDetail": "Hors ligne : {time}",
+  "row.safeNext": "suivant +{time}",
+  "banner.safe": "Coffre de nuit : gains hors ligne jusqu'à {time}"
 }

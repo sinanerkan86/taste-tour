@@ -1,4 +1,4 @@
-import { ADS, CHEF, DISH_MAX_LEVEL, DISH_TIERS, PERK, SECTION_IDS, SECTIONS, type PerkId, type SectionId } from './config';
+import { ADS, CHEF, DISH_MAX_LEVEL, DISH_TIERS, PERK, SAFE, SECTION_IDS, SECTIONS, type PerkId, type SectionId } from './config';
 import { giveChefCards } from './chefs';
 import { cityCostScale, levelCost, starsForReputation } from './formulas';
 import {
@@ -122,6 +122,19 @@ export function buySectionLevel(state: EconomyState, id: SectionId): boolean {
 
 export function buyDish(state: EconomyState, index: number): boolean {
   return buyDishLevels(state, index, 1) > 0;
+}
+
+// Next Night Safe level's cost; Infinity at the top level.
+export function safeUpgradeCost(state: EconomyState): number {
+  const cost = SAFE.costs[state.safeLevel];
+  return cost === undefined ? Infinity : cost * costScale(state);
+}
+
+export function buySafeLevel(state: EconomyState): boolean {
+  const cost = safeUpgradeCost(state);
+  if (!Number.isFinite(cost) || !spend(state, cost)) return false;
+  state.safeLevel++;
+  return true;
 }
 
 // Stars a franchise would award right now.

@@ -1,5 +1,7 @@
 import {
   baseIncomePerSecond,
+  chefOfCity,
+  type ChefId,
   dailyRewardReady,
   dayNumber,
   offlineCapSeconds,
@@ -11,7 +13,7 @@ import {
 // comes back). This module only decides what to send and when; src/game/notifications.ts talks
 // to the system. Few and useful on purpose: a game that nags gets its notifications turned off.
 
-export type NotificationKind = 'lab' | 'offlineFull' | 'rushOver' | 'daily';
+export type NotificationKind = 'lab' | 'offlineFull' | 'rushOver' | 'daily' | 'missYou';
 
 export interface PlannedNotification {
   kind: NotificationKind;
@@ -19,6 +21,8 @@ export interface PlannedNotification {
   at: number;
   // The research that finishes (kind 'lab' only).
   research?: ResearchId;
+  // The city's chef, when recruited, who signs the "we miss you" reminder.
+  chef?: ChefId;
 }
 
 export const NOTIFY = {
@@ -33,6 +37,10 @@ export const NOTIFY = {
   maxCount: 2,
   // Local hour of the "daily reward is waiting" reminder.
   dailyHour: 11,
+  // "Your restaurant misses you": once, this many days after leaving, at this local hour
+  // (dinner time, when people pick up their phone).
+  missYouDays: 2,
+  missYouHour: 18,
 };
 
 const SECOND = 1000;
@@ -56,6 +64,14 @@ export function nextDailyReminder(state: EconomyState, now: number): number {
   const at = new Date(now);
   at.setHours(NOTIFY.dailyHour, 0, 0, 0);
   if (!dailyRewardReady(state.daily, dayNumber(now)) || at.getTime() <= now) at.setDate(at.getDate() + 1);
+  return at.getTime();
+}
+
+// The "we miss you" reminder for an absence starting now.
+export function missYouReminder(now: number): number {
+  const at = new Date(now);
+  at.setDate(at.getDate() + NOTIFY.missYouDays);
+  at.setHours(NOTIFY.missYouHour, 0, 0, 0);
   return at.getTime();
 }
 
@@ -95,5 +111,11 @@ export function planNotifications(state: EconomyState, now: number): PlannedNoti
   if (planned.every((n) => Math.abs(n.at - daily) >= NOTIFY.minGapSeconds * SECOND)) {
     planned.push({ kind: 'daily', at: daily });
   }
+  // A player who stayed away for days gets one last, friendly nudge (it is cancelled as soon as
+  // they open the game, so active players never see it).
+  const miss: PlannedNotification = { kind: 'missYou', at: missYouReminder(now) };
+  const chef = chefOfCity(state.city);
+  if (state.chefs.levels[chef] > 0) miss.chef = chef;
+  if (planned.every((n) => Math.abs(n.at - miss.at) >= NOTIFY.minGapSeconds * SECOND)) planned.push(miss);
   return planned;
 }

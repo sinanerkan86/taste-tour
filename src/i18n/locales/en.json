@@ -294,5 +294,12 @@
   "chef.kenji": "Kenji",
   "chef.lucas": "Lucas",
   "chef.sofia": "Sofía",
-  "chef.jordan": "Jordan"
+  "chef.jordan": "Jordan",
+  "notify.missYou.title": "Your restaurant misses you!",
+  "notify.missYou.chefTitle": "Chef {name} misses you!",
+  "notify.missYou.body": "Your guests in {city} keep asking for you. Come back for a full till and your daily reward!",
+  "row.safe": "Night Safe",
+  "row.safeDetail": "Offline: {time}",
+  "row.safeNext": "next +{time}",
+  "banner.safe": "Night Safe: offline earnings up to {time}"
 }

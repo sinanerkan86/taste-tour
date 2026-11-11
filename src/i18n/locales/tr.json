@@ -294,5 +294,12 @@
   "chef.kenji": "Kenji",
   "chef.lucas": "Lucas",
   "chef.sofia": "Sofía",
-  "chef.jordan": "Jordan"
+  "chef.jordan": "Jordan",
+  "notify.missYou.title": "Restoranın seni özledi!",
+  "notify.missYou.chefTitle": "Şef {name} seni özledi!",
+  "notify.missYou.body": "{city} şubendeki müşterilerin seni soruyor. Dolu kasa ve günlük ödülün için geri gel!",
+  "row.safe": "Gece Kasası",
+  "row.safeDetail": "Çevrimdışı: {time}",
+  "row.safeNext": "sonraki +{time}",
+  "banner.safe": "Gece Kasası: çevrimdışı kazanç {time}"
 }

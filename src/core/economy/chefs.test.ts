@@ -140,6 +140,26 @@ describe('chef collection', () => {
   });
 });
 
+describe('chef cards for old saves', () => {
+  it('pays the cards of finished cities and tops up the current one', () => {
+    const state = newEconomy();
+    state.city = 3;
+    state.dishLevels = [5, 5, 5, 0, 0, 0, 0];
+    state.chefs.levels.karim = 1;
+    const raw = JSON.parse(serializeSave(createSave(state, 0)));
+    raw.version = 1;
+    const loaded = parseSave(JSON.stringify(raw))!.economy;
+    const perCity = 6 * CHEF.dishCards + CHEF.franchiseCards;
+    expect(loaded.chefs.cards.selim).toBe(perCity);
+    expect(loaded.chefs.cards.amelie).toBe(perCity);
+    // Two dishes unlocked in Cairo; one card already spent on recruiting Karim.
+    expect(loaded.chefs.cards.karim).toBe(1);
+    expect(loaded.chefs.cards.priya).toBe(0);
+    // A current save is left alone.
+    expect(parseSave(serializeSave(createSave(state, 0)))!.economy.chefs.cards.selim).toBe(0);
+  });
+});
+
 describe('shop', () => {
   it('doubles income with the Golden Kitchen', () => {
     const state = newEconomy();

@@ -170,7 +170,7 @@ Added 2026-11-07 as the first retention feature. When the game goes to the backg
 
 Rules against nagging: nothing due in the first 5 minutes; reminders due in quiet hours (22:00-09:00 local) wait until 09:00; reminders less than an hour apart are merged (the earlier wins); at most 2 per absence. Delivery is inexact (no exact-alarm permission), so a reminder can come some minutes late. The permission (Android 13+) is asked once, when the player starts their first research project; Settings has a "Reminders" switch. Logic in `src/core/notifications.ts` (`NOTIFY`), system side in `src/game/notifications.ts`.
 
-Later idea: a "your restaurant misses you" reminder after a day or two away.
+- **We miss you** (added 2026-11-11): once per absence, two days after leaving at 18:00 local, "Your restaurant misses you!" (signed by the city's chef once they are recruited: "Chef Selim misses you!"). It comes on top of the limit above, unless another reminder is due within the hour; opening the game cancels it, so active players never see it.
 
 ## 6d. Daily rewards and daily tasks
 
@@ -234,6 +234,8 @@ Added 2026-11-11 (long-term goal next to the Lab, and the first content tied to 
 
 A city on pace gives about 9-12 cards, so its chef reaches level 3-4 there; the daily chest and reviews keep older chefs growing. Numbers live in `CHEFS` / `CHEF` in the economy config, logic in `src/core/economy/chefs.ts`, the dialog in `src/game/ui/ChefsModal.ts`, the looks in `src/game/view/chefLooks.ts`.
 
+Saves from before the collection (save version 1) are paid back once on load: every finished city gives its chef 9 cards (6 dishes + franchise) and the current city's chef is topped up for the dishes already on the menu.
+
 Later ideas: the head chef of the city cooking in the kitchen; more chefs per city.
 
 ## 7. Economy math
@@ -246,7 +248,7 @@ All numbers live in `src/core/economy/config.ts`. Balance is checked with the si
 - **Dish unlock costs** are calibrated so that each new dish arrives just as growth from the previous one starts to stall.
 - **Cities:** every dish tier (`DISH_TIERS`) is reused in each city. In the n-th city prices are ×1000ⁿ (bigger numbers feel like progress) and all costs are ×1000ⁿ × (1 + 0.1 × 10n) × (1 + 0.6n), i.e. also scaled by the star bonus and part of the lab/perk bonus a player is expected to bring. Players get ahead of that scale in the first cities (they feel stronger), then cities settle at about 35-40 minutes. Local Suppliers lowers costs on top.
 - **Prestige reward:** see section 6; +10% income per star.
-- **Offline earnings:** income/s × time away, capped at 2 hours at first (upgradable later). Applies both when the game was closed and when it was in the background; absences over 1 minute show a "Welcome back" dialog.
+- **Offline earnings:** income/s × time away, capped at 2 hours at first. The cap grows with Night Shift research (+1 h per level), Karim (+30 min per level) and the **Night Safe**, the last row of the Restaurant tab: 4 levels of +1 h each, bought with money (costs 2e4, 1e8, 3e10, 5e11 in the city's cost scale, i.e. around dish 2, 3, 5 and 6, so each level competes with the next dish). The Night Safe belongs to the restaurant and starts over with a franchise (`SAFE` in config). Applies both when the game was closed and when it was in the background; absences over 1 minute show a "Welcome back" dialog.
 - **Saving:** every 10 s, after each purchase and when the game goes to the background. Saves are repaired on load (missing sections/dishes get starting values), so adding content later does not break old saves.
 - **Big numbers:** plain JS numbers for now; they reach ~1e308, which covers the whole planned content. Switch to `break_infinity.js` only if later cities exceed that. Display: 1.5K, 3.2M, 7.8B, T, then aa, ab, …
 

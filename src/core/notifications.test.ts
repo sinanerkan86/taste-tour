@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { OFFLINE, claimDailyReward, dayNumber, newEconomy, startResearch } from './economy';
-import { NOTIFY, nextDailyReminder, outsideQuietHours, planNotifications } from './notifications';
+import { OFFLINE, SAFE, buySafeLevel, claimDailyReward, dayNumber, newEconomy, offlineCapSeconds, startResearch } from './economy';
+import { NOTIFY, missYouReminder, nextDailyReminder, outsideQuietHours, planNotifications } from './notifications';
 
-// The daily reward reminder is checked on its own; the other tests leave it out.
-const others = (plan: ReturnType<typeof planNotifications>) => plan.filter((n) => n.kind !== 'daily');
+// The daily reward and "we miss you" reminders are checked on their own; the other tests leave them out.
+const others = (plan: ReturnType<typeof planNotifications>) => plan.filter((n) => n.kind !== 'daily' && n.kind !== 'missYou');
+const withoutMissYou = (plan: ReturnType<typeof planNotifications>) => plan.filter((n) => n.kind !== 'missYou');
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
@@ -71,9 +72,35 @@ describe('daily reward reminder', () => {
   it('is added on top of the others unless one is due close to it', () => {
     const state = newEconomy();
     claimDailyReward(state, dayNumber(at(15)));
-    expect(planNotifications(state, at(15)).map((n) => n.kind)).toEqual(['offlineFull', 'daily']);
+    expect(withoutMissYou(planNotifications(state, at(15))).map((n) => n.kind)).toEqual(['offlineFull', 'daily']);
     // Leaving at 9:30 with today's reward waiting: the till is full at 11:30, half an hour after
     // the daily reminder would come, so that one is left out.
-    expect(planNotifications(newEconomy(), at(9, 30)).map((n) => n.kind)).toEqual(['offlineFull']);
+    expect(withoutMissYou(planNotifications(newEconomy(), at(9, 30))).map((n) => n.kind)).toEqual(['offlineFull']);
+  });
+});
+
+describe('missYou reminder', () => {
+  it('comes once, two days later at dinner time', () => {
+    expect(missYouReminder(at(23, 40))).toBe(at(NOTIFY.missYouHour, 0, 9));
+    const plan = planNotifications(newEconomy(), at(10));
+    expect(plan.filter((n) => n.kind === 'missYou')).toEqual([{ kind: 'missYou', at: at(NOTIFY.missYouHour, 0, 9) }]);
+  });
+
+  it('is signed by the city chef once recruited', () => {
+    const state = newEconomy();
+    state.chefs.levels.selim = 1;
+    expect(planNotifications(state, at(10)).find((n) => n.kind === 'missYou')?.chef).toBe('selim');
+  });
+});
+
+describe('Night Safe', () => {
+  it('raises the offline cap one level at a time, up to the last level', () => {
+    const state = newEconomy();
+    const base = offlineCapSeconds(state);
+    expect(buySafeLevel(state)).toBe(false);
+    state.money = 1e15;
+    for (let i = 0; i < SAFE.costs.length; i++) expect(buySafeLevel(state)).toBe(true);
+    expect(buySafeLevel(state)).toBe(false);
+    expect(offlineCapSeconds(state)).toBe(base + SAFE.costs.length * SAFE.secondsPerLevel);
   });
 });

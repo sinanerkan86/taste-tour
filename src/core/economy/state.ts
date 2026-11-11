@@ -35,6 +35,8 @@ export interface EconomyState {
   chefs: ChefState;
   // In-app purchases the player owns (every product is bought once and kept).
   purchases: Purchases;
+  // Night Safe level of this restaurant (longer offline earnings); starts over with a franchise.
+  safeLevel: number;
 }
 
 export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomyState {
@@ -57,6 +59,7 @@ export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomySt
     daily: newDaily(),
     chefs: newChefs(),
     purchases: newPurchases(),
+    safeLevel: 0,
   };
 }
 

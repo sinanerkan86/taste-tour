@@ -294,5 +294,12 @@
   "chef.kenji": "健二",
   "chef.lucas": "卢卡斯",
   "chef.sofia": "索菲亚",
-  "chef.jordan": "乔丹"
+  "chef.jordan": "乔丹",
+  "notify.missYou.title": "你的餐厅想你了！",
+  "notify.missYou.chefTitle": "厨师{name}想你了！",
+  "notify.missYou.body": "{city}的客人一直在问你。快回来领取满满的收银台和每日奖励！",
+  "row.safe": "夜间保险箱",
+  "row.safeDetail": "离线：{time}",
+  "row.safeNext": "下一级 +{time}",
+  "banner.safe": "夜间保险箱：离线收益最长{time}"
 }

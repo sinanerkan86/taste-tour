@@ -5,6 +5,9 @@ import {
   DISH_TIERS,
   MILESTONE_BONUS,
   RESEARCH_IDS,
+  SAFE,
+  offlineCapSeconds,
+  safeUpgradeCost,
   SECTION_IDS,
   freeLabSlots,
   labNeedsAttention,
@@ -272,6 +275,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
   onTabChange: ((tab: Tab) => void) | null = null;
   private lastState: EconomyState | null = null;
   private readonly sectionRows: UpgradeRow[];
+  private readonly safeRow: UpgradeRow;
   private readonly dishRows: UpgradeRow[];
   private readonly labRows: LabRow[];
   private readonly labInfo: Phaser.GameObjects.Text;
@@ -284,6 +288,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     onBuySection: (id: SectionId) => void,
     onBuyDish: (index: number) => void,
     onResearch: (id: ResearchId) => void,
+    onBuySafe: () => void,
   ) {
     // The scene places the panel at the bottom of the screen.
     super(scene, 0, 0);
@@ -317,6 +322,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     this.sectionRows = SECTION_IDS.map(
       (id, i) => new UpgradeRow(scene, rowY(i), () => onBuySection(id)),
     );
+    this.safeRow = new UpgradeRow(scene, rowY(SECTION_IDS.length), onBuySafe);
     this.dishRows = DISH_TIERS.map((_, i) => new UpgradeRow(scene, rowY(i), () => onBuyDish(i)));
     this.labRows = RESEARCH_IDS.map((id, i) => new LabRow(scene, rowY(i), id, () => onResearch(id)));
     this.labInfo = scene.add
@@ -328,7 +334,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
         lineSpacing: 6,
       })
       .setOrigin(0.5);
-    this.add([...this.sectionRows, ...this.dishRows, ...this.labRows, this.labInfo]);
+    this.add([...this.sectionRows, this.safeRow, ...this.dishRows, ...this.labRows, this.labInfo]);
 
     this.showTab('restaurant');
     scene.add.existing(this);
@@ -365,6 +371,10 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     this.dishRows[index].flash();
   }
 
+  pulseSafe(): void {
+    this.safeRow.pulse();
+  }
+
   pulseDish(index: number): void {
     this.dishRows[index].pulse();
   }
@@ -382,6 +392,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
   showTab(tab: Tab): void {
     this.tab = tab;
     this.sectionRows.forEach((row) => row.setVisible(tab === 'restaurant'));
+    this.safeRow.setVisible(tab === 'restaurant');
     this.dishRows.forEach((row) => row.setVisible(tab === 'menu'));
     this.labRows.forEach((row) => row.setVisible(tab === 'lab'));
     this.labInfo.setVisible(tab === 'lab');
@@ -460,6 +471,22 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
         icon: sectionIcon(this.scene, id, SECTION_COLORS[id]),
         locked: false,
       });
+    });
+    // The Night Safe: one level per tap whatever the buy amount says.
+    const cost = safeUpgradeCost(state);
+    const maxed = !Number.isFinite(cost);
+    this.safeRow.render({
+      title: t('row.safe'),
+      level: t('row.level', { level: `${state.safeLevel}/${SAFE.costs.length}` }),
+      detail: t('row.safeDetail', { time: tDurationShort(offlineCapSeconds(state)) }) +
+        (maxed ? '' : `  ·  ${t('row.safeNext', { time: tDurationShort(SAFE.secondsPerLevel) })}`),
+      buttonLabel: maxed ? t('lab.maxed') : formatNumber(cost),
+      buttonIcon: !maxed,
+      affordable: state.money >= cost,
+      buyable: !maxed,
+      highlight: false,
+      icon: progressIcon(this.scene, 'nightShift'),
+      locked: false,
     });
   }
 

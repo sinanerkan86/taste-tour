@@ -54,6 +54,8 @@ import {
   useTimeSkip,
   vipTip,
   adsRemoved,
+  buySafeLevel,
+  offlineCapSeconds,
   cardTarget,
   chefsNeedAttention,
   grantPurchase,
@@ -267,6 +269,7 @@ export class RestaurantScene extends Phaser.Scene {
       (id) => this.buySection(id),
       (index) => this.buyDish(index),
       (id) => this.pressResearch(id),
+      () => this.buySafe(),
     );
     this.panel.onTabChange = (tab) => {
       if (tab === 'lab' && this.hint && this.hintId === LAB_HINT) this.hint.close();
@@ -1141,6 +1144,16 @@ export class RestaurantScene extends Phaser.Scene {
       const name = t(`section.${id}` as TranslationKey);
       this.note(t('banner.milestone', { name, bonus: MILESTONE_BONUS.section }));
     }
+  }
+
+  private buySafe(): void {
+    if (!buySafeLevel(this.economy)) return;
+    void this.saveGame();
+    this.panel.pulseSafe();
+    this.celebratePurchase();
+    audio.play('unlock', 0.7);
+    this.note(t('banner.safe', { time: tDurationShort(offlineCapSeconds(this.economy)) }));
+    this.refreshUi();
   }
 
   private buyDish(index: number): void {

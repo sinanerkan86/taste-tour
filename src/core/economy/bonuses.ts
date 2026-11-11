@@ -10,6 +10,7 @@ import {
   RESEARCH,
   RESEARCH_IDS,
   PERK_IDS,
+  SAFE,
   SHOP,
   type ChefSkill,
   type PerkId,
@@ -54,6 +55,7 @@ interface Bonuses {
   perks: PerkLevels;
   chefs: ChefState;
   purchases: Purchases;
+  safeLevel: number;
 }
 
 // What the recruited chefs with this skill add together (see CHEFS for the units).
@@ -103,7 +105,12 @@ export function sectionCostMultiplier(state: Bonuses): number {
 }
 
 export function offlineCapSeconds(state: Bonuses): number {
-  return OFFLINE.baseCapSeconds + state.lab.levels.nightShift * LAB.nightShiftSeconds + chefBonus(state, 'offline');
+  return (
+    OFFLINE.baseCapSeconds +
+    state.lab.levels.nightShift * LAB.nightShiftSeconds +
+    chefBonus(state, 'offline') +
+    state.safeLevel * SAFE.secondsPerLevel
+  );
 }
 
 export function vipTipMultiplier(state: Bonuses): number {

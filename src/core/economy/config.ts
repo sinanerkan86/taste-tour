@@ -172,6 +172,15 @@ export const OFFLINE = {
   baseCapSeconds: 2 * 60 * 60,
 };
 
+// Night Safe: a restaurant upgrade (it starts over with every franchise) that keeps offline
+// earnings growing for longer. One level per entry; costs are scaled like every other cost in
+// the city, and are placed along the menu (about dish 2, 3, 5 and 6) so each level is a choice
+// against the next dish.
+export const SAFE = {
+  secondsPerLevel: 60 * 60,
+  costs: [2e4, 1e8, 3e10, 5e11],
+};
+
 const MINUTE = 60;
 const HOUR = 60 * MINUTE;
 

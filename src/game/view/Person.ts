@@ -9,7 +9,17 @@ const SKIN_TONES = [0xffdcbf, 0xf3c29b, 0xd9a27a, 0xb07a52, 0x82573a];
 const SHIRT_COLORS = [0xe0503f, 0x2f88a8, 0x5fae4a, 0xf5a623, 0x9466c0, 0x45b0d6, 0xec7aa6, 0x7d8a93];
 const PANTS_COLORS = [0x3f5f8f, 0x34343f, 0x6b5a48, 0x4a6b5a, 0x2e4a6e];
 const HAIR_COLORS = [0x3a2a1e, 0x6b4630, 0xa8703a, 0xe8b84a, 0x262626, 0x8a3a24];
-type HairStyle = 'short' | 'long' | 'bob' | 'bun' | 'ponytail';
+export type HairStyle = 'short' | 'long' | 'bob' | 'bun' | 'ponytail';
+
+// A fixed look instead of a random one (the famous chefs of the collection).
+export interface PersonLook {
+  skin: number;
+  hair: number;
+  hairStyle: HairStyle;
+  female: boolean;
+  // Neckerchief color.
+  scarf?: number;
+}
 const FEMALE_HAIR: HairStyle[] = ['long', 'bob', 'bun', 'ponytail'];
 // Share of women among customers and staff, and of women customers wearing a skirt.
 const FEMALE_SHARE = 0.5;
@@ -95,19 +105,21 @@ export class Person extends Phaser.GameObjects.Container {
   private readonly bodyWear: Phaser.GameObjects.Container;
   private readonly headWear: Phaser.GameObjects.Container;
   private style = -1;
+  private readonly scarf?: number;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, kind: PersonKind) {
+  constructor(scene: Phaser.Scene, x: number, y: number, kind: PersonKind, look?: PersonLook) {
     super(scene, x, y);
     this.kind = kind;
     ensurePeopleAtlas(scene);
     const pick = <T>(list: T[]): T => Phaser.Utils.Array.GetRandom(list);
-    const skin = pick(SKIN_TONES);
-    const hair = pick(HAIR_COLORS);
+    this.scarf = look?.scarf;
+    const skin = look?.skin ?? pick(SKIN_TONES);
+    const hair = look?.hair ?? pick(HAIR_COLORS);
     const guest = kind === 'customer' || kind === 'vip' || kind === 'tourist';
     const shirt = kind === 'customer' || kind === 'tourist' ? pick(SHIRT_COLORS) : STAFF_SHIRTS[kind];
     const pants = kind === 'chef' ? CHEF_PANTS : guest ? pick(PANTS_COLORS) : STAFF_PANTS;
-    const female = Math.random() < FEMALE_SHARE;
-    const hairStyle: HairStyle = female ? pick(FEMALE_HAIR) : 'short';
+    const female = look?.female ?? Math.random() < FEMALE_SHARE;
+    const hairStyle: HairStyle = look?.hairStyle ?? (female ? pick(FEMALE_HAIR) : 'short');
     const skirt = female && guest && Math.random() < SKIRT_SHARE;
     const outfit = OUTFITS[kind] ?? {};
 
@@ -150,7 +162,7 @@ export class Person extends Phaser.GameObjects.Container {
     const look = looks[index];
     this.torso.setTint(look.shirt);
     this.arms.setTint(look.sleeves ?? look.shirt);
-    const wear = (name: Part) => makePart(this.scene, name, name === 'neckerchief' ? SCARF_TINT[this.kind] : undefined);
+    const wear = (name: Part) => makePart(this.scene, name, name === 'neckerchief' ? (this.scarf ?? SCARF_TINT[this.kind]) : undefined);
     this.bodyWear.removeAll(true).add(look.body.map(wear));
     this.headWear.removeAll(true).add(look.head.map(wear));
     return true;

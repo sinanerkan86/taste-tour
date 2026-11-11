@@ -8,3 +8,5 @@ export * from './perks';
 export * from './goals';
 export * from './daily';
 export * from './events';
+export * from './chefs';
+export * from './shop';

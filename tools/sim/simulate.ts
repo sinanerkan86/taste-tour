@@ -173,6 +173,8 @@ function clone(state: EconomyState): EconomyState {
     dishLevels: [...state.dishLevels],
     lab: { levels: { ...state.lab.levels }, slots: state.lab.slots.map((slot) => ({ ...slot })) },
     perks: { ...state.perks },
+    chefs: structuredClone(state.chefs),
+    purchases: { ...state.purchases },
   };
 }
 

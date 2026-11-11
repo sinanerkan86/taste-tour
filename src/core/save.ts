@@ -1,5 +1,8 @@
 import {
+  CHEF_IDS,
   DAILY,
+  PRODUCT_IDS,
+  chefMaxLevel,
   DISH_TIERS,
   PERK_IDS,
   TASK_KINDS,
@@ -76,7 +79,14 @@ export function parseSave(json: string): SaveData | null {
     lab: fresh.lab,
     perks: fresh.perks,
     daily: fresh.daily,
+    chefs: fresh.chefs,
+    purchases: fresh.purchases,
   };
+  for (const id of CHEF_IDS) {
+    economy.chefs.levels[id] = Math.min(chefMaxLevel(), Math.max(0, Math.floor(finiteOr(saved.chefs?.levels?.[id], 0))));
+    economy.chefs.cards[id] = Math.max(0, Math.floor(finiteOr(saved.chefs?.cards?.[id], 0)));
+  }
+  for (const id of PRODUCT_IDS) economy.purchases[id] = saved.purchases?.[id] === true;
   for (const id of PERK_IDS) {
     economy.perks[id] = Math.min(perkMaxLevel(id), Math.max(0, Math.floor(finiteOr(saved.perks?.[id], 0))));
   }

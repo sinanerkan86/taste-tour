@@ -207,11 +207,40 @@ Added 2026-11-07 (retention, third step) so a session has surprises and short go
 - **Tour bus (25 s):** five tourists with cameras gather by the door. Every tap pays a tip of 1 s of income times the combo; six quick taps raise the combo by one (up to x5), a pause over 1.2 s resets it. If the tips reach at least 20 s of income, the player may watch an ad to get them again (2x, placement `busDouble`).
 - **Food festival (3 min):** a random unlocked dish of the city sells at 3x its price; the extra income shows in the HUD.
 
+## 6f. Chef collection
+
+Added 2026-11-11 (long-term goal next to the Lab, and the first content tied to IAP). Every city of the tour has one famous chef (original characters, not real people). A chef joins with chef cards and then levels up with more cards (1, 2, 3, 5 and 8 cards for levels 1-5). Levels are permanent: they survive franchises like the Lab. The chefs button sits above the daily button in the bottom left corner of the room; a red "!" (and a hop) shows when a chef can be recruited or leveled up. The collection dialog shows all ten chefs: the ones the tour has not reached yet are dark silhouettes with "Joins in <city>".
+
+| Chef | City | Skill per level |
+|---|---|---|
+| Selim | Istanbul | Income +10% |
+| Giulia | Rome | Kitchen speed +20% |
+| Amélie | Paris | Waiter speed +20% |
+| Karim | Cairo | Offline earnings +30 min |
+| Priya | Mumbai | Daily reward, task and chest money +20% |
+| Malee | Bangkok | Event rewards +20% (review lasts longer, bigger tour bus tips) |
+| Kenji | Tokyo | Research speed +10% |
+| Lucas | Rio de Janeiro | VIP tips +20% |
+| Sofía | Mexico City | Rush per ad +30 min |
+| Jordan | New York | Franchise stars +5% |
+
+**Cards** go to the chef of the current city while they still need cards, otherwise to the met chef furthest from max level:
+
+- 1 card for every dish added to the menu (6 per city),
+- 3 cards when franchising out of a city (for that city's chef),
+- 1 card for a good review from the food critic,
+- 2 cards from the daily chest,
+- 5 cards in the starter pack (IAP).
+
+A city on pace gives about 9-12 cards, so its chef reaches level 3-4 there; the daily chest and reviews keep older chefs growing. Numbers live in `CHEFS` / `CHEF` in the economy config, logic in `src/core/economy/chefs.ts`, the dialog in `src/game/ui/ChefsModal.ts`, the looks in `src/game/view/chefLooks.ts`.
+
+Later ideas: the head chef of the city cooking in the kitchen; more chefs per city.
+
 ## 7. Economy math
 
 All numbers live in `src/core/economy/config.ts`. Balance is checked with the simulation (`npm run sim`, or `/sim.html` on the dev server for charts).
 
-- **Income/s** = `min(section rates) × bill per customer × (1 + 0.1 × stars) × (1 + 0.25 × Secret Spices) × (1 + 0.5 × Famous Chain)`
+- **Income/s** = `min(section rates) × bill per customer × (1 + 0.1 × stars) × (1 + 0.25 × Secret Spices) × (1 + 0.5 × Famous Chain) × (1 + chef income bonus) × (2 with the Golden Kitchen)`
 - **Section rate** = `baseRate × level × 1.5^milestones`. **Dish price** = `basePrice × level × 2^milestones`. Milestones: 10, 25, 50, 75, 100, 150, 200, …
 - **Upgrade cost:** `cost(level) = baseCost × r^(level-1)`. Sections have r = 1.20–1.22 and dishes r = 1.25. Each section has its own curve, so the bottleneck moves around as the restaurant grows (entrance and waiters early, kitchen and seating later).
 - **Dish unlock costs** are calibrated so that each new dish arrives just as growth from the previous one starts to stall.
@@ -250,7 +279,21 @@ Implemented (7b): a VIP guest (a food tourist with a sun hat and a star bubble) 
 
 Added with the retention features: "Collect 2x" on the daily reward (`dailyDouble`, section 6d) and doubling the tour bus tips (`busDouble`, section 6e). Each placement has its own ad unit in AdMob (`src/game/ads/adUnits.ts`).
 
-IAP: Remove ads (grants ad rewards without ads), permanent 2x income, starter packs.
+## 8b. In-app purchases
+
+Added 2026-11-11. Three one-time products (Google Play "one-time products", acknowledged and never consumed, so Play keeps them owned), sold in the Shop (button above Rush, bottom right of the room):
+
+| Product id | Name | Content | Suggested price |
+|---|---|---|---|
+| `starter_pack` | Starter Pack (marked "best value") | 2 h of income at once, 8 h of 2x Rush (may go past the 12 h cap) and 5 chef cards; once | $1.99 |
+| `golden_kitchen` | Golden Kitchen | Income x2 for good, in every city | $4.99 |
+| `no_ads` | No Ads | Every rewarded ad's reward right away, without the ad (offers then say "Collect") | $3.99 |
+
+Owned products are stored in the save (`purchases`) and move along with franchises. At every start the game asks Play which products the player owns and grants the ones the save does not have (a reinstall, a pending purchase that completed later); "Restore purchases" in the Shop does the same on demand. Prices come from Play in the player's currency. Refunds are not taken back for now. Billing: `@capgo/native-purchases` (Google Play Billing 9) behind `src/game/store/StoreService.ts`; the browser uses a fake store with Buy / Cancel / Fail buttons. Logic in `src/core/economy/shop.ts`, dialog in `src/game/ui/ShopModal.ts`.
+
+The products must be created in Play Console (Monetize → Products → In-app products) with these ids before release; until then the Shop shows "Not available" on a phone. Purchases can only be tested on a build installed from a Play testing track with a license tester account.
+
+Later ideas: consumable packs (chef cards, Rush), a limited-time offer after the first franchise.
 
 ## 9. Visual direction
 

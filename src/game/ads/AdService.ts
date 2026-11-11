@@ -71,3 +71,16 @@ export class TestAdService implements AdService {
 }
 
 export const ads: AdService = Capacitor.isNativePlatform() ? new AdMobAdService() : new TestAdService();
+
+// "No Ads" (in-app purchase): the scene keeps this in sync with the save.
+export const adPolicy = { removed: false };
+
+// Every rewarded ad goes through here: with "No Ads" the reward comes without the ad.
+export function showRewardedAd(placement: AdPlacement): Promise<boolean> {
+  return adPolicy.removed ? Promise.resolve(true) : ads.showRewarded(placement);
+}
+
+// The ad icon on reward buttons, left out once ads are removed.
+export function adIcon(): string | undefined {
+  return adPolicy.removed ? undefined : 'ad';
+}

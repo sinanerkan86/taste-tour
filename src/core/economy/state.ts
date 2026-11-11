@@ -1,6 +1,8 @@
 import { ADS, DISH_TIERS, EVENTS, MILESTONE_BONUS, SECTION_IDS, SECTIONS, TAP, type SectionId } from './config';
 import { cityCostScale, cityPriceScale, scaledValue } from './formulas';
-import { incomeMultiplier, newLab, newPerks, type LabState, type PerkLevels } from './bonuses';
+import { incomeMultiplier, newLab, newPerks, sectionRateMultiplier, type LabState, type PerkLevels } from './bonuses';
+import { newChefs, type ChefState } from './chefs';
+import { newPurchases, type Purchases } from './shop';
 import { newDaily, type DailyState } from './daily';
 
 export interface EconomyState {
@@ -29,6 +31,10 @@ export interface EconomyState {
   perks: PerkLevels;
   // Daily reward streak and today's tasks: they belong to the player, so they survive franchises.
   daily: DailyState;
+  // Chef collection: cards and levels, permanent like the lab.
+  chefs: ChefState;
+  // In-app purchases the player owns (every product is bought once and kept).
+  purchases: Purchases;
 }
 
 export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomyState {
@@ -49,6 +55,8 @@ export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomySt
     lab: newLab(),
     perks: newPerks(),
     daily: newDaily(),
+    chefs: newChefs(),
+    purchases: newPurchases(),
   };
 }
 
@@ -69,7 +77,7 @@ export function dishPrice(state: EconomyState, index: number): number {
 export function sectionRates(state: EconomyState): Record<SectionId, number> {
   const rates = {} as Record<SectionId, number>;
   for (const id of SECTION_IDS) {
-    rates[id] = scaledValue(SECTIONS[id].baseRate, state.sectionLevels[id], MILESTONE_BONUS.section);
+    rates[id] = scaledValue(SECTIONS[id].baseRate, state.sectionLevels[id], MILESTONE_BONUS.section) * sectionRateMultiplier(state, id);
   }
   return rates;
 }

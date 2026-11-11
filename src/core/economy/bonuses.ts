@@ -1,4 +1,22 @@
-import { ADS, LAB, OFFLINE, PERK, PERKS, PRESTIGE, RESEARCH, RESEARCH_IDS, PERK_IDS, type PerkId, type ResearchId } from './config';
+import {
+  ADS,
+  CHEF_IDS,
+  CHEFS,
+  LAB,
+  OFFLINE,
+  PERK,
+  PERKS,
+  PRESTIGE,
+  RESEARCH,
+  RESEARCH_IDS,
+  PERK_IDS,
+  SHOP,
+  type ChefSkill,
+  type PerkId,
+  type ResearchId,
+} from './config';
+import type { ChefState } from './chefs';
+import type { Purchases } from './shop';
 
 // Permanent progress that survives franchises: Kitchen Lab research and franchise perks.
 export interface LabSlot {
@@ -34,15 +52,44 @@ interface Bonuses {
   stars: number;
   lab: LabState;
   perks: PerkLevels;
+  chefs: ChefState;
+  purchases: Purchases;
 }
 
-// Every permanent income bonus together: Chef Stars, Secret Spices and Famous Chain.
+// What the recruited chefs with this skill add together (see CHEFS for the units).
+export function chefBonus(state: Bonuses, skill: ChefSkill): number {
+  let sum = 0;
+  for (const id of CHEF_IDS) if (CHEFS[id].skill === skill) sum += state.chefs.levels[id] * CHEFS[id].perLevel;
+  return sum;
+}
+
+// Every permanent income bonus together: Chef Stars, Secret Spices, Famous Chain, the chefs and
+// the Golden Kitchen.
 export function incomeMultiplier(state: Bonuses): number {
   return (
     (1 + state.stars * PRESTIGE.bonusPerStar) *
     (1 + state.lab.levels.spices * LAB.spicesIncome) *
-    (1 + state.perks.chain * PERK.chainIncome)
+    (1 + state.perks.chain * PERK.chainIncome) *
+    (1 + chefBonus(state, 'income')) *
+    (state.purchases.golden_kitchen ? SHOP.goldenIncome : 1)
   );
+}
+
+// Section speed from the chefs (kitchen and waiters).
+export function sectionRateMultiplier(state: Bonuses, section: string): number {
+  if (section === 'kitchen') return 1 + chefBonus(state, 'kitchen');
+  if (section === 'waiters') return 1 + chefBonus(state, 'waiters');
+  return 1;
+}
+
+// Daily reward, task and chest money.
+export function dailyMoneyMultiplier(state: Bonuses): number {
+  return 1 + chefBonus(state, 'daily');
+}
+
+// Scene event rewards: the critic's review lasts longer and tour bus tips are bigger.
+export function eventRewardMultiplier(state: Bonuses): number {
+  return 1 + chefBonus(state, 'events');
 }
 
 // Local Suppliers make every upgrade and unlock cheaper.
@@ -56,11 +103,11 @@ export function sectionCostMultiplier(state: Bonuses): number {
 }
 
 export function offlineCapSeconds(state: Bonuses): number {
-  return OFFLINE.baseCapSeconds + state.lab.levels.nightShift * LAB.nightShiftSeconds;
+  return OFFLINE.baseCapSeconds + state.lab.levels.nightShift * LAB.nightShiftSeconds + chefBonus(state, 'offline');
 }
 
 export function vipTipMultiplier(state: Bonuses): number {
-  return 1 + state.lab.levels.tourGuide * LAB.tourGuideTip;
+  return 1 + state.lab.levels.tourGuide * LAB.tourGuideTip + chefBonus(state, 'vip');
 }
 
 // Scales the gap between VIP visits.
@@ -69,7 +116,7 @@ export function vipGapMultiplier(state: Bonuses): number {
 }
 
 export function rushSeconds(state: Bonuses): number {
-  return ADS.rushSeconds + state.lab.levels.eventPlanner * LAB.eventPlannerSeconds;
+  return ADS.rushSeconds + state.lab.levels.eventPlanner * LAB.eventPlannerSeconds + chefBonus(state, 'rush');
 }
 
 export function rushMaxSeconds(state: Bonuses): number {
@@ -77,11 +124,11 @@ export function rushMaxSeconds(state: Bonuses): number {
 }
 
 export function starGainMultiplier(state: Bonuses): number {
-  return 1 + state.perks.brand * PERK.brandStars;
+  return 1 + state.perks.brand * PERK.brandStars + chefBonus(state, 'stars');
 }
 
 export function researchSpeed(state: Bonuses): number {
-  return 1 + state.perks.grant * PERK.grantSpeed;
+  return 1 + state.perks.grant * PERK.grantSpeed + chefBonus(state, 'research');
 }
 
 export function labSlotCount(state: Bonuses): number {

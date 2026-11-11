@@ -1,5 +1,6 @@
-import { EVENTS, type SectionId } from './config';
-import { incomeMultiplier } from './bonuses';
+import { CHEF, EVENTS, type ChefId, type SectionId } from './config';
+import { eventRewardMultiplier, incomeMultiplier } from './bonuses';
+import { giveChefCards } from './chefs';
 import { sectionUpgradeCost } from './actions';
 import { baseIncomePerSecond, boostMultiplier, dishPrice, earn, throughput, type EconomyState } from './state';
 
@@ -43,9 +44,16 @@ export function criticProgress(state: EconomyState, start: number, target: numbe
   return Math.min(1, Math.max(0, (throughput(state).customersPerSecond - start) / (target - start)));
 }
 
-// The good review: a timed income boost (a new review restarts the clock).
-export function grantReview(state: EconomyState): void {
-  state.reviewSeconds = Math.max(state.reviewSeconds, EVENTS.critic.reviewSeconds);
+// How long a good review boosts income (Malee makes it last longer).
+export function reviewDuration(state: EconomyState): number {
+  return EVENTS.critic.reviewSeconds * eventRewardMultiplier(state);
+}
+
+// The good review: a timed income boost (a new review restarts the clock) and a chef card.
+// Returns the chef who got the card.
+export function grantReview(state: EconomyState): ChefId | null {
+  state.reviewSeconds = Math.max(state.reviewSeconds, reviewDuration(state));
+  return giveChefCards(state, CHEF.criticCards);
 }
 
 // Combo step for the n-th tap in a row (n from 1).
@@ -55,7 +63,7 @@ export function busCombo(taps: number): number {
 
 // What one tap tips during the tour bus, Rush and review included.
 export function busTip(state: EconomyState, combo: number): number {
-  return baseIncomePerSecond(state) * boostMultiplier(state) * EVENTS.tourBus.tipSeconds * combo;
+  return baseIncomePerSecond(state) * boostMultiplier(state) * EVENTS.tourBus.tipSeconds * combo * eventRewardMultiplier(state);
 }
 
 // The extra income per second while a festival sells `dish` for more.

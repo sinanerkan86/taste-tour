@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import {
   ADS,
+  CHEF,
   DISH_MAX_LEVEL,
   EVENTS,
   MILESTONE_BONUS,
@@ -52,8 +53,16 @@ import {
   timeSkipAmount,
   useTimeSkip,
   vipTip,
+  adsRemoved,
+  cardTarget,
+  chefsNeedAttention,
+  grantPurchase,
+  levelUpChef,
+  reviewDuration,
+  type ChefId,
   type EconomyState,
   type EventKind,
+  type ProductId,
   type GrantedReward,
   type PerkId,
   type TaskKind,
@@ -64,7 +73,10 @@ import { ART_RES } from '../view/paint';
 import { formatNumber } from '../../core/format';
 import { createSave, offlineReward, type OfflineReward, type SaveData } from '../../core/save';
 import { t, tDuration, tDurationShort, type TranslationKey } from '../../i18n';
-import { ads, type AdPlacement } from '../ads/AdService';
+import { adPolicy, showRewardedAd, type AdPlacement } from '../ads/AdService';
+import { store } from '../store/StoreService';
+import { ChefsModal } from '../ui/ChefsModal';
+import { ShopModal } from '../ui/ShopModal';
 import { FONT, GAME_WIDTH, PALETTE, panelTop, toCss } from '../config';
 import { FX_DEPTH, ROOM_FX_DEPTH, UI_LAYER_DEPTH, banner, confetti, fireworksShow, floatingText, sparkle } from '../fx';
 import { notifications } from '../notifications';
@@ -75,7 +87,7 @@ import { DailyModal, dailyTaskLabel } from '../ui/DailyModal';
 import { EventBar, type EventView } from '../ui/EventBar';
 import { FranchiseModal } from '../ui/FranchiseModal';
 import { PerkModal, PerksModal } from '../ui/PerkModal';
-import { researchName } from '../ui/progressText';
+import { chefName, researchName } from '../ui/progressText';
 import { DISH_COLORS } from '../colors';
 import { GoalBar } from '../ui/GoalBar';
 import { HintBubble } from '../ui/HintBubble';
@@ -87,7 +99,7 @@ import { Decor } from '../view/decor';
 import { audio } from '../audio';
 import type { WorldMapData } from './WorldMapScene';
 import { SettingsModal } from '../ui/SettingsModal';
-import { dishIcon, gearIcon, giftIcon, globeIcon } from '../ui/icons';
+import { chefHatIcon, dishIcon, gearIcon, giftIcon, globeIcon, shopIcon } from '../ui/icons';
 import { counterPill, glossyButton, outlined, paintHudAwning } from '../ui/style';
 import { ROOM_MARGIN, RoomCamera } from '../view/RoomCamera';
 import { cityTheme } from '../view/themes';
@@ -107,6 +119,8 @@ const AD_BUTTON = { width: 130, height: 68, abovePanel: 80, gap: 14 };
 const PLUS_SIZE = 66;
 // The daily rewards button sits in the bottom left corner of the room, level with Rush.
 const DAILY_BUTTON = 92;
+// The chefs button sits above the daily button, the shop button above Rush.
+const CORNER_STACK_GAP = 150;
 // Shown at the edge of the room view when the bottleneck marker is scrolled out of sight.
 const MARKER_ARROW = { inset: 62, radius: 34 };
 // World pixels the marker must be inside the view to count as visible.
@@ -185,6 +199,14 @@ export class RestaurantScene extends Phaser.Scene {
   private dailyButton!: Phaser.GameObjects.Container;
   private dailyBadge!: Phaser.GameObjects.Container;
   private dailyCaption!: Phaser.GameObjects.Text;
+  private chefsButton!: Phaser.GameObjects.Container;
+  private chefsBadge!: Phaser.GameObjects.Container;
+  private chefsCaption!: Phaser.GameObjects.Text;
+  private chefsAttention: boolean | null = null;
+  private chefsModal: ChefsModal | null = null;
+  private shopButton!: Phaser.GameObjects.Container;
+  private shopCaption!: Phaser.GameObjects.Text;
+  private shopModal: ShopModal | null = null;
   private dailyModal: DailyModal | null = null;
   private dailyAttention: boolean | null = null;
   private event: ActiveEvent | null = null;
@@ -199,6 +221,10 @@ export class RestaurantScene extends Phaser.Scene {
 
   create(data: RestaurantSceneData): void {
     this.economy = data.save?.economy ?? newEconomy();
+    adPolicy.removed = adsRemoved(this.economy);
+    this.chefsAttention = null;
+    this.chefsModal = null;
+    this.shopModal = null;
     refreshDaily(this.economy, dayNumber(Date.now()));
     this.dailyModal = null;
     this.dailyAttention = null;
@@ -253,6 +279,7 @@ export class RestaurantScene extends Phaser.Scene {
     this.refreshUi();
 
     this.setUpSaving();
+    void this.syncPurchases();
     if (data.save && !this.payOffline(offlineReward(this.economy, data.save.savedAt, Date.now()))) this.maybeOpenDaily();
     this.announcedResearch = new Set(finishedResearch(this.economy));
     if (!this.seenHints.includes(BOTTLENECK_HINT)) this.time.delayedCall(BOTTLENECK_HINT_DELAY_MS, () => this.showBottleneckHint());
@@ -387,6 +414,10 @@ export class RestaurantScene extends Phaser.Scene {
     this.rushCaption.setY(adY + AD_BUTTON.height / 2 + 18);
     this.dailyButton.setY(adY - (DAILY_BUTTON - AD_BUTTON.height) / 2);
     this.dailyCaption.setY(adY + AD_BUTTON.height / 2 + 18);
+    this.chefsButton.setY(this.dailyButton.y - CORNER_STACK_GAP);
+    this.chefsCaption.setY(this.dailyCaption.y - CORNER_STACK_GAP);
+    this.shopButton.setY(this.dailyButton.y - CORNER_STACK_GAP);
+    this.shopCaption.setY(this.dailyCaption.y - CORNER_STACK_GAP);
   }
 
   // A pulsing "!" with an arrow at the side of the room view, pointing to an off-screen
@@ -474,7 +505,7 @@ export class RestaurantScene extends Phaser.Scene {
         this.refreshUi();
         this.time.delayedCall(DAILY_AFTER_WELCOME_MS, () => this.maybeOpenDaily());
       },
-      () => ads.showRewarded('offlineDouble'),
+      () => showRewardedAd('offlineDouble'),
       doneAway.map((id) => researchName(id)),
     );
     return true;
@@ -503,9 +534,13 @@ export class RestaurantScene extends Phaser.Scene {
       () => this.economy,
       {
         claimReward: (multiplier) => grant(claimDailyReward(this.economy, dayNumber(Date.now()), multiplier)),
-        watchAd: () => ads.showRewarded('dailyDouble'),
+        watchAd: () => showRewardedAd('dailyDouble'),
         claimTask: (index) => grant(claimTask(this.economy, index)),
-        claimChest: () => grant(claimChest(this.economy)),
+        claimChest: () => {
+          const granted = grant(claimChest(this.economy));
+          if (granted) this.noteCards(granted.chef, granted.cards);
+          return granted;
+        },
       },
       UI_DEPTH + 100,
     );
@@ -589,22 +624,124 @@ export class RestaurantScene extends Phaser.Scene {
     this.rushCaption = caption(rushX);
 
     // Daily rewards: a gift on a glossy square with a red "!" when something waits to be collected.
-    const dailyX = HUD_MARGIN + DAILY_BUTTON / 2;
-    const face = this.add.image(0, 0, glossyButton(this, DAILY_BUTTON, DAILY_BUTTON, { face: BUTTON_STYLES.toggle.face })).setScale(1 / ART_RES);
-    const gift = this.add.image(0, -5, giftIcon(this)).setScale(1 / ART_RES);
+    const leftX = HUD_MARGIN + DAILY_BUTTON / 2;
+    [this.dailyButton, this.dailyBadge] = this.cornerButton(leftX, giftIcon(this), BUTTON_STYLES.toggle.face, () => this.openDaily());
+    this.dailyCaption = caption(leftX).setText(t('daily.button'));
+    // The chef collection above it, and the shop above Rush.
+    [this.chefsButton, this.chefsBadge] = this.cornerButton(leftX, chefHatIcon(this), 0xec7a3c, () => this.openChefs());
+    this.chefsCaption = caption(leftX).setText(t('chefs.button'));
+    [this.shopButton] = this.cornerButton(rushX, shopIcon(this), 0xb05fd0, () => this.openShop());
+    this.shopCaption = caption(rushX).setText(t('shop.button'));
+  }
+
+  // A glossy square with an icon and a red "!" badge (hidden), in a room corner.
+  private cornerButton(
+    x: number,
+    icon: string,
+    color: number,
+    onPress: () => void,
+  ): [Phaser.GameObjects.Container, Phaser.GameObjects.Container] {
+    const face = this.add.image(0, 0, glossyButton(this, DAILY_BUTTON, DAILY_BUTTON, { face: color })).setScale(1 / ART_RES);
+    const image = this.add.image(0, -5, icon).setScale(1 / ART_RES);
     const dot = this.add.circle(0, 0, 20, PALETTE.pomegranate).setStrokeStyle(4, 0xffffff);
     const mark = this.add.text(0, -2, '!', outlined(28)).setOrigin(0.5);
-    this.dailyBadge = this.add.container(DAILY_BUTTON / 2 - 8, -DAILY_BUTTON / 2 + 8, [dot, mark]).setVisible(false);
-    this.tweens.add({ targets: this.dailyBadge, scale: 1.18, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-    this.dailyButton = this.add.container(dailyX, 0, [face, gift, this.dailyBadge]).setDepth(UI_DEPTH);
-    this.dailyButton.setSize(DAILY_BUTTON, DAILY_BUTTON).setInteractive({ useHandCursor: true });
-    this.dailyButton.on('pointerdown', () => {
+    const badge = this.add.container(DAILY_BUTTON / 2 - 8, -DAILY_BUTTON / 2 + 8, [dot, mark]).setVisible(false);
+    this.tweens.add({ targets: badge, scale: 1.18, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    const button = this.add.container(x, 0, [face, image, badge]).setDepth(UI_DEPTH);
+    button.setSize(DAILY_BUTTON, DAILY_BUTTON).setInteractive({ useHandCursor: true });
+    button.on('pointerdown', () => {
       audio.unlock();
       audio.play('click');
-      this.tweens.add({ targets: this.dailyButton, scale: 0.92, duration: 60, yoyo: true });
-      this.openDaily();
+      this.tweens.add({ targets: button, scale: 0.92, duration: 60, yoyo: true });
+      onPress();
     });
-    this.dailyCaption = caption(dailyX).setText(t('daily.button'));
+    return [button, badge];
+  }
+
+  private openChefs(): void {
+    if (this.chefsModal?.active) return;
+    this.chefsModal = new ChefsModal(this, () => this.economy, (id) => this.levelUpChef(id), UI_DEPTH + 100);
+  }
+
+  private levelUpChef(id: ChefId): boolean {
+    if (!levelUpChef(this.economy, id)) return false;
+    const level = this.economy.chefs.levels[id];
+    const name = chefName(id);
+    banner(this, BANNER_Y, level === 1 ? t('chefs.joined', { name }) : t('chefs.leveled', { name, level }), PALETTE.success, UI_DEPTH + 151);
+    void this.saveGame();
+    this.refreshUi();
+    return true;
+  }
+
+  // The red "!" on the chefs button; the button hops when a chef can be recruited or leveled up.
+  private refreshChefs(): void {
+    const attention = chefsNeedAttention(this.economy);
+    this.chefsBadge.setVisible(attention);
+    if (attention && this.chefsAttention === false) {
+      this.tweens.add({ targets: this.chefsButton, scale: 1.2, duration: 160, yoyo: true, repeat: 2, ease: 'Quad.easeOut' });
+    }
+    this.chefsAttention = attention;
+    this.chefsModal?.render();
+  }
+
+  // Tells the player who got chef cards.
+  private noteCards(chef: ChefId | null, count: number): void {
+    if (!chef || count <= 0) return;
+    this.note(t('chefs.cardNote', { count, name: chefName(chef) }));
+  }
+
+  private openShop(): void {
+    if (this.shopModal?.active) return;
+    this.shopModal = new ShopModal(
+      this,
+      () => this.economy,
+      store.prices(),
+      { buy: (id) => this.buyProduct(id), restore: () => this.restorePurchases() },
+      UI_DEPTH + 100,
+    );
+  }
+
+  private async buyProduct(id: ProductId): Promise<void> {
+    const result = await store.purchase(id);
+    if (!this.sys.isActive()) return;
+    if (result === 'purchased') this.applyPurchase(id);
+    else if (result === 'failed') this.note(t('shop.failed'));
+  }
+
+  // Gives what a purchase contains (once) and thanks the player.
+  private applyPurchase(id: ProductId): boolean {
+    const granted = grantPurchase(this.economy, id);
+    if (!granted) return false;
+    adPolicy.removed = adsRemoved(this.economy);
+    const key = id === 'no_ads' ? 'shop.noAds.name' : id === 'golden_kitchen' ? 'shop.golden.name' : 'shop.starter.name';
+    audio.play('celebrate');
+    banner(this, BANNER_Y, t('shop.thanks', { name: t(key) }), PALETTE.success, UI_DEPTH + 151);
+    confetti(this, GAME_WIDTH / 2, BANNER_Y + 40, UI_DEPTH + 151);
+    if (granted.money > 0) floatingText(this, GAME_WIDTH / 2, BANNER_Y + 160, `+${formatNumber(granted.money)}`, PALETTE.saffron, 64, UI_DEPTH + 151);
+    this.noteCards(granted.chef, granted.cards);
+    void this.saveGame();
+    this.refreshUi();
+    this.shopModal?.render();
+    return true;
+  }
+
+  // Products the store says the player owns but the save does not have (bought before a
+  // reinstall, or a purchase that completed later) are granted now.
+  private async syncPurchases(): Promise<void> {
+    const owned = await store.owned();
+    if (!owned || !this.sys.isActive()) return;
+    owned.forEach((id) => this.applyPurchase(id));
+  }
+
+  private async restorePurchases(): Promise<void> {
+    const owned = await store.owned();
+    if (!this.sys.isActive()) return;
+    if (owned === null) {
+      this.note(t('shop.failed'));
+      return;
+    }
+    owned.forEach((id) => this.applyPurchase(id));
+    this.note(t(owned.length > 0 ? 'shop.restored' : 'shop.nothingToRestore'));
   }
 
   // The red "!" on the daily button; the button hops when something new is ready.
@@ -623,6 +760,7 @@ export class RestaurantScene extends Phaser.Scene {
     const rush = this.economy.rushSeconds;
     this.rushButton.setButtonStyle(canActivateRush(this.economy) ? BUTTON_STYLES.buy : BUTTON_STYLES.disabled, canActivateRush(this.economy));
     this.rushCaption.setText(rush > 0 ? tDuration(rush) : t('ads.rushCaption'));
+    this.rushButton.setLabel(`${ADS.rushMultiplier}x`, !adPolicy.removed);
     this.rushCaption.setColor(toCss(rush > 0 ? PALETTE.saffron : PALETTE.cream));
     // The "+" turns grey while the time skip cools down and bounces once when it is ready again.
     const ready = this.economy.timeSkipCooldown <= 0;
@@ -676,7 +814,7 @@ export class RestaurantScene extends Phaser.Scene {
   // Plays a rewarded ad and grants the reward only if it was watched to the end.
   // Resolves whether the reward was granted.
   private async watchAd(placement: AdPlacement, grant: () => void): Promise<boolean> {
-    const watched = await ads.showRewarded(placement);
+    const watched = await showRewardedAd(placement);
     if (!watched || !this.sys.isActive()) return false;
     grant();
     void this.saveGame();
@@ -785,15 +923,16 @@ export class RestaurantScene extends Phaser.Scene {
     void this.view.dismissCritic(success);
     this.endEvent();
     if (success) {
-      grantReview(this.economy);
+      const chef = grantReview(this.economy);
       void this.saveGame();
       this.celebrate(
         t('event.critic.success', {
           bonus: Math.round((EVENTS.critic.reviewMultiplier - 1) * 100),
-          time: tDurationShort(EVENTS.critic.reviewSeconds),
+          time: tDurationShort(reviewDuration(this.economy)),
         }),
         PALETTE.success,
       );
+      this.noteCards(chef, CHEF.criticCards);
     } else {
       this.note(t('event.critic.fail'));
     }
@@ -1006,6 +1145,7 @@ export class RestaurantScene extends Phaser.Scene {
 
   private buyDish(index: number): void {
     const level = this.economy.dishLevels[index];
+    const cardsTo = level === 0 ? cardTarget(this.economy) : null;
     const bought = buyDishLevels(this.economy, index, this.panel.buyAmount);
     if (bought === 0) return;
     this.track('dishLevels', bought);
@@ -1016,6 +1156,7 @@ export class RestaurantScene extends Phaser.Scene {
     const newLevel = this.economy.dishLevels[index];
     if (level === 0) {
       this.celebrateNewDish(t('banner.newDish', { name }));
+      this.noteCards(cardsTo, CHEF.dishCards);
     } else if (newLevel === DISH_MAX_LEVEL) {
       this.celebrate(t('banner.mastered', { name }), PALETTE.tileBlue);
     } else if (milestonesReached(newLevel) > milestonesReached(level)) {
@@ -1089,6 +1230,7 @@ export class RestaurantScene extends Phaser.Scene {
     this.refreshFranchise();
     this.refreshAdButtons();
     this.refreshDaily();
+    this.refreshChefs();
     this.refreshGoal();
     this.announceResearch();
     this.maybeShowLabHint();

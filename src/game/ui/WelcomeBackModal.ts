@@ -5,6 +5,7 @@ import type { OfflineReward } from '../../core/save';
 import { t, tDuration } from '../../i18n';
 import { PALETTE } from '../config';
 import { BUTTON_STYLES, Button } from './Button';
+import { adIcon } from '../ads/AdService';
 import { createModalCard, modalText } from './modalCard';
 
 const CARD_WIDTH = 860;
@@ -64,7 +65,7 @@ export class WelcomeBackModal extends Phaser.GameObjects.Container {
       BUTTON_WIDTH,
       120,
       () => void this.collectWithAd(onCollect, watchAd),
-      'ad',
+      adIcon(),
     );
     double.setLabel(t('offline.collectMore', { multiplier: ADS.offlineMultiplier })).setButtonStyle(BUTTON_STYLES.buy);
     children.push(collect, double);

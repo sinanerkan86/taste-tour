@@ -1,5 +1,7 @@
 import { RESEARCH_IDS } from './config';
-import { researchMaxLevel, rushMaxSeconds } from './bonuses';
+import { dailyMoneyMultiplier, researchMaxLevel, rushMaxSeconds } from './bonuses';
+import { giveChefCards } from './chefs';
+import type { ChefId } from './config';
 import { baseIncomePerSecond, earn, type EconomyState } from './state';
 
 // Daily rewards and daily tasks: reasons to open the game every day.
@@ -16,6 +18,8 @@ export interface DailyReward {
   money?: number;
   // Seconds of Rush.
   rush?: number;
+  // Chef cards (see giveChefCards).
+  cards?: number;
 }
 
 export const TASK_KINDS = ['upgrades', 'dishLevels', 'taps', 'playTime', 'research', 'vip'] as const;
@@ -46,7 +50,7 @@ export const DAILY = {
   // Today's reward can be doubled with a rewarded ad.
   adMultiplier: 2,
   // Finishing all three tasks opens a chest.
-  chest: { money: 30 * MINUTE, rush: 1 * HOUR } as DailyReward,
+  chest: { money: 30 * MINUTE, rush: 1 * HOUR, cards: 2 } as DailyReward,
 };
 
 export interface DailyTask {
@@ -146,21 +150,31 @@ export function dailyCycle(daily: DailyState, day: number): { index: number; cla
 export interface GrantedReward {
   money: number;
   rush: number;
+  cards: number;
+  // Who got the cards.
+  chef: ChefId | null;
 }
 
 // Pays a reward (times `multiplier`, 2 after a rewarded ad): money from seconds of income, Rush
-// up to the usual cap.
+// up to the usual cap, chef cards.
 export function grantReward(state: EconomyState, reward: DailyReward, multiplier = 1): GrantedReward {
-  const money = (reward.money ?? 0) * baseIncomePerSecond(state) * multiplier;
+  const money = (reward.money ?? 0) * baseIncomePerSecond(state) * dailyMoneyMultiplier(state) * multiplier;
   if (money > 0) earn(state, money);
   const before = state.rushSeconds;
   if (reward.rush) state.rushSeconds = Math.min(Math.max(before, rushMaxSeconds(state)), before + reward.rush * multiplier);
-  return { money, rush: state.rushSeconds - before };
+  const count = (reward.cards ?? 0) * multiplier;
+  const chef = giveChefCards(state, count);
+  return { money, rush: state.rushSeconds - before, cards: chef ? count : 0, chef };
 }
 
 // What a reward would pay right now (for display).
 export function rewardValue(state: EconomyState, reward: DailyReward): GrantedReward {
-  return { money: (reward.money ?? 0) * baseIncomePerSecond(state), rush: reward.rush ?? 0 };
+  return {
+    money: (reward.money ?? 0) * baseIncomePerSecond(state) * dailyMoneyMultiplier(state),
+    rush: reward.rush ?? 0,
+    cards: reward.cards ?? 0,
+    chef: null,
+  };
 }
 
 export function claimDailyReward(state: EconomyState, day: number, multiplier = 1): GrantedReward | null {

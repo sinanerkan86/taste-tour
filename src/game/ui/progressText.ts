@@ -1,4 +1,4 @@
-import { ADS, LAB, OFFLINE, PERK, type PerkId, type ResearchId } from '../../core/economy';
+import { ADS, CHEFS, LAB, OFFLINE, PERK, type ChefId, type PerkId, type ResearchId } from '../../core/economy';
 import { t, tDurationShort, type TranslationKey } from '../../i18n';
 
 // Player-facing texts for Kitchen Lab research and franchise perks.
@@ -45,4 +45,16 @@ export function perkDescription(id: PerkId, level: number): string {
     default:
       return t(key);
   }
+}
+
+export function chefName(id: ChefId): string {
+  return t(`chef.${id}` as TranslationKey);
+}
+
+// What a chef's skill gives at `level` (seconds for offline and Rush, percent for the rest).
+export function chefSkillText(id: ChefId, level: number): string {
+  const { skill, perLevel } = CHEFS[id];
+  const amount = level * perLevel;
+  const value = skill === 'offline' || skill === 'rush' ? tDurationShort(amount) : `${Math.round(amount * 100)}%`;
+  return t(`chef.skill.${skill}` as TranslationKey, { value });
 }

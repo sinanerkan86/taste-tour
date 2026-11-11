@@ -1,4 +1,5 @@
-import { ADS, DISH_MAX_LEVEL, DISH_TIERS, PERK, SECTION_IDS, SECTIONS, type PerkId, type SectionId } from './config';
+import { ADS, CHEF, DISH_MAX_LEVEL, DISH_TIERS, PERK, SECTION_IDS, SECTIONS, type PerkId, type SectionId } from './config';
+import { giveChefCards } from './chefs';
 import { cityCostScale, levelCost, starsForReputation } from './formulas';
 import {
   costMultiplier,
@@ -109,6 +110,8 @@ export function buySectionLevels(state: EconomyState, id: SectionId, amount: Buy
 export function buyDishLevels(state: EconomyState, index: number, amount: BuyAmount): number {
   const plan = dishBuyPlan(state, index, amount);
   if (plan.levels === 0 || !spend(state, plan.cost)) return 0;
+  // A new dish on the menu earns a card for the chef of the city.
+  if (state.dishLevels[index] === 0) giveChefCards(state, CHEF.dishCards);
   state.dishLevels[index] += plan.levels;
   return plan.levels;
 }
@@ -138,9 +141,12 @@ export function startingSectionLevel(state: EconomyState): number {
 }
 
 // Franchise: sell the restaurant and start over in the next city, keeping the stars, the lab
-// and the perks. `perk` is the franchise perk the player picked (see perkOffers).
+// and the perks. `perk` is the franchise perk the player picked (see perkOffers). The city's
+// chef sends the player off with a few cards.
 export function prestige(state: EconomyState, perk: PerkId | null = null): EconomyState {
   const gained = pendingStars(state);
+  const chefs = structuredClone(state.chefs);
+  giveChefCards({ ...state, chefs }, CHEF.franchiseCards);
   const next = newEconomy(state.stars + gained, state.lifetimeEarnings, state.city + 1);
   next.cityStars = [...state.cityStars, gained];
   // Ad rewards were earned by the player, not the restaurant, so they move along.
@@ -149,6 +155,8 @@ export function prestige(state: EconomyState, perk: PerkId | null = null): Econo
   next.lab = { levels: { ...state.lab.levels }, slots: state.lab.slots.map((slot) => ({ ...slot })) };
   next.perks = { ...state.perks };
   next.daily = structuredClone(state.daily);
+  next.chefs = chefs;
+  next.purchases = { ...state.purchases };
   if (perk && next.perks[perk] < perkMaxLevel(perk)) next.perks[perk]++;
   const level = startingSectionLevel(next);
   for (const id of SECTION_IDS) next.sectionLevels[id] = level;

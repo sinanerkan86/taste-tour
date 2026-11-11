@@ -20,6 +20,7 @@ import { t, tDuration, tDurationShort, type TranslationKey } from '../../i18n';
 import { PALETTE } from '../config';
 import { confetti, floatingText, sparkle } from '../fx';
 import { audio } from '../audio';
+import { adIcon } from '../ads/AdService';
 import { ART_RES } from '../view/paint';
 import { BUTTON_STYLES, Button } from './Button';
 import { createModalCard, modalText } from './modalCard';
@@ -98,7 +99,7 @@ export class DailyModal extends Phaser.GameObjects.Container {
       children.push(tile.container);
     });
     this.claimButton = new Button(scene, cx, top + 525, 380, 110, () => this.claimReward(1));
-    this.adButton = new Button(scene, cx + 205, top + 525, 380, 110, () => void this.claimWithAd(), 'ad');
+    this.adButton = new Button(scene, cx + 205, top + 525, 380, 110, () => void this.claimWithAd(), adIcon());
     this.adButton.setLabel(t('daily.collectMore', { multiplier: DAILY.adMultiplier })).setButtonStyle(BUTTON_STYLES.buy);
     children.push(this.claimButton, this.adButton);
 
@@ -250,6 +251,7 @@ export class DailyModal extends Phaser.GameObjects.Container {
       t('daily.chest', {
         amount: formatNumber(chest.money),
         rush: `${ADS.rushMultiplier}x ${tDurationShort(chest.rush)}`,
+        cards: chest.cards,
       }),
     );
     if (state.daily.chestClaimed) this.chestButton.setLabel('✓').setButtonStyle(BUTTON_STYLES.disabled, false);

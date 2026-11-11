@@ -240,3 +240,58 @@ export const PERK = {
   // Research Grant: lab projects run 25% faster per level.
   grantSpeed: 0.25,
 };
+
+// Chef collection: one famous chef per city of the tour (in CITIES order). Chef cards are earned
+// while playing; enough cards recruit a chef and then level them up. Chefs are permanent and
+// each one is good at one thing (GDD 6f).
+export const CHEF_IDS = ['selim', 'giulia', 'amelie', 'karim', 'priya', 'malee', 'kenji', 'lucas', 'sofia', 'jordan'] as const;
+export type ChefId = (typeof CHEF_IDS)[number];
+
+export type ChefSkill =
+  | 'income'
+  | 'kitchen'
+  | 'waiters'
+  | 'offline'
+  | 'daily'
+  | 'events'
+  | 'research'
+  | 'vip'
+  | 'rush'
+  | 'stars';
+
+// Each chef's skill, and what one level of it adds (a fraction, or seconds for offline and rush).
+export const CHEFS: Record<ChefId, { skill: ChefSkill; perLevel: number }> = {
+  selim: { skill: 'income', perLevel: 0.1 },
+  giulia: { skill: 'kitchen', perLevel: 0.2 },
+  amelie: { skill: 'waiters', perLevel: 0.2 },
+  karim: { skill: 'offline', perLevel: 30 * MINUTE },
+  priya: { skill: 'daily', perLevel: 0.2 },
+  malee: { skill: 'events', perLevel: 0.2 },
+  kenji: { skill: 'research', perLevel: 0.1 },
+  lucas: { skill: 'vip', perLevel: 0.2 },
+  sofia: { skill: 'rush', perLevel: 30 * MINUTE },
+  jordan: { skill: 'stars', perLevel: 0.05 },
+};
+
+export const CHEF = {
+  // Cards it takes to recruit a chef (level 1) and then to reach each next level; the list
+  // length is the max level.
+  cardsPerLevel: [1, 2, 3, 5, 8],
+  // Cards for the chef of the city: per dish added to the menu, and when franchising out of it.
+  dishCards: 1,
+  franchiseCards: 3,
+  // A good review from the food critic.
+  criticCards: 1,
+};
+
+// In-app purchases (one-time products in Google Play). Ids are the Play product ids.
+export const PRODUCT_IDS = ['no_ads', 'golden_kitchen', 'starter_pack'] as const;
+export type ProductId = (typeof PRODUCT_IDS)[number];
+
+export const SHOP = {
+  // Golden Kitchen: income multiplied by this for good.
+  goldenIncome: 2,
+  // Starter pack: seconds of income at once, seconds of Rush (it may go past the usual cap) and
+  // chef cards for the chef of the city.
+  starter: { money: 2 * HOUR, rush: 8 * HOUR, cards: 5 },
+};

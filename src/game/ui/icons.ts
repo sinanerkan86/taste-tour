@@ -1243,3 +1243,102 @@ export function giftIcon(scene: Phaser.Scene): string {
     ctx.fill();
   });
 }
+
+// A puffy chef's hat for the chef collection button.
+export function chefHatIcon(scene: Phaser.Scene): string {
+  return paintTexture(scene, 'icon-chef-hat', 64, 64, (ctx) => {
+    ctx.translate(32, 34);
+    ctx.fillStyle = 'rgba(40,20,10,0.3)';
+    roundRect(ctx, -17, 6, 34, 18, 5);
+    ctx.fill();
+    ctx.fillStyle = vGradient(ctx, -26, 12, [
+      [0, '#ffffff'],
+      [1, '#d9d4ca'],
+    ]);
+    ctx.beginPath();
+    ctx.arc(-13, -8, 13, 0, Math.PI * 2);
+    ctx.arc(0, -15, 15, 0, Math.PI * 2);
+    ctx.arc(13, -8, 13, 0, Math.PI * 2);
+    ctx.fill();
+    roundRect(ctx, -16, -8, 32, 22, 5);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.14)';
+    ctx.lineWidth = 2;
+    [-6, 6].forEach((x) => {
+      ctx.beginPath();
+      ctx.moveTo(x, -4);
+      ctx.lineTo(x, 12);
+      ctx.stroke();
+    });
+    ctx.fillStyle = vGradient(ctx, 12, 22, [
+      [0, '#ece7dd'],
+      [1, '#bdb6a8'],
+    ]);
+    roundRect(ctx, -18, 12, 36, 10, 4);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ellipse(ctx, -4, -22, 7, 4);
+    ctx.fill();
+  });
+}
+
+// A striped shopping bag for the shop button.
+export function shopIcon(scene: Phaser.Scene): string {
+  return paintTexture(scene, 'icon-shop', 64, 64, (ctx) => {
+    ctx.translate(32, 34);
+    ctx.fillStyle = 'rgba(40,20,10,0.3)';
+    roundRect(ctx, -20, -6, 40, 34, 6);
+    ctx.fill();
+    // Handles.
+    ctx.strokeStyle = '#8a4a00';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(0, -10, 11, Math.PI, 0);
+    ctx.stroke();
+    ctx.fillStyle = vGradient(ctx, -12, 24, [
+      [0, '#ffd23a'],
+      [1, '#e89a00'],
+    ]);
+    roundRect(ctx, -21, -12, 42, 36, 6);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fillRect(-9, -12, 6, 36);
+    ctx.fillRect(5, -12, 6, 36);
+    // A star on the bag.
+    ctx.fillStyle = '#e8463a';
+    star5(ctx, 0, 8, 10, 4.5);
+    ctx.fill();
+  });
+}
+
+// A small chef card (a recipe card with a hat), shown next to card counts.
+export function chefCardIcon(scene: Phaser.Scene): string {
+  return paintTexture(scene, 'icon-chef-card', 48, 56, (ctx) => {
+    ctx.translate(24, 28);
+    ctx.rotate(-0.12);
+    ctx.fillStyle = 'rgba(40,20,10,0.3)';
+    roundRect(ctx, -16, -20, 34, 44, 5);
+    ctx.fill();
+    ctx.fillStyle = vGradient(ctx, -22, 22, [
+      [0, '#fff6d8'],
+      [1, '#f3d58a'],
+    ]);
+    roundRect(ctx, -18, -23, 34, 44, 5);
+    ctx.fill();
+    ctx.strokeStyle = '#c08a20';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(-7, -9, 6, 0, Math.PI * 2);
+    ctx.arc(-1, -12, 7, 0, Math.PI * 2);
+    ctx.arc(5, -9, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(-8, -9, 14, 9);
+    ctx.fillStyle = '#c0302a';
+    roundRect(ctx, -12, 6, 22, 4, 2);
+    ctx.fill();
+    roundRect(ctx, -12, 13, 15, 4, 2);
+    ctx.fill();
+  });
+}

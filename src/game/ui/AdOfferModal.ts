@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { t } from '../../i18n';
+import { adIcon, adPolicy } from '../ads/AdService';
 import { PALETTE } from '../config';
 import { BUTTON_STYLES, Button } from './Button';
 import { createModalCard, modalText } from './modalCard';
@@ -41,9 +42,9 @@ export class AdOfferModal extends Phaser.GameObjects.Container {
         this.destroy();
         onWatch();
       },
-      'ad',
+      adIcon(),
     );
-    watch.setLabel(t('ads.watch')).setButtonStyle(BUTTON_STYLES.buy);
+    watch.setLabel(adPolicy.removed ? t('ads.collectFree') : t('ads.watch')).setButtonStyle(BUTTON_STYLES.buy);
     const cancel = new Button(scene, cx, top + CARD_HEIGHT - 70, 360, 90, () => {
       this.destroy();
       onCancel?.();

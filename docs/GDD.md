@@ -197,7 +197,21 @@ The daily state lives in the economy (`daily`) and moves along with a franchise.
 
 Next to "Collect", a "Collect 2x" button doubles the day's reward (money and Rush) for a rewarded ad (placement `dailyDouble`).
 
-Later ideas: weekly tasks; a streak-saver.
+**Weekly tasks and streak saver** (added 2026-11-11, version 1.7.0). The dialog has two tabs, Daily and Weekly (a red "!" on a tab with something to collect).
+
+- **Weekly tasks:** three a week (weeks start on Monday at local midnight), picked from the week number with a seeded random. Each pays 1h of income and 1 chef card; finishing all three opens a big chest (3h of income, Rush 4h, 3 chef cards). Progress counts with the daily tasks (one upgrade counts for both). About 15-20 minutes of play a day finishes them.
+
+| Weekly task | Target |
+|---|---|
+| Upgrade sections | 150 |
+| Level up dishes | 150 |
+| Tap the restaurant | 300 |
+| Run the restaurant | 90 min |
+| Start research projects (left out once the lab is finished) | 4 |
+| Serve VIP guests | 6 |
+| Open daily chests (weekly only) | 4 |
+
+- **Streak saver:** when exactly one day was missed and the streak was at least 2 days, the streak line turns into "You missed a day! Watch an ad to keep your N-day streak." with a Save button (placement `streakSave`). The missed day counts as collected, without its reward. Once per week. Code: `WEEKLY`, `streakSaveable`, `saveStreak` in `daily.ts`.
 
 ## 6e. Scene events
 

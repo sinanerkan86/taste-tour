@@ -1,10 +1,11 @@
 import { Capacitor } from '@capacitor/core';
+import { t, type TranslationKey } from '../../i18n';
 import { AdMobAdService } from './AdMobAdService';
 
 // Rewarded ads. Game code only talks to this interface; the browser uses a fake test ad,
 // the Android build uses AdMob.
 
-export type AdPlacement = 'rush' | 'timeSkip' | 'offlineDouble' | 'vip' | 'dailyDouble' | 'busDouble' | 'labSpeedUp';
+export type AdPlacement = 'rush' | 'timeSkip' | 'offlineDouble' | 'vip' | 'dailyDouble' | 'busDouble' | 'labSpeedUp' | 'streakSave';
 
 export interface AdService {
   // Prepares the ad network (and asks for consent where needed) at startup.
@@ -81,6 +82,11 @@ export function showRewardedAd(placement: AdPlacement): Promise<boolean> {
 }
 
 // The ad icon on reward buttons, left out once ads are removed.
+// An offer text: the "...Free" variant of the key (no "watch an ad") once ads are removed.
+export function adText(key: TranslationKey, params: Record<string, string | number> = {}): string {
+  return t((adPolicy.removed ? `${key}Free` : key) as TranslationKey, params);
+}
+
 export function adIcon(): string | undefined {
   return adPolicy.removed ? undefined : 'ad';
 }

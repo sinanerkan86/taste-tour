@@ -2,6 +2,7 @@ import {
   CHEF,
   CHEF_IDS,
   DAILY,
+  WEEKLY,
   PRODUCT_IDS,
   SAFE,
   chefMaxLevel,
@@ -126,21 +127,15 @@ export function parseSave(json: string): SaveData | null {
     economy.daily.lastClaimDay = Math.floor(finiteOr(daily.lastClaimDay, -1));
     economy.daily.taskDay = Math.floor(finiteOr(daily.taskDay, -1));
     economy.daily.chestClaimed = daily.chestClaimed === true;
-    const tasks = Array.isArray(daily.tasks) ? (daily.tasks as Partial<DailyTask>[]) : [];
-    economy.daily.tasks = tasks
-      .slice(0, DAILY.taskRewards.length)
-      .filter((task) => TASK_KINDS.includes(task?.kind as DailyTask['kind']))
-      .map((task) => {
-        const target = Math.max(1, finiteOr(task.target, 1));
-        return {
-          kind: task.kind as DailyTask['kind'],
-          target,
-          progress: Math.min(target, Math.max(0, finiteOr(task.progress, 0))),
-          claimed: task.claimed === true,
-        };
-      });
+    economy.daily.tasks = parseTasks(daily.tasks, DAILY.taskRewards.length);
     // A broken task list is rolled again.
     if (economy.daily.tasks.length !== DAILY.taskRewards.length) economy.daily.taskDay = -1;
+    // Weekly tasks and the streak saver (saves from before them roll this week's tasks).
+    economy.daily.week = Math.floor(finiteOr(daily.week, -1));
+    economy.daily.weeklyChestClaimed = daily.weeklyChestClaimed === true;
+    economy.daily.saverWeek = Math.floor(finiteOr(daily.saverWeek, -1));
+    economy.daily.weeklyTasks = parseTasks(daily.weeklyTasks, WEEKLY.taskCount);
+    if (economy.daily.weeklyTasks.length !== WEEKLY.taskCount) economy.daily.week = -1;
   }
 
   if (finiteOr(data.version, 1) < 2) backPayChefCards(economy);
@@ -148,6 +143,23 @@ export function parseSave(json: string): SaveData | null {
   const seenHints = Array.isArray(data.seenHints) ? data.seenHints.filter((id) => typeof id === 'string') : [];
 
   return { version: SAVE_VERSION, savedAt: finiteOr(data.savedAt, Date.now()), economy, seenHints };
+}
+
+// A saved task list: known kinds only, sane numbers, at most `count` tasks.
+function parseTasks(value: unknown, count: number): DailyTask[] {
+  const tasks = Array.isArray(value) ? (value as Partial<DailyTask>[]) : [];
+  return tasks
+    .slice(0, count)
+    .filter((task) => TASK_KINDS.includes(task?.kind as DailyTask['kind']))
+    .map((task) => {
+      const target = Math.max(1, finiteOr(task.target, 1));
+      return {
+        kind: task.kind as DailyTask['kind'],
+        target,
+        progress: Math.min(target, Math.max(0, finiteOr(task.progress, 0))),
+        claimed: task.claimed === true,
+      };
+    });
 }
 
 // Saves from before the chef collection: every finished city pays the cards it would have given

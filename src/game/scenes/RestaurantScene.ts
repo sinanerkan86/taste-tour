@@ -15,6 +15,9 @@ import {
   canActivateRush,
   canFranchise,
   claimChest,
+  claimWeeklyChest,
+  claimWeeklyTask,
+  saveStreak,
   claimDailyReward,
   claimTask,
   collectResearch,
@@ -69,6 +72,7 @@ import {
   type ProductId,
   type GrantedReward,
   type PerkId,
+  type DailyTask,
   type TaskKind,
   type ResearchId,
   type SectionId,
@@ -77,7 +81,7 @@ import { ART_RES } from '../view/paint';
 import { formatNumber } from '../../core/format';
 import { createSave, offlineReward, type OfflineReward, type SaveData } from '../../core/save';
 import { t, tDuration, tDurationShort, type TranslationKey } from '../../i18n';
-import { adPolicy, showRewardedAd, type AdPlacement } from '../ads/AdService';
+import { adPolicy, adText, showRewardedAd, type AdPlacement } from '../ads/AdService';
 import { store } from '../store/StoreService';
 import { ChefsModal } from '../ui/ChefsModal';
 import { ShopModal } from '../ui/ShopModal';
@@ -87,7 +91,7 @@ import { notifications } from '../notifications';
 import { saves } from '../persistence';
 import { AdOfferModal } from '../ui/AdOfferModal';
 import { BUTTON_STYLES, Button } from '../ui/Button';
-import { DailyModal, dailyTaskLabel } from '../ui/DailyModal';
+import { DailyModal, taskLabel } from '../ui/DailyModal';
 import { EventBar, type EventView } from '../ui/EventBar';
 import { FranchiseModal } from '../ui/FranchiseModal';
 import { PerkModal, PerksModal } from '../ui/PerkModal';
@@ -527,7 +531,7 @@ export class RestaurantScene extends Phaser.Scene {
   private openDaily(): void {
     if (this.dailyModal?.active) return;
     refreshDaily(this.economy, dayNumber(Date.now()));
-    const grant = (granted: GrantedReward | null) => {
+    const grant = <T extends GrantedReward>(granted: T | null) => {
       if (granted) {
         void this.saveGame();
         this.refreshUi();
@@ -543,19 +547,41 @@ export class RestaurantScene extends Phaser.Scene {
         claimTask: (index) => grant(claimTask(this.economy, index)),
         claimChest: () => {
           const granted = grant(claimChest(this.economy));
+          if (granted) {
+            this.noteCards(granted.cards);
+            this.announceTasks(granted.finished);
+          }
+          return granted;
+        },
+        claimWeeklyTask: (index) => {
+          const granted = grant(claimWeeklyTask(this.economy, index));
           if (granted) this.noteCards(granted.cards);
           return granted;
         },
+        claimWeeklyChest: () => {
+          const granted = grant(claimWeeklyChest(this.economy));
+          if (granted) this.noteCards(granted.cards);
+          return granted;
+        },
+        saveStreak: () =>
+          this.watchAd('streakSave', () => {
+            saveStreak(this.economy, dayNumber(Date.now()));
+          }),
       },
       UI_DEPTH + 100,
     );
   }
 
-  // Counts progress on today's tasks and announces the ones it finishes.
+  // Counts progress on today's and this week's tasks and announces the ones it finishes.
   private track(kind: TaskKind, amount = 1): void {
-    for (const task of recordTask(this.economy, kind, amount)) {
+    this.announceTasks(recordTask(this.economy, kind, amount));
+  }
+
+  private announceTasks(tasks: DailyTask[]): void {
+    for (const task of tasks) {
+      const weekly = this.economy.daily.weeklyTasks.includes(task);
       audio.play('unlock', 0.7);
-      this.note(t('banner.taskDone', { task: dailyTaskLabel(task) }));
+      this.note(t(weekly ? 'banner.weeklyTaskDone' : 'banner.taskDone', { task: taskLabel(task, weekly) }));
     }
   }
 
@@ -786,7 +812,7 @@ export class RestaurantScene extends Phaser.Scene {
     if (!canActivateRush(this.economy)) return;
     const offer = {
       title: t('ads.rushTitle'),
-      body: t('ads.rushBody', { hours: ADS.rushSeconds / 3600, max: ADS.rushMaxSeconds / 3600 }),
+      body: adText('ads.rushBody', { hours: ADS.rushSeconds / 3600, max: ADS.rushMaxSeconds / 3600 }),
       reward: `${ADS.rushMultiplier}x`,
     };
     new AdOfferModal(this, offer, UI_DEPTH + 100, () =>
@@ -805,7 +831,7 @@ export class RestaurantScene extends Phaser.Scene {
     }
     const offer = {
       title: t('ads.timeSkipTitle'),
-      body: t('ads.timeSkipBody', { hours: ADS.timeSkipSeconds / 3600 }),
+      body: adText('ads.timeSkipBody', { hours: ADS.timeSkipSeconds / 3600 }),
       reward: `+${formatNumber(timeSkipAmount(this.economy))}`,
       rewardIcon: 'coin',
     };
@@ -822,7 +848,7 @@ export class RestaurantScene extends Phaser.Scene {
   private offerResearchSpeedUp(id: ResearchId): void {
     const offer = {
       title: t('ads.labTitle'),
-      body: t('ads.labBody', { name: researchName(id) }),
+      body: adText('ads.labBody', { name: researchName(id) }),
       reward: t('ads.labReward', { time: tDuration(Math.ceil(researchSpeedUpSeconds(this.economy, id))) }),
     };
     // A second offer left open (or a project collected meanwhile) must not play an ad for nothing.
@@ -861,7 +887,7 @@ export class RestaurantScene extends Phaser.Scene {
     const tip = vipTip(this.economy);
     const offer = {
       title: t('ads.vipTitle'),
-      body: t('ads.vipBody'),
+      body: adText('ads.vipBody'),
       reward: `+${formatNumber(tip)}`,
       rewardIcon: 'coin',
     };
@@ -994,7 +1020,7 @@ export class RestaurantScene extends Phaser.Scene {
     void this.saveGame();
     const offer = {
       title: t('event.bus.doneTitle'),
-      body: t('event.bus.doneBody', { amount: formatNumber(tips), multiplier: EVENTS.tourBus.adMultiplier }),
+      body: adText('event.bus.doneBody', { amount: formatNumber(tips), multiplier: EVENTS.tourBus.adMultiplier }),
       reward: `+${formatNumber(tips * (EVENTS.tourBus.adMultiplier - 1))}`,
       rewardIcon: 'coin',
     };

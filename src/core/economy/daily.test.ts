@@ -15,7 +15,15 @@ import {
   recordTask,
   refreshDaily,
   rollTasks,
+  WEEKLY,
+  claimWeeklyChest,
+  claimWeeklyTask,
+  saveStreak,
   secondsToNextDay,
+  secondsToNextWeek,
+  streakSaveable,
+  weekNumber,
+  weeklyChestReady,
   type EconomyState,
 } from './index';
 import { createSave, parseSave, serializeSave } from '../save';
@@ -93,6 +101,8 @@ describe('daily tasks', () => {
   it('counts progress, pays each task once and then opens the chest', () => {
     const state = economy();
     refreshDaily(state, DAY);
+    // Weekly tasks of the same kinds would fill up too; they have their own tests.
+    state.daily.weeklyTasks = [];
     expect(dailyNeedsAttention(state.daily, DAY)).toBe(true);
     claimDailyReward(state, DAY);
     expect(dailyNeedsAttention(state.daily, DAY)).toBe(false);
@@ -119,6 +129,81 @@ describe('daily tasks', () => {
     expect(state.daily.tasks[0].progress).toBe(1);
     expect(refreshDaily(state, DAY + 1)).toBe(true);
     expect(state.daily.tasks.every((t) => t.progress === 0)).toBe(true);
+  });
+});
+
+describe('weekly tasks', () => {
+  it('start on Monday', () => {
+    const sunday = dayNumber(new Date(2026, 10, 8, 12).getTime());
+    const monday = dayNumber(new Date(2026, 10, 9, 12).getTime());
+    expect(weekNumber(monday) - weekNumber(sunday)).toBe(1);
+    expect(weekNumber(monday + 6)).toBe(weekNumber(monday));
+    expect(secondsToNextWeek(new Date(2026, 10, 15, 23, 0).getTime())).toBe(3600);
+    expect(secondsToNextWeek(new Date(2026, 10, 9, 0, 0).getTime())).toBe(7 * 24 * 3600);
+  });
+
+  it('roll once a week, count with daily progress and open a chest', () => {
+    const state = economy();
+    refreshDaily(state, DAY);
+    const tasks = state.daily.weeklyTasks;
+    expect(tasks).toHaveLength(WEEKLY.taskCount);
+    expect(new Set(tasks.map((task) => task.kind)).size).toBe(WEEKLY.taskCount);
+    recordTask(state, tasks[0].kind, 1);
+    // A new day keeps the week.
+    refreshDaily(state, DAY + 1);
+    expect(state.daily.weeklyTasks[0].progress).toBe(1);
+    for (const [i, task] of state.daily.weeklyTasks.entries()) {
+      expect(claimWeeklyTask(state, i)).toBeNull();
+      recordTask(state, task.kind, task.target);
+      expect(dailyNeedsAttention(state.daily, DAY + 1)).toBe(true);
+      expect(claimWeeklyTask(state, i)?.cards).toBe(WEEKLY.taskReward.cards);
+    }
+    expect(weeklyChestReady(state.daily)).toBe(true);
+    expect(claimWeeklyChest(state)?.cards).toBe(WEEKLY.chest.cards);
+    expect(claimWeeklyChest(state)).toBeNull();
+    // Next week brings new ones.
+    expect(refreshDaily(state, DAY + 8)).toBe(true);
+    expect(state.daily.weeklyChestClaimed).toBe(false);
+    expect(state.daily.weeklyTasks.every((task) => task.progress === 0)).toBe(true);
+  });
+
+  it('count opened daily chests', () => {
+    const state = economy();
+    refreshDaily(state, DAY);
+    state.daily.weeklyTasks = [{ kind: 'chests', target: 2, progress: 1, claimed: false }];
+    state.daily.tasks.forEach((task) => {
+      task.progress = task.target;
+      task.claimed = true;
+    });
+    expect(claimChest(state)?.finished).toEqual(state.daily.weeklyTasks);
+    expect(state.daily.weeklyTasks[0].progress).toBe(2);
+  });
+});
+
+describe('streak saver', () => {
+  it('saves a streak broken by one missed day, once a week', () => {
+    const state = economy();
+    claimDailyReward(state, DAY);
+    claimDailyReward(state, DAY + 1);
+    expect(state.daily.streak).toBe(2);
+    // Missed DAY + 2.
+    expect(streakSaveable(state.daily, DAY + 3)).toBe(true);
+    expect(saveStreak(state, DAY + 3)).toBe(true);
+    expect(dailyRewardReady(state.daily, DAY + 3)).toBe(true);
+    claimDailyReward(state, DAY + 3);
+    expect(state.daily.streak).toBe(3);
+    // Another miss in the same week cannot be saved.
+    const sameWeek = weekNumber(DAY + 5) === weekNumber(DAY + 3);
+    expect(streakSaveable(state.daily, DAY + 5)).toBe(!sameWeek);
+  });
+
+  it('does not save short streaks or longer breaks', () => {
+    const state = economy();
+    claimDailyReward(state, DAY);
+    expect(streakSaveable(state.daily, DAY + 2)).toBe(false);
+    claimDailyReward(state, DAY + 1);
+    expect(streakSaveable(state.daily, DAY + 4)).toBe(false);
+    expect(saveStreak(state, DAY + 4)).toBe(false);
   });
 });
 

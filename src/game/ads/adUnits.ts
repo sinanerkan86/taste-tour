@@ -18,6 +18,7 @@ const RELEASE_AD_UNITS: Record<AdPlacement, string> = {
   dailyDouble: '', // Daily double
   busDouble: '', // Tour bus double
   labSpeedUp: '', // Lab speed up
+  streakSave: '', // Streak saver
 };
 
 export function rewardedAdUnit(placement: AdPlacement): string {

@@ -332,5 +332,11 @@
   "weekly.task.research": "Lancez {count} recherches",
   "weekly.task.vip": "Servez {count} clients VIP",
   "weekly.task.chests": "Ouvrez {count} coffres du jour",
-  "banner.weeklyTaskDone": "Mission de la semaine finie : {task}"
+  "banner.weeklyTaskDone": "Mission de la semaine finie : {task}",
+  "staff.button": "+{levels}",
+  "staff.title": "Renfort du personnel",
+  "staff.body": "Pas assez d'argent ? Regardez une courte pub et recrutez du personnel gratuitement ({section}).",
+  "staff.bodyFree": "Pas assez d'argent ? Recrutez du personnel gratuitement ({section}).",
+  "staff.reward": "+{levels} niveaux",
+  "banner.staffHelp": "{section} +{levels} niveaux !"
 }

@@ -19,6 +19,7 @@ const RELEASE_AD_UNITS: Record<AdPlacement, string> = {
   busDouble: '', // Tour bus double
   labSpeedUp: '', // Lab speed up
   streakSave: '', // Streak saver
+  staffHelp: '', // Staff help
 };
 
 export function rewardedAdUnit(placement: AdPlacement): string {

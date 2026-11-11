@@ -332,5 +332,11 @@
   "weekly.task.research": "Start {count} research projects",
   "weekly.task.vip": "Serve {count} VIP guests",
   "weekly.task.chests": "Open {count} daily chests",
-  "banner.weeklyTaskDone": "Weekly task done: {task}"
+  "banner.weeklyTaskDone": "Weekly task done: {task}",
+  "staff.button": "+{levels}",
+  "staff.title": "Staff help",
+  "staff.body": "Short of money? Watch a short ad and hire staff for {section} for free.",
+  "staff.bodyFree": "Short of money? Hire staff for {section} for free.",
+  "staff.reward": "+{levels} levels",
+  "banner.staffHelp": "{section} +{levels} levels!"
 }

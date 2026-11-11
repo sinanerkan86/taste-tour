@@ -24,6 +24,8 @@ export interface EconomyState {
   // Seconds of Rush (ad boost) left, and seconds until the next time skip. Both survive a franchise.
   rushSeconds: number;
   timeSkipCooldown: number;
+  // Seconds until the staff help ad is offered again.
+  staffCooldown: number;
   // Seconds left of a food critic's good review (income boost). It belongs to this restaurant.
   reviewSeconds: number;
   // Kitchen Lab research and franchise perks: permanent, they survive franchises.
@@ -53,6 +55,7 @@ export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomySt
     dishLevels: DISH_TIERS.map((d) => (d.unlockCost === 0 ? 1 : 0)),
     rushSeconds: 0,
     timeSkipCooldown: 0,
+    staffCooldown: 0,
     reviewSeconds: 0,
     lab: newLab(),
     perks: newPerks(),
@@ -126,11 +129,12 @@ export function earningsOver(state: EconomyState, seconds: number): number {
   return baseIncomePerSecond(state) * (s + rush * r + review * v + both * r * v);
 }
 
-// Runs down timed effects (Rush, review, time skip cooldown, lab research).
+// Runs down timed effects (Rush, review, ad cooldowns, lab research).
 export function passTime(state: EconomyState, seconds: number): void {
   state.rushSeconds = Math.max(0, state.rushSeconds - seconds);
   state.reviewSeconds = Math.max(0, state.reviewSeconds - seconds);
   state.timeSkipCooldown = Math.max(0, state.timeSkipCooldown - seconds);
+  state.staffCooldown = Math.max(0, state.staffCooldown - seconds);
   for (const slot of state.lab.slots) slot.remaining = Math.max(0, slot.remaining - seconds);
 }
 

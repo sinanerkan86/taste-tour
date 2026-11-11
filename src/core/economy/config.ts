@@ -130,6 +130,11 @@ export const ADS = {
   // level, and only while more than the minimum is left (shorter waits are not worth an ad).
   labSpeedUpFactor: 0.5,
   labSpeedUpMinSeconds: 5 * 60,
+  // Staff help: when the player cannot afford the next level of the bottleneck section, an ad
+  // hires staff for free: as many levels of it as this many seconds of income would buy (at
+  // least one level must fit). Then it waits for the cooldown.
+  staffHelpSeconds: 20 * 60,
+  staffHelpCooldownSeconds: 15 * 60,
 };
 
 // Scene events: something happens every few minutes of play (see events.ts and GDD 6e).

@@ -332,5 +332,11 @@
   "weekly.task.research": "{count} araştırma başlat",
   "weekly.task.vip": "{count} VIP misafir ağırla",
   "weekly.task.chests": "{count} günlük sandık aç",
-  "banner.weeklyTaskDone": "Haftalık görev tamam: {task}"
+  "banner.weeklyTaskDone": "Haftalık görev tamam: {task}",
+  "staff.button": "+{levels}",
+  "staff.title": "Personel desteği",
+  "staff.body": "Paran mı yetmiyor? Kısa bir reklam izle, {section} için bedava personel al.",
+  "staff.bodyFree": "Paran mı yetmiyor? {section} için bedava personel al.",
+  "staff.reward": "+{levels} seviye",
+  "banner.staffHelp": "{section} +{levels} seviye!"
 }

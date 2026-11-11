@@ -332,5 +332,11 @@
   "weekly.task.research": "开始{count}项研究",
   "weekly.task.vip": "接待{count}位贵宾",
   "weekly.task.chests": "打开{count}个每日宝箱",
-  "banner.weeklyTaskDone": "每周任务完成：{task}"
+  "banner.weeklyTaskDone": "每周任务完成：{task}",
+  "staff.button": "+{levels}",
+  "staff.title": "员工支援",
+  "staff.body": "钱不够？看一段短广告，免费为{section}招募员工。",
+  "staff.bodyFree": "钱不够？免费为{section}招募员工。",
+  "staff.reward": "+{levels}级",
+  "banner.staffHelp": "{section} +{levels}级！"
 }

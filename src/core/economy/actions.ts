@@ -11,7 +11,7 @@ import {
   vipGapMultiplier,
   vipTipMultiplier,
 } from './bonuses';
-import { baseIncomePerSecond, earn, earningsOver, newEconomy, type EconomyState } from './state';
+import { baseIncomePerSecond, earn, earningsOver, newEconomy, throughput, type EconomyState } from './state';
 
 // What every upgrade and unlock in this restaurant is multiplied by: the city's scale, minus the
 // Local Suppliers discount.
@@ -165,6 +165,7 @@ export function prestige(state: EconomyState, perk: PerkId | null = null): Econo
   // Ad rewards were earned by the player, not the restaurant, so they move along.
   next.rushSeconds = state.rushSeconds;
   next.timeSkipCooldown = state.timeSkipCooldown;
+  next.staffCooldown = state.staffCooldown;
   next.lab = { levels: { ...state.lab.levels }, slots: state.lab.slots.map((slot) => ({ ...slot })) };
   next.perks = { ...state.perks };
   next.daily = structuredClone(state.daily);
@@ -197,6 +198,36 @@ export function useTimeSkip(state: EconomyState): number {
   earn(state, amount);
   state.timeSkipCooldown = ADS.timeSkipCooldownSeconds;
   return amount;
+}
+
+// Free levels the staff help ad would hire for the bottleneck section right now: as many as
+// ADS.staffHelpSeconds of income would buy. 0 while it cools down, while the player can afford
+// the next level anyway, or when not even one level fits.
+export function staffHelpLevels(state: EconomyState): number {
+  if (state.staffCooldown > 0) return 0;
+  const id = throughput(state).bottleneck;
+  if (state.money >= sectionUpgradeCost(state, id)) return 0;
+  const budget = baseIncomePerSecond(state) * ADS.staffHelpSeconds;
+  const cfg = SECTIONS[id];
+  const level = state.sectionLevels[id];
+  const scale = sectionCostScale(state);
+  let levels = 0;
+  let cost = 0;
+  while (levels < MAX_LEVELS_PER_BUY) {
+    cost += levelCost(cfg.baseCost, cfg.costGrowth, level + levels) * scale;
+    if (cost > budget) break;
+    levels++;
+  }
+  return levels;
+}
+
+// The ad reward: the levels are added for free and the cooldown starts. Returns the levels.
+export function useStaffHelp(state: EconomyState): number {
+  const levels = staffHelpLevels(state);
+  if (levels <= 0) return 0;
+  state.sectionLevels[throughput(state).bottleneck] += levels;
+  state.staffCooldown = ADS.staffHelpCooldownSeconds;
+  return levels;
 }
 
 // What a VIP guest tips for a rewarded ad. Rush does not raise it, so the two do not stack.

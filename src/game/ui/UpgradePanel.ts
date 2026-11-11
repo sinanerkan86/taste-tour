@@ -24,6 +24,7 @@ import {
   nextLockedDish,
   nextMilestone,
   sectionBuyPlan,
+  staffHelpLevels,
   sectionRates,
   throughput,
   type BuyAmount,
@@ -94,7 +95,11 @@ interface RowView {
   icon: string;
   // Not available yet: faded, with a padlock over the badge.
   locked: boolean;
+  // Label of the staff help ad button ("+12"), or null to hide it.
+  help?: string | null;
 }
+
+const HELP_BUTTON = { width: 150, height: 80 };
 
 class UpgradeRow extends Phaser.GameObjects.Container {
   private readonly bg: Phaser.GameObjects.Image;
@@ -106,9 +111,10 @@ class UpgradeRow extends Phaser.GameObjects.Container {
   private readonly lock: Phaser.GameObjects.Image;
   private readonly glow: Phaser.GameObjects.Graphics;
   readonly button: Button;
+  private readonly help: Button | null;
   private lastHighlight: boolean | null = null;
 
-  constructor(scene: Phaser.Scene, y: number, onBuy: () => void) {
+  constructor(scene: Phaser.Scene, y: number, onBuy: () => void, onHelp?: () => void) {
     super(scene, 0, y);
     const width = GAME_WIDTH - MARGIN * 2;
     this.bg = scene.add.image(GAME_WIDTH / 2, 0, '__DEFAULT').setScale(1 / ART_RES);
@@ -138,6 +144,14 @@ class UpgradeRow extends Phaser.GameObjects.Container {
     this.glow = scene.add.graphics().setAlpha(0);
     this.glow.lineStyle(10, PALETTE.saffron, 1).strokeRoundedRect(MARGIN - 4, -ROW_HEIGHT / 2 - 4, width + 8, ROW_HEIGHT + 8, 20);
     this.add([this.bg, this.icon, this.lock, this.title, this.level, this.tag, this.detail, this.button, this.glow]);
+    // The staff help ad: a small blue button left of the buy button.
+    this.help = null;
+    if (onHelp) {
+      const x = this.button.x - BUTTON_WIDTH / 2 - HELP_BUTTON.width / 2 - 12;
+      this.help = new Button(scene, x, 0, HELP_BUTTON.width, HELP_BUTTON.height, onHelp, 'ad');
+      this.help.setButtonStyle(BUTTON_STYLES.toggle).setVisible(false);
+      this.add(this.help);
+    }
     scene.add.existing(this);
   }
 
@@ -152,6 +166,18 @@ class UpgradeRow extends Phaser.GameObjects.Container {
     this.tag.setVisible(view.highlight);
     this.tag.x = this.level.x + this.level.width + (view.level ? 12 : 0);
     this.detail.setText(view.detail);
+    // The detail line shrinks to stay clear of the buttons.
+    const helping = !!view.help && this.help !== null;
+    const room = GAME_WIDTH - MARGIN * 2 - BUTTON_WIDTH - 150 - (helping ? HELP_BUTTON.width + 12 : 0);
+    this.detail.setScale(Math.min(1, room / Math.max(1, this.detail.width)));
+    if (this.help) {
+      const wasHelping = this.help.visible;
+      this.help.setVisible(helping);
+      if (helping) this.help.setLabel(view.help!, adIcon() !== undefined);
+      if (helping && !wasHelping) {
+        this.scene.tweens.add({ targets: this.help, scale: 1.1, duration: 220, yoyo: true, repeat: 2, ease: 'Quad.easeOut' });
+      }
+    }
     this.title.setAlpha(view.locked ? 0.6 : 1);
     this.icon.setAlpha(view.locked ? 0.7 : 1);
 
@@ -283,6 +309,8 @@ function milestoneText(level: number, bonus: number): string {
 export class UpgradePanel extends Phaser.GameObjects.Container {
   private tab: Tab = 'restaurant';
   onTabChange: ((tab: Tab) => void) | null = null;
+  // Whether the staff help ad may show (the scene keeps it off in the first minutes).
+  staffHelpAllowed = false;
   private lastState: EconomyState | null = null;
   private readonly sectionRows: UpgradeRow[];
   private readonly safeRow: UpgradeRow;
@@ -299,6 +327,8 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     onBuyDish: (index: number) => void,
     onResearch: (id: ResearchId) => void,
     onBuySafe: () => void,
+    // The staff help ad on the bottleneck section's row.
+    onStaffHelp: () => void,
   ) {
     // The scene places the panel at the bottom of the screen.
     super(scene, 0, 0);
@@ -330,7 +360,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
 
     const rowY = (i: number) => 20 + TAB_HEIGHT + 24 + ROW_HEIGHT / 2 + i * (ROW_HEIGHT + ROW_GAP);
     this.sectionRows = SECTION_IDS.map(
-      (id, i) => new UpgradeRow(scene, rowY(i), () => onBuySection(id)),
+      (id, i) => new UpgradeRow(scene, rowY(i), () => onBuySection(id), onStaffHelp),
     );
     this.safeRow = new UpgradeRow(scene, rowY(SECTION_IDS.length), onBuySafe);
     this.dishRows = DISH_TIERS.map((_, i) => new UpgradeRow(scene, rowY(i), () => onBuyDish(i)));
@@ -466,6 +496,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
   private refreshSections(state: EconomyState): void {
     const rates = sectionRates(state);
     const { bottleneck } = throughput(state);
+    const helpLevels = this.staffHelpAllowed ? staffHelpLevels(state) : 0;
     SECTION_IDS.forEach((id, i) => {
       const level = state.sectionLevels[id];
       const { levels, cost } = sectionBuyPlan(state, id, settings.buyAmount);
@@ -480,6 +511,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
         highlight: id === bottleneck,
         icon: sectionIcon(this.scene, id, SECTION_COLORS[id]),
         locked: false,
+        help: id === bottleneck && helpLevels > 0 ? t('staff.button', { levels: helpLevels }) : null,
       });
     });
     // The Night Safe: one level per tap whatever the buy amount says.

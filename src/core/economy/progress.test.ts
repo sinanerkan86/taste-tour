@@ -30,9 +30,40 @@ import {
   sectionUpgradeCost,
   speedUpResearch,
   startResearch,
+  staffHelpLevels,
+  throughput,
+  useStaffHelp,
   vipTip,
 } from './index';
 import { createSave, offlineReward, parseSave, serializeSave } from '../save';
+
+describe('staff help', () => {
+  it('hires free levels for the bottleneck when the player is short of money', () => {
+    const state = newEconomy();
+    state.money = 0;
+    const id = throughput(state).bottleneck;
+    const before = state.sectionLevels[id];
+    const levels = staffHelpLevels(state);
+    expect(levels).toBeGreaterThan(0);
+    expect(useStaffHelp(state)).toBe(levels);
+    expect(state.sectionLevels[id]).toBe(before + levels);
+    expect(state.money).toBe(0);
+    // Then it cools down, also across a save.
+    expect(staffHelpLevels(state)).toBe(0);
+    const loaded = parseSave(serializeSave(createSave(state, 0)))!.economy;
+    expect(loaded.staffCooldown).toBe(ADS.staffHelpCooldownSeconds);
+    advanceTime(state, ADS.staffHelpCooldownSeconds);
+    state.money = 0;
+    expect(staffHelpLevels(state)).toBeGreaterThan(0);
+  });
+
+  it('is not offered when the next level is affordable', () => {
+    const state = newEconomy();
+    state.money = 1e12;
+    expect(staffHelpLevels(state)).toBe(0);
+    expect(useStaffHelp(state)).toBe(0);
+  });
+});
 
 describe('kitchen lab', () => {
   it('runs one project at a time on real time and waits to be collected', () => {

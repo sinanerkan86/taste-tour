@@ -287,13 +287,13 @@ Before the Lab and perks every city took 1h 31m (each one a copy of the first). 
 | Time skip | Instant 1 hour of earnings |
 | Offline earnings | Collect 2x/3x on return |
 | Wandering customer / VIP tourist | Randomly appearing customer, big tip for watching an ad |
-| Staff discount | Hire the next staff member cheaper by watching an ad |
+| Staff help (was "staff discount") | Free levels for the bottleneck section when the player is short of money |
 
 Implemented (7a): Rush gives 2x income for 4 hours per ad and stacks up to 12 hours; its time keeps running while the player is away, so offline earnings use the boosted rate only for the Rush part. Time skip ("Extra cash") pays one hour of current income at once and then has a 30 minute cooldown; it is offered from a green "+" at the right end of the money counter, which turns grey while cooling down (tapping it then shows the time left). The welcome-back dialog offers "Collect 2x". Every ad starts from a dialog that shows the reward, and a skipped ad gives nothing. Rush time and the cooldown carry over through a franchise. Numbers live in `ADS` in the economy config.
 
-Implemented (7b): a VIP guest (a food tourist with a sun hat and a star bubble) walks in after 4 minutes of play and then every 8-12 minutes (kept rare so ads never feel pushed), and waits near the door for 40 s. Tapping them offers a tip worth 15 minutes of income (Rush does not raise it) for an ad; saying no or ignoring them sends them away. The staff discount placement is left for later.
+Implemented (7b): a VIP guest (a food tourist with a sun hat and a star bubble) walks in after 4 minutes of play and then every 8-12 minutes (kept rare so ads never feel pushed), and waits near the door for 40 s. Tapping them offers a tip worth 15 minutes of income (Rush does not raise it) for an ad; saying no or ignoring them sends them away. The staff discount became **staff help** (added 2026-11-11, version 1.8.0, placement `staffHelp`): a discount is no use to a player who is short of money, so instead, when the player cannot afford the next level of the bottleneck section, a small blue "+N" button with the ad icon appears on its row. The ad hires those N levels for free: as many as 20 minutes of income would buy (less than a time skip). Then it waits 15 minutes (`staffCooldown`, saved, runs offline). It stays hidden until the first bottleneck tip is seen. Code: `staffHelpLevels`, `useStaffHelp` in `actions.ts`, `ADS.staffHelp*` in config.
 
-Added with the retention features: "Collect 2x" on the daily reward (`dailyDouble`, section 6d), doubling the tour bus tips (`busDouble`, section 6e) and halving the time left on a Kitchen Lab project (`labSpeedUp`, section 6b). Each placement has its own ad unit in AdMob (`src/game/ads/adUnits.ts`).
+Added with the retention features: "Collect 2x" on the daily reward (`dailyDouble`, section 6d), doubling the tour bus tips (`busDouble`, section 6e) and halving the time left on a Kitchen Lab project (`labSpeedUp`, section 6b), saving a daily streak (`streakSave`, section 6d) and staff help (`staffHelp`, above). Each placement has its own ad unit in AdMob (`src/game/ads/adUnits.ts`).
 
 ## 8b. In-app purchases
 

@@ -41,7 +41,9 @@ import {
   canSpeedUpResearch,
   researchSpeedUpSeconds,
   speedUpResearch,
+  staffHelpLevels,
   startResearch,
+  useStaffHelp,
   cityConfig,
   earn,
   incomePerSecond,
@@ -276,6 +278,7 @@ export class RestaurantScene extends Phaser.Scene {
       (index) => this.buyDish(index),
       (id) => this.pressResearch(id),
       () => this.buySafe(),
+      () => this.offerStaffHelp(),
     );
     this.panel.onTabChange = (tab) => {
       if (tab === 'lab' && this.hint && this.hintId === LAB_HINT) this.hint.close();
@@ -845,6 +848,29 @@ export class RestaurantScene extends Phaser.Scene {
     );
   }
 
+  // Staff help: free levels for the bottleneck section when the player is short of money.
+  private offerStaffHelp(): void {
+    const levels = staffHelpLevels(this.economy);
+    if (levels <= 0) return;
+    const section = t(`section.${throughput(this.economy).bottleneck}` as TranslationKey);
+    const offer = {
+      title: t('staff.title'),
+      body: adText('staff.body', { section }),
+      reward: t('staff.reward', { levels }),
+    };
+    new AdOfferModal(this, offer, UI_DEPTH + 100, () => {
+      // The money may have come in meanwhile; then the ad is not needed.
+      if (staffHelpLevels(this.economy) <= 0) return;
+      void this.watchAd('staffHelp', () => {
+        const id = throughput(this.economy).bottleneck;
+        const hired = useStaffHelp(this.economy);
+        if (hired <= 0) return;
+        this.panel.pulseSection(id);
+        this.celebrate(t('banner.staffHelp', { levels: hired, section: t(`section.${id}` as TranslationKey) }), PALETTE.success);
+      });
+    });
+  }
+
   private offerResearchSpeedUp(id: ResearchId): void {
     const offer = {
       title: t('ads.labTitle'),
@@ -1277,6 +1303,8 @@ export class RestaurantScene extends Phaser.Scene {
   }
 
   private refreshUi(): void {
+    // Like the daily dialog, the staff help ad waits until the first bottleneck tip is seen.
+    this.panel.staffHelpAllowed = this.seenHints.includes(BOTTLENECK_HINT);
     this.moneyText.setText(formatNumber(this.economy.money, 0));
     const income = formatNumber(incomePerSecond(this.economy) + this.festivalBonus());
     const boost = boostMultiplier(this.economy);

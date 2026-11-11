@@ -56,7 +56,6 @@ import {
   adsRemoved,
   buySafeLevel,
   offlineCapSeconds,
-  cardTarget,
   chefsNeedAttention,
   grantPurchase,
   levelUpChef,
@@ -541,7 +540,7 @@ export class RestaurantScene extends Phaser.Scene {
         claimTask: (index) => grant(claimTask(this.economy, index)),
         claimChest: () => {
           const granted = grant(claimChest(this.economy));
-          if (granted) this.noteCards(granted.chef, granted.cards);
+          if (granted) this.noteCards(granted.cards);
           return granted;
         },
       },
@@ -687,10 +686,10 @@ export class RestaurantScene extends Phaser.Scene {
     this.chefsModal?.render();
   }
 
-  // Tells the player who got chef cards.
-  private noteCards(chef: ChefId | null, count: number): void {
-    if (!chef || count <= 0) return;
-    this.note(t('chefs.cardNote', { count, name: chefName(chef) }));
+  // Tells the player about new chef cards.
+  private noteCards(count: number): void {
+    if (count <= 0) return;
+    this.note(t('chefs.cardNote', { count }));
   }
 
   private openShop(): void {
@@ -721,7 +720,7 @@ export class RestaurantScene extends Phaser.Scene {
     banner(this, BANNER_Y, t('shop.thanks', { name: t(key) }), PALETTE.success, UI_DEPTH + 151);
     confetti(this, GAME_WIDTH / 2, BANNER_Y + 40, UI_DEPTH + 151);
     if (granted.money > 0) floatingText(this, GAME_WIDTH / 2, BANNER_Y + 160, `+${formatNumber(granted.money)}`, PALETTE.saffron, 64, UI_DEPTH + 151);
-    this.noteCards(granted.chef, granted.cards);
+    this.noteCards(granted.cards);
     void this.saveGame();
     this.refreshUi();
     this.shopModal?.render();
@@ -926,7 +925,7 @@ export class RestaurantScene extends Phaser.Scene {
     void this.view.dismissCritic(success);
     this.endEvent();
     if (success) {
-      const chef = grantReview(this.economy);
+      const cards = grantReview(this.economy);
       void this.saveGame();
       this.celebrate(
         t('event.critic.success', {
@@ -935,7 +934,7 @@ export class RestaurantScene extends Phaser.Scene {
         }),
         PALETTE.success,
       );
-      this.noteCards(chef, CHEF.criticCards);
+      this.noteCards(cards);
     } else {
       this.note(t('event.critic.fail'));
     }
@@ -1158,7 +1157,6 @@ export class RestaurantScene extends Phaser.Scene {
 
   private buyDish(index: number): void {
     const level = this.economy.dishLevels[index];
-    const cardsTo = level === 0 ? cardTarget(this.economy) : null;
     const bought = buyDishLevels(this.economy, index, this.panel.buyAmount);
     if (bought === 0) return;
     this.track('dishLevels', bought);
@@ -1169,7 +1167,7 @@ export class RestaurantScene extends Phaser.Scene {
     const newLevel = this.economy.dishLevels[index];
     if (level === 0) {
       this.celebrateNewDish(t('banner.newDish', { name }));
-      this.noteCards(cardsTo, CHEF.dishCards);
+      this.noteCards(CHEF.dishCards);
     } else if (newLevel === DISH_MAX_LEVEL) {
       this.celebrate(t('banner.mastered', { name }), PALETTE.tileBlue);
     } else if (milestonesReached(newLevel) > milestonesReached(level)) {

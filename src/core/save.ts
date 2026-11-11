@@ -5,7 +5,7 @@ import {
   PRODUCT_IDS,
   SAFE,
   chefMaxLevel,
-  chefOfCity,
+  cardsSpentOn,
   DISH_TIERS,
   PERK_IDS,
   TASK_KINDS,
@@ -89,7 +89,12 @@ export function parseSave(json: string): SaveData | null {
   };
   for (const id of CHEF_IDS) {
     economy.chefs.levels[id] = Math.min(chefMaxLevel(), Math.max(0, Math.floor(finiteOr(saved.chefs?.levels?.[id], 0))));
-    economy.chefs.cards[id] = Math.max(0, Math.floor(finiteOr(saved.chefs?.cards?.[id], 0)));
+  }
+  economy.chefs.pool = Math.max(0, Math.floor(finiteOr(saved.chefs?.pool, 0)));
+  // Saves from 1.3.0-1.4.x kept cards per chef: they all go into the shared pool.
+  const perChef = (saved.chefs as { cards?: Record<string, unknown> } | undefined)?.cards;
+  if (typeof perChef === 'object' && perChef !== null) {
+    for (const value of Object.values(perChef)) economy.chefs.pool += Math.max(0, Math.floor(finiteOr(value, 0)));
   }
   for (const id of PRODUCT_IDS) economy.purchases[id] = saved.purchases?.[id] === true;
   economy.safeLevel = Math.min(SAFE.costs.length, Math.max(0, Math.floor(finiteOr(saved.safeLevel, 0))));
@@ -146,18 +151,13 @@ export function parseSave(json: string): SaveData | null {
 }
 
 // Saves from before the chef collection: every finished city pays the cards it would have given
-// (its dishes and the franchise), and the current city's chef is topped up for the dishes already
-// on the menu (cards given since the update are counted).
+// (its dishes and the franchise), and the current city's dishes already on the menu are paid
+// unless the cards held and spent already cover them (cards given since the update).
 function backPayChefCards(economy: EconomyState): void {
-  const dishCards = (DISH_TIERS.length - 1) * CHEF.dishCards;
-  for (let city = 0; city < economy.city; city++) {
-    economy.chefs.cards[chefOfCity(city)] += dishCards + CHEF.franchiseCards;
-  }
-  const local = chefOfCity(economy.city);
+  const perCity = (DISH_TIERS.length - 1) * CHEF.dishCards + CHEF.franchiseCards;
   const unlocked = economy.dishLevels.filter((level, i) => level > 0 && DISH_TIERS[i].unlockCost > 0).length;
-  const spent = CHEF.cardsPerLevel.slice(0, economy.chefs.levels[local]).reduce((sum, n) => sum + n, 0);
-  const missing = unlocked * CHEF.dishCards - (economy.chefs.cards[local] + spent);
-  if (missing > 0) economy.chefs.cards[local] += missing;
+  const had = economy.chefs.pool + CHEF_IDS.reduce((sum, id) => sum + cardsSpentOn(economy, id), 0);
+  economy.chefs.pool += economy.city * perCity + Math.max(0, unlocked * CHEF.dishCards - had);
 }
 
 export interface OfflineReward {

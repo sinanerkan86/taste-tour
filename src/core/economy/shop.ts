@@ -1,4 +1,4 @@
-import { PRODUCT_IDS, SHOP, type ChefId, type ProductId } from './config';
+import { PRODUCT_IDS, SHOP, type ProductId } from './config';
 import { giveChefCards } from './chefs';
 import { baseIncomePerSecond, earn, type EconomyState } from './state';
 
@@ -24,7 +24,6 @@ export interface GrantedPurchase {
   money: number;
   rush: number;
   cards: number;
-  chef: ChefId | null;
 }
 
 // Marks a product as owned and pays out what it contains. Returns null if it was owned already
@@ -32,15 +31,14 @@ export interface GrantedPurchase {
 export function grantPurchase(state: EconomyState, id: ProductId): GrantedPurchase | null {
   if (state.purchases[id]) return null;
   state.purchases[id] = true;
-  const granted: GrantedPurchase = { money: 0, rush: 0, cards: 0, chef: null };
+  const granted: GrantedPurchase = { money: 0, rush: 0, cards: 0 };
   if (id === 'starter_pack') {
     granted.money = SHOP.starter.money * baseIncomePerSecond(state);
     earn(state, granted.money);
     // Bought Rush may go past the usual cap.
     state.rushSeconds += SHOP.starter.rush;
     granted.rush = SHOP.starter.rush;
-    granted.chef = giveChefCards(state, SHOP.starter.cards);
-    granted.cards = granted.chef ? SHOP.starter.cards : 0;
+    granted.cards = giveChefCards(state, SHOP.starter.cards);
   }
   return granted;
 }

@@ -249,14 +249,14 @@
   "event.review.detail": "Income x{multiplier}",
   "chefs.button": "Chefs",
   "chefs.title": "Chef Collection",
-  "chefs.info": "Earn chef cards with new dishes, franchises, the daily chest and good reviews. Chefs stay with you for good.",
+  "chefs.info": "Chef cards come from new dishes, franchises, the daily chest and good reviews. Spend them on any chef you like.",
   "chefs.recruit": "Recruit",
   "chefs.levelUp": "Level up",
   "chefs.maxed": "MAX",
   "chefs.locked": "Joins in {city}",
   "chefs.joined": "Chef {name} joined your team!",
   "chefs.leveled": "Chef {name} reached Lv {level}!",
-  "chefs.cardNote": "+{count} chef card: {name}",
+  "chefs.cardNote": "+{count} chef cards",
   "chefs.perLevel": "{skill} per level",
   "chef.skill.income": "Income +{value}",
   "chef.skill.kitchen": "Kitchen speed +{value}",
@@ -301,5 +301,8 @@
   "row.safe": "Night Safe",
   "row.safeDetail": "Offline: {time}",
   "row.safeNext": "next +{time}",
-  "banner.safe": "Night Safe: offline earnings up to {time}"
+  "banner.safe": "Night Safe: offline earnings up to {time}",
+  "chefs.recruitCost": "Recruit ({cost} card)",
+  "chefs.levelUpCost": "Level up ({cost} cards)",
+  "chefs.pool": "Chef cards: {count}"
 }

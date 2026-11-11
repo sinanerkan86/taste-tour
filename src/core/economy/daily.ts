@@ -1,7 +1,6 @@
 import { RESEARCH_IDS } from './config';
 import { dailyMoneyMultiplier, researchMaxLevel, rushMaxSeconds } from './bonuses';
 import { giveChefCards } from './chefs';
-import type { ChefId } from './config';
 import { baseIncomePerSecond, earn, type EconomyState } from './state';
 
 // Daily rewards and daily tasks: reasons to open the game every day.
@@ -151,8 +150,6 @@ export interface GrantedReward {
   money: number;
   rush: number;
   cards: number;
-  // Who got the cards.
-  chef: ChefId | null;
 }
 
 // Pays a reward (times `multiplier`, 2 after a rewarded ad): money from seconds of income, Rush
@@ -162,9 +159,8 @@ export function grantReward(state: EconomyState, reward: DailyReward, multiplier
   if (money > 0) earn(state, money);
   const before = state.rushSeconds;
   if (reward.rush) state.rushSeconds = Math.min(Math.max(before, rushMaxSeconds(state)), before + reward.rush * multiplier);
-  const count = (reward.cards ?? 0) * multiplier;
-  const chef = giveChefCards(state, count);
-  return { money, rush: state.rushSeconds - before, cards: chef ? count : 0, chef };
+  const cards = giveChefCards(state, (reward.cards ?? 0) * multiplier);
+  return { money, rush: state.rushSeconds - before, cards };
 }
 
 // What a reward would pay right now (for display).
@@ -173,7 +169,6 @@ export function rewardValue(state: EconomyState, reward: DailyReward): GrantedRe
     money: (reward.money ?? 0) * baseIncomePerSecond(state) * dailyMoneyMultiplier(state),
     rush: reward.rush ?? 0,
     cards: reward.cards ?? 0,
-    chef: null,
   };
 }
 

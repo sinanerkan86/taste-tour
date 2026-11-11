@@ -1,20 +1,20 @@
 import { CHEF, CHEF_IDS, type ChefId } from './config';
 import type { EconomyState } from './state';
 
-// Chef collection (GDD 6f): one famous chef per city of the tour. Cards come from playing
-// (dishes added to the menu, franchises, the daily chest, good reviews, the starter pack). The
-// player spends them to recruit a chef and to level them up; levels are permanent.
+// Chef collection (GDD 6f): one famous chef per city of the tour. Chef cards come from playing
+// (dishes added to the menu, franchises, the daily chest, good reviews, the starter pack) into
+// one shared pool; the player chooses which chef to spend them on: recruiting a chef is the first
+// level, then each level costs more cards. Levels are permanent.
 
 export interface ChefState {
-  // Cards waiting to be spent, per chef.
-  cards: Record<ChefId, number>;
+  // Chef cards waiting to be spent, on any chef the tour has reached.
+  pool: number;
   // 0 = not recruited yet.
   levels: Record<ChefId, number>;
 }
 
 export function newChefs(): ChefState {
-  const zero = () => Object.fromEntries(CHEF_IDS.map((id) => [id, 0])) as Record<ChefId, number>;
-  return { cards: zero(), levels: zero() };
+  return { pool: 0, levels: Object.fromEntries(CHEF_IDS.map((id) => [id, 0])) as Record<ChefId, number> };
 }
 
 export function chefMaxLevel(): number {
@@ -26,7 +26,7 @@ export function chefOfCity(city: number): ChefId {
   return CHEF_IDS[city % CHEF_IDS.length];
 }
 
-// A chef can only get cards once the tour has reached their city.
+// A chef can be recruited once the tour has reached their city.
 export function chefMet(state: EconomyState, id: ChefId): boolean {
   return CHEF_IDS.indexOf(id) <= state.city;
 }
@@ -37,48 +37,32 @@ export function cardsForNextLevel(state: EconomyState, id: ChefId): number | nul
   return level >= chefMaxLevel() ? null : CHEF.cardsPerLevel[level];
 }
 
-export function canLevelUpChef(state: EconomyState, id: ChefId): boolean {
-  const needed = cardsForNextLevel(state, id);
-  return needed !== null && state.chefs.cards[id] >= needed;
+// Cards spent on a chef so far.
+export function cardsSpentOn(state: EconomyState, id: ChefId): number {
+  return CHEF.cardsPerLevel.slice(0, state.chefs.levels[id]).reduce((sum, n) => sum + n, 0);
 }
 
-// Spends the cards for the next level (the first level recruits the chef).
+export function canLevelUpChef(state: EconomyState, id: ChefId): boolean {
+  const needed = cardsForNextLevel(state, id);
+  return chefMet(state, id) && needed !== null && state.chefs.pool >= needed;
+}
+
+// Spends cards from the pool on the chef's next level (the first level recruits the chef).
 export function levelUpChef(state: EconomyState, id: ChefId): boolean {
   if (!canLevelUpChef(state, id)) return false;
-  state.chefs.cards[id] -= cardsForNextLevel(state, id)!;
+  state.chefs.pool -= cardsForNextLevel(state, id)!;
   state.chefs.levels[id]++;
   return true;
 }
 
-// Cards a chef can still use before reaching max level.
-function cardsWanted(state: EconomyState, id: ChefId): number {
-  const level = state.chefs.levels[id];
-  const left = CHEF.cardsPerLevel.slice(level).reduce((sum, n) => sum + n, 0);
-  return Math.max(0, left - state.chefs.cards[id]);
+// Adds cards to the pool. Returns how many were added.
+export function giveChefCards(state: EconomyState, count: number): number {
+  const cards = Math.max(0, Math.floor(count));
+  state.chefs.pool += cards;
+  return cards;
 }
 
-// Who gets cards that are not tied to a chef: the chef of this city while they still need
-// cards, otherwise the met chef furthest from max level. Null when every met chef has enough.
-export function cardTarget(state: EconomyState): ChefId | null {
-  const local = chefOfCity(state.city);
-  if (cardsWanted(state, local) > 0) return local;
-  let best: ChefId | null = null;
-  for (const id of CHEF_IDS) {
-    if (!chefMet(state, id)) continue;
-    if (cardsWanted(state, id) > (best ? cardsWanted(state, best) : 0)) best = id;
-  }
-  return best;
-}
-
-// Gives cards to `cardTarget`. Returns who got them (null if nobody needed them).
-export function giveChefCards(state: EconomyState, count: number): ChefId | null {
-  if (count <= 0) return null;
-  const id = cardTarget(state);
-  if (id) state.chefs.cards[id] += count;
-  return id;
-}
-
-// True when a chef can be recruited or leveled up (the red "!" on the chefs button).
+// True when some chef can be recruited or leveled up (the red "!" on the chefs button).
 export function chefsNeedAttention(state: EconomyState): boolean {
   return CHEF_IDS.some((id) => canLevelUpChef(state, id));
 }

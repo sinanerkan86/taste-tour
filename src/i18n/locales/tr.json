@@ -249,14 +249,14 @@
   "event.review.detail": "Gelir x{multiplier}",
   "chefs.button": "Şefler",
   "chefs.title": "Şef Koleksiyonu",
-  "chefs.info": "Yeni yemekler, franchise, günlük sandık ve iyi yorumlarla şef kartı kazan. Şefler hep seninle kalır.",
+  "chefs.info": "Şef kartları yeni yemekler, franchise, günlük sandık ve iyi yorumlardan gelir. Dilediğin şefe harca.",
   "chefs.recruit": "İşe al",
   "chefs.levelUp": "Geliştir",
   "chefs.maxed": "MAKS",
   "chefs.locked": "Katıldığı şehir: {city}",
   "chefs.joined": "Şef {name} ekibine katıldı!",
   "chefs.leveled": "Şef {name} Sv {level} oldu!",
-  "chefs.cardNote": "+{count} şef kartı: {name}",
+  "chefs.cardNote": "+{count} şef kartı",
   "chefs.perLevel": "Her seviyede {skill}",
   "chef.skill.income": "Gelir +{value}",
   "chef.skill.kitchen": "Mutfak hızı +{value}",
@@ -301,5 +301,8 @@
   "row.safe": "Gece Kasası",
   "row.safeDetail": "Çevrimdışı: {time}",
   "row.safeNext": "sonraki +{time}",
-  "banner.safe": "Gece Kasası: çevrimdışı kazanç {time}"
+  "banner.safe": "Gece Kasası: çevrimdışı kazanç {time}",
+  "chefs.recruitCost": "İşe al ({cost} kart)",
+  "chefs.levelUpCost": "Geliştir ({cost} kart)",
+  "chefs.pool": "Şef kartların: {count}"
 }

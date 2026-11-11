@@ -209,7 +209,7 @@ Added 2026-11-07 (retention, third step) so a session has surprises and short go
 
 ## 6f. Chef collection
 
-Added 2026-11-11 (long-term goal next to the Lab, and the first content tied to IAP). Every city of the tour has one famous chef (original characters, not real people). A chef joins with chef cards and then levels up with more cards (1, 2, 3, 5 and 8 cards for levels 1-5). Levels are permanent: they survive franchises like the Lab. The chefs button sits above the daily button in the bottom left corner of the room; a red "!" (and a hop) shows when a chef can be recruited or leveled up. The collection dialog shows all ten chefs: the ones the tour has not reached yet are dark silhouettes with "Joins in <city>".
+Added 2026-11-11 (long-term goal next to the Lab, and the first content tied to IAP). Every city of the tour has one famous chef (original characters, not real people). Chef cards go into one shared pool and the player chooses which chef to spend them on (changed on 2026-11-11 from cards tied to one chef, so the collection has a real choice): a chef the tour has reached joins for 1 card and then levels up for 2, 3, 5 and 8 cards (levels 2-5). Levels are permanent: they survive franchises like the Lab. The chefs button sits above the daily button in the bottom left corner of the room; a red "!" (and a hop) shows when a chef can be recruited or leveled up. The collection dialog shows the pool ("Chef cards: 9") and all ten chefs, each reached chef with a button naming the price of their next level (green when the pool covers it); the ones the tour has not reached yet are dark silhouettes with "Joins in <city>".
 
 | Chef | City | Skill per level |
 |---|---|---|
@@ -224,7 +224,7 @@ Added 2026-11-11 (long-term goal next to the Lab, and the first content tied to 
 | Sofía | Mexico City | Rush per ad +30 min |
 | Jordan | New York | Franchise stars +5% |
 
-**Cards** go to the chef of the current city while they still need cards, otherwise to the met chef furthest from max level:
+**Cards** come from:
 
 - 1 card for every dish added to the menu (6 per city),
 - 3 cards when franchising out of a city (for that city's chef),
@@ -232,9 +232,9 @@ Added 2026-11-11 (long-term goal next to the Lab, and the first content tied to 
 - 2 cards from the daily chest,
 - 5 cards in the starter pack (IAP).
 
-A city on pace gives about 9-12 cards, so its chef reaches level 3-4 there; the daily chest and reviews keep older chefs growing. Numbers live in `CHEFS` / `CHEF` in the economy config, logic in `src/core/economy/chefs.ts`, the dialog in `src/game/ui/ChefsModal.ts`, the looks in `src/game/view/chefLooks.ts`.
+A city on pace gives about 9-12 cards: enough to bring one chef to level 3-4, or to spread over several. Cards never expire. Numbers live in `CHEFS` / `CHEF` in the economy config, logic in `src/core/economy/chefs.ts`, the dialog in `src/game/ui/ChefsModal.ts`, the looks in `src/game/view/chefLooks.ts`.
 
-Saves from before the collection (save version 1) are paid back once on load: every finished city gives its chef 9 cards (6 dishes + franchise) and the current city's chef is topped up for the dishes already on the menu.
+Saves from before the collection (save version 1) are paid back once on load: 9 cards (6 dishes + franchise) per finished city, plus the dishes already on the menu in the current city. Saves from 1.3.0-1.4.1 kept cards per chef; those go into the pool.
 
 Later ideas: the head chef of the city cooking in the kitchen; more chefs per city.
 

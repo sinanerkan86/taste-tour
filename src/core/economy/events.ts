@@ -1,4 +1,4 @@
-import { CHEF, EVENTS, type ChefId, type SectionId } from './config';
+import { CHEF, EVENTS, type SectionId } from './config';
 import { eventRewardMultiplier, incomeMultiplier } from './bonuses';
 import { giveChefCards } from './chefs';
 import { sectionUpgradeCost } from './actions';
@@ -50,8 +50,8 @@ export function reviewDuration(state: EconomyState): number {
 }
 
 // The good review: a timed income boost (a new review restarts the clock) and a chef card.
-// Returns the chef who got the card.
-export function grantReview(state: EconomyState): ChefId | null {
+// Returns the cards given.
+export function grantReview(state: EconomyState): number {
   state.reviewSeconds = Math.max(state.reviewSeconds, reviewDuration(state));
   return giveChefCards(state, CHEF.criticCards);
 }

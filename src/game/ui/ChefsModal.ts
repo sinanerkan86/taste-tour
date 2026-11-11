@@ -20,16 +20,19 @@ import { BUTTON_STYLES, Button } from './Button';
 import { chefCardIcon } from './icons';
 import { createModalCard, modalText } from './modalCard';
 import { chefName, chefSkillText } from './progressText';
-import { card, outlined, plain, wrapStyle } from './style';
+import { card, counterPill, outlined, plain, wrapStyle } from './style';
 
 const CARD_WIDTH = 980;
-const TILE = { width: 452, height: 236, gap: 16 };
+const TILE = { width: 452, height: 236, gap: 12 };
 const COLUMNS = 2;
-const GRID_TOP = 270;
-const CARD_HEIGHT = GRID_TOP + Math.ceil(CHEF_IDS.length / COLUMNS) * (TILE.height + TILE.gap) + 150;
+// The card pool counter under the info text, then the grid of chefs.
+const POOL = { y: 248, width: 520, height: 64 };
+const GRID_TOP = 300;
+const CARD_HEIGHT = GRID_TOP + Math.ceil(CHEF_IDS.length / COLUMNS) * (TILE.height + TILE.gap) + 140;
 const TEXT_X = 186;
-const BAR = { width: 170, height: 18 };
-const BUTTON = { width: 250, height: 66 };
+// The level up button row inside a tile.
+const BUTTON_Y = 202;
+const BUTTON = { width: 250, height: 58 };
 const SILHOUETTE = 0x3a2c3c;
 
 const TILE_LOOKS = {
@@ -48,9 +51,6 @@ interface ChefTile {
   city: Phaser.GameObjects.Text;
   stars: Phaser.GameObjects.Image[];
   skill: Phaser.GameObjects.Text;
-  bar: Phaser.GameObjects.Graphics;
-  cardIcon: Phaser.GameObjects.Image;
-  count: Phaser.GameObjects.Text;
   button: Button;
   max: Phaser.GameObjects.Text;
 }
@@ -61,9 +61,11 @@ function silhouette(object: Phaser.GameObjects.GameObject): void {
   else if (object instanceof Phaser.GameObjects.Image) object.setTint(SILHOUETTE);
 }
 
-// The chef collection: one tile per famous chef with their skill, level and cards.
+// The chef collection: the shared pool of chef cards on top, then one tile per famous chef with
+// their skill, level and a button that spends cards on them.
 export class ChefsModal extends Phaser.GameObjects.Container {
   private readonly tiles: ChefTile[] = [];
+  private readonly poolText: Phaser.GameObjects.Text;
   private readonly fxDepth: number;
 
   constructor(
@@ -78,7 +80,14 @@ export class ChefsModal extends Phaser.GameObjects.Container {
     const modal = createModalCard(scene, CARD_WIDTH, CARD_HEIGHT, t('chefs.title'));
     const { cx, top } = modal;
     const children: Phaser.GameObjects.GameObject[] = [...modal.objects];
-    children.push(modalText(scene, modal, CARD_WIDTH, top + 195, t('chefs.info'), 28, PALETTE.muted));
+    children.push(modalText(scene, modal, CARD_WIDTH, top + 172, t('chefs.info'), 26, PALETTE.muted));
+
+    // How many cards there are to spend.
+    const poolY = top + POOL.y;
+    const pill = scene.add.image(cx, poolY, counterPill(scene, POOL.width, POOL.height)).setScale(1 / ART_RES);
+    const poolIcon = scene.add.image(cx - POOL.width / 2 + 10, poolY - 2, chefCardIcon(scene)).setScale(0.9 / ART_RES);
+    this.poolText = scene.add.text(cx + 16, poolY - 2, '', outlined(34)).setOrigin(0.5);
+    children.push(pill, poolIcon, this.poolText);
 
     const state = economy();
     const gridWidth = COLUMNS * TILE.width + (COLUMNS - 1) * TILE.gap;
@@ -90,7 +99,7 @@ export class ChefsModal extends Phaser.GameObjects.Container {
       children.push(tile.container);
     });
 
-    const close = new Button(scene, cx, top + CARD_HEIGHT - 80, 320, 90, () => this.destroy());
+    const close = new Button(scene, cx, top + CARD_HEIGHT - 76, 320, 90, () => this.destroy());
     close.setLabel(t('settings.close')).setButtonStyle(BUTTON_STYLES.primary);
     children.push(close);
 
@@ -107,40 +116,36 @@ export class ChefsModal extends Phaser.GameObjects.Container {
     // A soft spotlight behind the chef in their neckerchief color.
     const glow = scene.add.graphics();
     glow.fillStyle(CHEF_LOOKS[id].scarf ?? PALETTE.saffron, met ? 0.22 : 0.1).fillCircle(92, 112, 76);
-    glow.fillStyle(0x3a2618, 0.18).fillEllipse(92, 214, 110, 22);
-    const person = new Person(scene, 92, 216, 'chef', CHEF_LOOKS[id]);
+    glow.fillStyle(0x3a2618, 0.18).fillEllipse(92, 216, 110, 22);
+    const person = new Person(scene, 92, 218, 'chef', CHEF_LOOKS[id]);
     person.setStyle(3);
     person.setScale(1.05).setDepth(0);
     if (!met) silhouette(person);
-    const name = scene.add.text(TEXT_X, 22, chefName(id), plain(32, PALETTE.ink, true)).setOrigin(0, 0);
+    const name = scene.add.text(TEXT_X, 20, chefName(id), plain(32, PALETTE.ink, true)).setOrigin(0, 0);
     name.setScale(Math.min(1, (TILE.width - TEXT_X - 20) / name.width));
-    const city = scene.add.text(TEXT_X, 62, '', plain(22, PALETTE.muted)).setOrigin(0, 0);
+    const city = scene.add.text(TEXT_X, 58, '', plain(22, PALETTE.muted)).setOrigin(0, 0);
     const stars = Array.from({ length: chefMaxLevel() }, (_, i) =>
-      scene.add.image(TEXT_X + 16 + i * 34, 106, 'star').setScale(0.42),
+      scene.add.image(TEXT_X + 16 + i * 34, 100, 'star').setScale(0.42),
     );
     const skill = scene.add
-      .text(TEXT_X, 128, '', { ...plain(23, PALETTE.saffronDark, true), wordWrap: wrapStyle(TILE.width - TEXT_X - 18), lineSpacing: 2 })
+      .text(TEXT_X, 120, '', { ...plain(22, PALETTE.saffronDark, true), wordWrap: wrapStyle(TILE.width - TEXT_X - 18), lineSpacing: 2 })
       .setOrigin(0, 0);
-    const barY = 198;
-    const bar = scene.add.graphics();
-    const cardIcon = scene.add.image(TEXT_X + 16, barY, chefCardIcon(scene)).setScale(0.62 / ART_RES);
-    const count = scene.add.text(TEXT_X + 40 + BAR.width + 12, barY, '', plain(24, PALETTE.muted, true)).setOrigin(0, 0.5);
-    const button = new Button(scene, TEXT_X + BUTTON.width / 2, barY, BUTTON.width, BUTTON.height, () => this.levelUp(id));
+    const button = new Button(scene, TEXT_X + BUTTON.width / 2, BUTTON_Y, BUTTON.width, BUTTON.height, () => this.levelUp(id));
     button.sound = null;
-    const max = scene.add.text(TEXT_X, barY, t('chefs.maxed'), outlined(34, { color: 0xffe066, stroke: 0x8a4a00 })).setOrigin(0, 0.5);
-    const container = scene.add.container(x, y, [bg, glow, person, name, city, ...stars, skill, bar, cardIcon, count, button, max]);
-    return { id, container, bg, person, name, city, stars, skill, bar, cardIcon, count, button, max };
+    const max = scene.add.text(TEXT_X, BUTTON_Y, t('chefs.maxed'), outlined(34, { color: 0xffe066, stroke: 0x8a4a00 })).setOrigin(0, 0.5);
+    const container = scene.add.container(x, y, [bg, glow, person, name, city, ...stars, skill, button, max]);
+    return { id, container, bg, person, name, city, stars, skill, button, max };
   }
 
   render(): void {
     if (!this.active) return;
     const state = this.economy();
+    this.poolText.setText(t('chefs.pool', { count: state.chefs.pool }));
     for (const tile of this.tiles) {
       const { id } = tile;
       const level = state.chefs.levels[id];
       const met = chefMet(state, id);
       const needed = cardsForNextLevel(state, id);
-      const cards = state.chefs.cards[id];
       const ready = canLevelUpChef(state, id);
       const look = !met ? 'locked' : ready ? 'ready' : level > 0 ? 'recruited' : 'open';
       tile.bg.setTexture(card(this.scene, `chef-tile-${look}`, TILE.width, TILE.height, TILE_LOOKS[look]));
@@ -154,23 +159,14 @@ export class ChefsModal extends Phaser.GameObjects.Container {
       tile.skill.setText(level > 0 ? chefSkillText(id, level) : t('chefs.perLevel', { skill: chefSkillText(id, 1) }));
       tile.skill.setColor(toCss(level > 0 ? PALETTE.saffronDark : PALETTE.muted));
 
+      // Every chef the tour has reached shows the price of their next level; it lights up when
+      // the pool covers it.
       const maxed = needed === null;
       tile.max.setVisible(maxed);
-      tile.button.setVisible(ready);
-      if (ready) tile.button.setLabel(level === 0 ? t('chefs.recruit') : t('chefs.levelUp'), false).setButtonStyle(BUTTON_STYLES.go);
-      const showBar = met && !maxed && !ready;
-      tile.cardIcon.setVisible(showBar);
-      tile.count.setVisible(showBar);
-      tile.bar.clear();
-      if (showBar) {
-        tile.count.setText(`${cards}/${needed}`);
-        const x = TEXT_X + 40;
-        const y = 198 - BAR.height / 2;
-        tile.bar.fillStyle(0x3a2618, 0.18).fillRoundedRect(x, y, BAR.width, BAR.height, BAR.height / 2);
-        if (cards > 0) {
-          const w = Math.max(BAR.height, (BAR.width * cards) / needed!);
-          tile.bar.fillStyle(0xf0a020, 1).fillRoundedRect(x, y, w, BAR.height, BAR.height / 2);
-        }
+      tile.button.setVisible(met && !maxed);
+      if (met && !maxed) {
+        const label = level === 0 ? t('chefs.recruitCost', { cost: needed }) : t('chefs.levelUpCost', { cost: needed });
+        tile.button.setLabel(label, false).setButtonStyle(ready ? BUTTON_STYLES.go : BUTTON_STYLES.disabled, ready);
       }
     }
   }
@@ -184,6 +180,7 @@ export class ChefsModal extends Phaser.GameObjects.Container {
     sparkle(this.scene, x, y, PALETTE.saffron, this.fxDepth);
     confetti(this.scene, x, y, this.fxDepth);
     this.scene.tweens.add({ targets: tile.person, y: tile.person.y - 30, duration: 160, yoyo: true, ease: 'Quad.easeOut' });
+    this.scene.tweens.add({ targets: this.poolText, scale: 1.2, duration: 120, yoyo: true });
     this.render();
   }
 }

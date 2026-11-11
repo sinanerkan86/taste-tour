@@ -249,14 +249,14 @@
   "event.review.detail": "Revenus x{multiplier}",
   "chefs.button": "Chefs",
   "chefs.title": "Collection de chefs",
-  "chefs.info": "Gagnez des cartes de chef avec les nouveaux plats, les franchises, le coffre du jour et les bonnes critiques. Les chefs restent pour toujours.",
+  "chefs.info": "Les cartes de chef viennent des nouveaux plats, des franchises, du coffre du jour et des bonnes critiques. Dépensez-les pour le chef de votre choix.",
   "chefs.recruit": "Recruter",
   "chefs.levelUp": "Améliorer",
   "chefs.maxed": "MAX",
   "chefs.locked": "Arrive à {city}",
   "chefs.joined": "Le chef {name} rejoint votre équipe !",
   "chefs.leveled": "Le chef {name} passe au niv {level} !",
-  "chefs.cardNote": "+{count} carte de chef : {name}",
+  "chefs.cardNote": "+{count} cartes de chef",
   "chefs.perLevel": "{skill} par niveau",
   "chef.skill.income": "Revenus +{value}",
   "chef.skill.kitchen": "Vitesse cuisine +{value}",
@@ -301,5 +301,8 @@
   "row.safe": "Coffre de nuit",
   "row.safeDetail": "Hors ligne : {time}",
   "row.safeNext": "suivant +{time}",
-  "banner.safe": "Coffre de nuit : gains hors ligne jusqu'à {time}"
+  "banner.safe": "Coffre de nuit : gains hors ligne jusqu'à {time}",
+  "chefs.recruitCost": "Recruter ({cost} carte)",
+  "chefs.levelUpCost": "Améliorer ({cost} cartes)",
+  "chefs.pool": "Cartes de chef : {count}"
 }

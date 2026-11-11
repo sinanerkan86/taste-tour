@@ -155,11 +155,11 @@ export function startingSectionLevel(state: EconomyState): number {
 
 // Franchise: sell the restaurant and start over in the next city, keeping the stars, the lab
 // and the perks. `perk` is the franchise perk the player picked (see perkOffers). The city's
-// chef sends the player off with a few cards.
+// chef sends the player off with a few chef cards.
 export function prestige(state: EconomyState, perk: PerkId | null = null): EconomyState {
   const gained = pendingStars(state);
   const chefs = structuredClone(state.chefs);
-  giveChefCards({ ...state, chefs }, CHEF.franchiseCards);
+  chefs.pool += CHEF.franchiseCards;
   const next = newEconomy(state.stars + gained, state.lifetimeEarnings, state.city + 1);
   next.cityStars = [...state.cityStars, gained];
   // Ad rewards were earned by the player, not the restaurant, so they move along.

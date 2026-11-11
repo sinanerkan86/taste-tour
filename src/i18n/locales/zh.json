@@ -249,14 +249,14 @@
   "event.review.detail": "收入 x{multiplier}",
   "chefs.button": "厨师",
   "chefs.title": "名厨图鉴",
-  "chefs.info": "解锁新菜、开设加盟店、打开每日宝箱和获得好评都能得到厨师卡。厨师会永远留在你身边。",
+  "chefs.info": "厨师卡来自新菜、加盟、每日宝箱和好评。可以用在任意一位厨师身上。",
   "chefs.recruit": "招募",
   "chefs.levelUp": "升级",
   "chefs.maxed": "满级",
   "chefs.locked": "在{city}加入",
   "chefs.joined": "厨师{name}加入了你的团队！",
   "chefs.leveled": "厨师{name}升到{level}级！",
-  "chefs.cardNote": "+{count}张厨师卡：{name}",
+  "chefs.cardNote": "+{count}张厨师卡",
   "chefs.perLevel": "每级{skill}",
   "chef.skill.income": "收入 +{value}",
   "chef.skill.kitchen": "厨房速度 +{value}",
@@ -301,5 +301,8 @@
   "row.safe": "夜间保险箱",
   "row.safeDetail": "离线：{time}",
   "row.safeNext": "下一级 +{time}",
-  "banner.safe": "夜间保险箱：离线收益最长{time}"
+  "banner.safe": "夜间保险箱：离线收益最长{time}",
+  "chefs.recruitCost": "招募（{cost}张卡）",
+  "chefs.levelUpCost": "升级（{cost}张卡）",
+  "chefs.pool": "厨师卡：{count}"
 }

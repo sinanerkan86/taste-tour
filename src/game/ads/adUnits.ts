@@ -17,6 +17,7 @@ const RELEASE_AD_UNITS: Record<AdPlacement, string> = {
   // Not created in AdMob yet: until they are, these placements show Google's test ad.
   dailyDouble: '', // Daily double
   busDouble: '', // Tour bus double
+  labSpeedUp: '', // Lab speed up
 };
 
 export function rewardedAdUnit(placement: AdPlacement): string {

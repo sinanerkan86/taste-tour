@@ -126,6 +126,10 @@ export const ADS = {
   vipMaxGapSeconds: 12 * 60,
   vipFirstGapSeconds: 4 * 60,
   vipStaySeconds: 40,
+  // Kitchen Lab: an ad cuts the time left on a running project by this factor, once per project
+  // level, and only while more than the minimum is left (shorter waits are not worth an ad).
+  labSpeedUpFactor: 0.5,
+  labSpeedUpMinSeconds: 5 * 60,
 };
 
 // Scene events: something happens every few minutes of play (see events.ts and GDD 6e).

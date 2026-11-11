@@ -304,5 +304,9 @@
   "banner.safe": "夜间保险箱：离线收益最长{time}",
   "chefs.recruitCost": "招募（{cost}张卡）",
   "chefs.levelUpCost": "升级（{cost}张卡）",
-  "chefs.pool": "厨师卡：{count}"
+  "chefs.pool": "厨师卡：{count}",
+  "ads.labTitle": "加速研究",
+  "ads.labBody": "观看一段短广告，{name}的剩余时间减半。每个等级限一次。",
+  "ads.labReward": "-{time}",
+  "banner.labSpedUp": "{name}：时间减半！"
 }

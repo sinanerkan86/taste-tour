@@ -4,7 +4,7 @@ import { AdMobAdService } from './AdMobAdService';
 // Rewarded ads. Game code only talks to this interface; the browser uses a fake test ad,
 // the Android build uses AdMob.
 
-export type AdPlacement = 'rush' | 'timeSkip' | 'offlineDouble' | 'vip' | 'dailyDouble' | 'busDouble';
+export type AdPlacement = 'rush' | 'timeSkip' | 'offlineDouble' | 'vip' | 'dailyDouble' | 'busDouble' | 'labSpeedUp';
 
 export interface AdService {
   // Prepares the ad network (and asks for consent where needed) at startup.

@@ -35,6 +35,9 @@ import {
   finishedResearch,
   perkOffers,
   researchSlot,
+  canSpeedUpResearch,
+  researchSpeedUpSeconds,
+  speedUpResearch,
   startResearch,
   cityConfig,
   earn,
@@ -563,6 +566,9 @@ export class RestaurantScene extends Phaser.Scene {
       if (!collectResearch(this.economy, id)) return;
       this.announcedResearch.delete(id);
       this.celebrate(t('banner.researched', { name: researchName(id), level: this.economy.lab.levels[id] }), PALETTE.success);
+    } else if (slot) {
+      if (canSpeedUpResearch(this.economy, id)) this.offerResearchSpeedUp(id);
+      return;
     } else {
       if (!startResearch(this.economy, id)) return;
       this.celebratePurchase();
@@ -811,6 +817,23 @@ export class RestaurantScene extends Phaser.Scene {
         this.celebrateCollect();
       }),
     );
+  }
+
+  private offerResearchSpeedUp(id: ResearchId): void {
+    const offer = {
+      title: t('ads.labTitle'),
+      body: t('ads.labBody', { name: researchName(id) }),
+      reward: t('ads.labReward', { time: tDuration(Math.ceil(researchSpeedUpSeconds(this.economy, id))) }),
+    };
+    // A second offer left open (or a project collected meanwhile) must not play an ad for nothing.
+    new AdOfferModal(this, offer, UI_DEPTH + 100, () => {
+      if (!canSpeedUpResearch(this.economy, id)) return;
+      void this.watchAd('labSpeedUp', () => {
+        if (!speedUpResearch(this.economy, id)) return;
+        this.panel.pulseResearch(id);
+        this.celebrate(t('banner.labSpedUp', { name: researchName(id) }), PALETTE.success);
+      });
+    });
   }
 
   // Plays a rewarded ad and grants the reward only if it was watched to the end.

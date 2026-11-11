@@ -156,7 +156,7 @@ Added 2026-11-07 after playtesting: the game had no reason to come back and litt
 | Tour Guide | 5 | VIP tips +30%, VIPs come 12% sooner | 15m, 1h, 3h, 6h, 12h |
 | Event Planner | 4 | Rush +1h per ad, Rush cap +3h | 30m, 2h, 6h, 12h |
 
-The short first levels teach the Lab in the first session; the long ones fill a night or a work day. Numbers live in `RESEARCH` / `LAB` in the economy config. Later idea: a rewarded ad that halves the time left (needs its own ad unit).
+The short first levels teach the Lab in the first session; the long ones fill a night or a work day. Numbers live in `RESEARCH` / `LAB` in the economy config. A rewarded ad halves the time left on a running project (`labSpeedUp`, added 2026-11-11): once per project level and only while more than 5 minutes are left, so the short teaching levels never ask for one. A running project that can still be sped up shows a blue button with the ad icon and the time left; tapping it opens the offer.
 
 ## 6c. Reminders (local notifications)
 
@@ -279,7 +279,7 @@ Implemented (7a): Rush gives 2x income for 4 hours per ad and stacks up to 12 ho
 
 Implemented (7b): a VIP guest (a food tourist with a sun hat and a star bubble) walks in after 4 minutes of play and then every 8-12 minutes (kept rare so ads never feel pushed), and waits near the door for 40 s. Tapping them offers a tip worth 15 minutes of income (Rush does not raise it) for an ad; saying no or ignoring them sends them away. The staff discount placement is left for later.
 
-Added with the retention features: "Collect 2x" on the daily reward (`dailyDouble`, section 6d) and doubling the tour bus tips (`busDouble`, section 6e). Each placement has its own ad unit in AdMob (`src/game/ads/adUnits.ts`).
+Added with the retention features: "Collect 2x" on the daily reward (`dailyDouble`, section 6d), doubling the tour bus tips (`busDouble`, section 6e) and halving the time left on a Kitchen Lab project (`labSpeedUp`, section 6b). Each placement has its own ad unit in AdMob (`src/game/ads/adUnits.ts`).
 
 ## 8b. In-app purchases
 

@@ -110,7 +110,7 @@ export function parseSave(json: string): SaveData | null {
     const id = slot?.research as ResearchId;
     if (!RESEARCH_IDS.includes(id) || economy.lab.slots.some((s) => s.research === id)) continue;
     if (economy.lab.levels[id] >= researchMaxLevel(id) || economy.lab.slots.length >= labSlotCount(economy)) continue;
-    economy.lab.slots.push({ research: id, remaining: Math.max(0, finiteOr(slot.remaining, 0)) });
+    economy.lab.slots.push({ research: id, remaining: Math.max(0, finiteOr(slot.remaining, 0)), ...(slot.spedUp === true && { spedUp: true }) });
   }
   for (const id of SECTION_IDS) {
     economy.sectionLevels[id] = Math.max(1, Math.floor(finiteOr(saved.sectionLevels?.[id], 1)));

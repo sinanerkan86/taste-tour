@@ -304,5 +304,9 @@
   "banner.safe": "Night Safe: offline earnings up to {time}",
   "chefs.recruitCost": "Recruit ({cost} card)",
   "chefs.levelUpCost": "Level up ({cost} cards)",
-  "chefs.pool": "Chef cards: {count}"
+  "chefs.pool": "Chef cards: {count}",
+  "ads.labTitle": "Speed up research",
+  "ads.labBody": "Watch a short ad to cut the time left on {name} in half. Works once per level.",
+  "ads.labReward": "-{time}",
+  "banner.labSpedUp": "{name}: time halved!"
 }

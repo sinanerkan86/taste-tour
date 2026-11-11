@@ -304,5 +304,9 @@
   "banner.safe": "Gece Kasası: çevrimdışı kazanç {time}",
   "chefs.recruitCost": "İşe al ({cost} kart)",
   "chefs.levelUpCost": "Geliştir ({cost} kart)",
-  "chefs.pool": "Şef kartların: {count}"
+  "chefs.pool": "Şef kartların: {count}",
+  "ads.labTitle": "Araştırmayı hızlandır",
+  "ads.labBody": "{name} araştırmasının kalan süresini yarıya indirmek için kısa bir reklam izle. Her seviyede bir kez.",
+  "ads.labReward": "-{time}",
+  "banner.labSpedUp": "{name}: süre yarıya indi!"
 }

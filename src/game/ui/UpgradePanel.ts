@@ -15,6 +15,7 @@ import {
   researchDuration,
   researchMaxLevel,
   researchMaxed,
+  canSpeedUpResearch,
   researchSlot,
   cityConfig,
   dishBuyPlan,
@@ -34,6 +35,7 @@ import { formatNumber } from '../../core/format';
 import { t, tDuration, tDurationShort, type TranslationKey } from '../../i18n';
 import { researchEffect, researchName } from './progressText';
 import { FONT, GAME_WIDTH, LAYOUT, PALETTE, toCss } from '../config';
+import { adIcon } from '../ads/AdService';
 import { DISH_COLORS, SECTION_COLORS } from '../colors';
 import { BUTTON_STYLES, Button } from './Button';
 import { dishIcon, lockIcon, progressIcon, sectionIcon } from './icons';
@@ -188,7 +190,8 @@ interface LabRowView {
   // 0..1 while the project runs, null otherwise.
   progress: number | null;
   buttonLabel: string;
-  state: 'start' | 'running' | 'ready' | 'blocked' | 'maxed';
+  // 'speedUp': running, and an ad can still halve the time left.
+  state: 'start' | 'running' | 'speedUp' | 'ready' | 'blocked' | 'maxed';
 }
 
 // One research project in the Lab tab: start it, watch its progress bar, collect it.
@@ -218,7 +221,7 @@ class LabRow extends Phaser.GameObjects.Container {
       .text(MARGIN + 112, 22, '', { fontFamily: FONT, fontSize: '24px', color: toCss(PALETTE.muted) })
       .setOrigin(0, 0.5);
     this.bar = scene.add.graphics();
-    this.button = new Button(scene, MARGIN + width - BUTTON_WIDTH / 2 - 14, 0, BUTTON_WIDTH, 80, onPress);
+    this.button = new Button(scene, MARGIN + width - BUTTON_WIDTH / 2 - 14, 0, BUTTON_WIDTH, 80, onPress, 'ad');
     this.add([bg, this.icon, this.title, this.level, this.detail, this.bar, this.button]);
     scene.add.existing(this);
   }
@@ -240,10 +243,17 @@ class LabRow extends Phaser.GameObjects.Container {
       const fill = Math.max(PROGRESS_BAR.height, PROGRESS_BAR.width * view.progress);
       this.bar.fillStyle(PALETTE.success, 1).fillRoundedRect(x, y, fill, PROGRESS_BAR.height, r);
     }
-    this.button.setLabel(view.buttonLabel, false);
+    const speedUp = view.state === 'speedUp';
+    this.button.setLabel(view.buttonLabel, speedUp && adIcon() !== undefined);
     const style =
-      view.state === 'ready' ? BUTTON_STYLES.go : view.state === 'start' ? BUTTON_STYLES.buy : BUTTON_STYLES.disabled;
-    this.button.setButtonStyle(style, view.state === 'ready' || view.state === 'start');
+      view.state === 'ready'
+        ? BUTTON_STYLES.go
+        : view.state === 'start'
+          ? BUTTON_STYLES.buy
+          : speedUp
+            ? BUTTON_STYLES.toggle
+            : BUTTON_STYLES.disabled;
+    this.button.setButtonStyle(style, view.state === 'ready' || view.state === 'start' || speedUp);
     // A finished project bounces its button until it is collected.
     if (view.state === 'ready' && this.lastState !== 'ready') {
       this.scene.tweens.add({ targets: this.button, scale: 1.08, duration: 420, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
@@ -437,7 +447,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
           detail,
           progress: 1 - slot.remaining / total,
           buttonLabel: t('lab.left', { time: tDuration(Math.ceil(slot.remaining)) }),
-          state: 'running',
+          state: canSpeedUpResearch(state, id) ? 'speedUp' : 'running',
         });
       } else {
         row.render({

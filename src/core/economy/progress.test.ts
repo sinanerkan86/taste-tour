@@ -11,6 +11,7 @@ import {
   activateRush,
   advanceTime,
   baseIncomePerSecond,
+  canSpeedUpResearch,
   canStartResearch,
   collectResearch,
   dishCost,
@@ -27,6 +28,7 @@ import {
   researchDuration,
   sectionBuyPlan,
   sectionUpgradeCost,
+  speedUpResearch,
   startResearch,
   vipTip,
 } from './index';
@@ -49,6 +51,26 @@ describe('kitchen lab', () => {
     expect(state.lab.levels.spices).toBe(1);
     expect(freeLabSlots(state)).toBe(1);
     expect(baseIncomePerSecond(state)).toBeCloseTo(before * (1 + LAB.spicesIncome));
+  });
+
+  it('lets an ad halve the time left once per project level', () => {
+    const state = newEconomy();
+    state.lab.levels.spices = RESEARCH.spices.durations.length - 1;
+    expect(speedUpResearch(state, 'spices')).toBe(false);
+    startResearch(state, 'spices');
+    const full = researchDuration(state, 'spices');
+    expect(canSpeedUpResearch(state, 'spices')).toBe(true);
+    expect(speedUpResearch(state, 'spices')).toBe(true);
+    expect(state.lab.slots[0].remaining).toBeCloseTo(full * ADS.labSpeedUpFactor);
+    expect(speedUpResearch(state, 'spices')).toBe(false);
+    // The flag survives a save round trip.
+    const loaded = parseSave(serializeSave(createSave(state, 0)))!.economy;
+    expect(canSpeedUpResearch(loaded, 'spices')).toBe(false);
+    // Nearly done projects are not worth an ad.
+    const other = newEconomy();
+    startResearch(other, 'suppliers');
+    other.lab.slots[0].remaining = ADS.labSpeedUpMinSeconds;
+    expect(canSpeedUpResearch(other, 'suppliers')).toBe(false);
   });
 
   it('makes each next level take longer and stops at the max level', () => {

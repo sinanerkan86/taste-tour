@@ -1,4 +1,4 @@
-import { RESEARCH, RESEARCH_IDS, type ResearchId } from './config';
+import { ADS, RESEARCH, RESEARCH_IDS, type ResearchId } from './config';
 import { labSlotCount, researchMaxLevel, researchSpeed, type LabSlot } from './bonuses';
 import type { EconomyState } from './state';
 
@@ -31,6 +31,28 @@ export function canStartResearch(state: EconomyState, id: ResearchId): boolean {
 export function startResearch(state: EconomyState, id: ResearchId): boolean {
   if (!canStartResearch(state, id)) return false;
   state.lab.slots.push({ research: id, remaining: researchDuration(state, id) });
+  return true;
+}
+
+// Whether an ad may cut the time left on this project: it runs, has not been sped up yet and
+// has enough time left to be worth it.
+export function canSpeedUpResearch(state: EconomyState, id: ResearchId): boolean {
+  const slot = researchSlot(state, id);
+  return slot !== null && !slot.spedUp && slot.remaining > ADS.labSpeedUpMinSeconds;
+}
+
+// Seconds an ad would take off the project.
+export function researchSpeedUpSeconds(state: EconomyState, id: ResearchId): number {
+  const slot = researchSlot(state, id);
+  return slot ? slot.remaining * (1 - ADS.labSpeedUpFactor) : 0;
+}
+
+// The ad reward: cuts the time left on a running project (once per project level).
+export function speedUpResearch(state: EconomyState, id: ResearchId): boolean {
+  if (!canSpeedUpResearch(state, id)) return false;
+  const slot = researchSlot(state, id)!;
+  slot.remaining *= ADS.labSpeedUpFactor;
+  slot.spedUp = true;
   return true;
 }
 

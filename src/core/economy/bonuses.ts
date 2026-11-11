@@ -24,6 +24,8 @@ export interface LabSlot {
   research: ResearchId;
   // Seconds of real time left; 0 means done and waiting to be collected.
   remaining: number;
+  // True once an ad has cut the time of this project level.
+  spedUp?: boolean;
 }
 
 export interface LabState {

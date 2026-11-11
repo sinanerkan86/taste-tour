@@ -304,5 +304,9 @@
   "banner.safe": "Coffre de nuit : gains hors ligne jusqu'à {time}",
   "chefs.recruitCost": "Recruter ({cost} carte)",
   "chefs.levelUpCost": "Améliorer ({cost} cartes)",
-  "chefs.pool": "Cartes de chef : {count}"
+  "chefs.pool": "Cartes de chef : {count}",
+  "ads.labTitle": "Accélérer la recherche",
+  "ads.labBody": "Regardez une courte pub pour réduire de moitié le temps restant de {name}. Une fois par niveau.",
+  "ads.labReward": "-{time}",
+  "banner.labSpedUp": "{name} : temps divisé par deux !"
 }

@@ -267,6 +267,7 @@ export class RestaurantScene extends Phaser.Scene {
     this.setUpCameras();
     this.input.on('pointerdown', () => audio.unlock());
     const theme = cityTheme(cityConfig(this.economy.city).id);
+    audio.setCity(cityConfig(this.economy.city).id);
     this.view = new RestaurantView(this, theme, cityConfig(this.economy.city).dishes);
     this.decor = new Decor(this, theme);
     this.view.onPayment = (amount, at) => this.showPayment(amount, at);

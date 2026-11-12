@@ -28,6 +28,8 @@ export interface StreetTheme {
   roadLine: number;
   // Traffic keeps left (Mumbai, Bangkok, Tokyo).
   leftHand: boolean;
+  // Body color of the city bus that stops by the restaurant.
+  bus: number;
   tree: { kind: 'round' | 'palm' | 'umbrella'; leaf: number; blossom?: number };
   carColors: number[];
   // Passing traffic, picked at random (repeat an entry to make it more common).
@@ -47,6 +49,7 @@ export const STREET_THEMES: Record<string, StreetTheme> = {
     road: 'asphalt',
     roadLine: 0xf2f2ee,
     leftHand: false,
+    bus: 0x2f6fb3,
     tree: { kind: 'round', leaf: 0x4f8a3c },
     carColors: CAR_COLORS,
     vehicles: [
@@ -68,6 +71,7 @@ export const STREET_THEMES: Record<string, StreetTheme> = {
     road: 'cobbles',
     roadLine: 0xf2f2ee,
     leftHand: false,
+    bus: 0xd9622b,
     tree: { kind: 'umbrella', leaf: 0x3f6e34 },
     carColors: CAR_COLORS,
     vehicles: [
@@ -89,6 +93,7 @@ export const STREET_THEMES: Record<string, StreetTheme> = {
     road: 'asphalt',
     roadLine: 0xf2f2ee,
     leftHand: false,
+    bus: 0x3a9e8a,
     tree: { kind: 'round', leaf: 0x6a9a48 },
     carColors: CAR_COLORS,
     vehicles: [
@@ -110,6 +115,7 @@ export const STREET_THEMES: Record<string, StreetTheme> = {
     road: 'asphalt',
     roadLine: 0xf2f2ee,
     leftHand: false,
+    bus: 0xe8e2d4,
     tree: { kind: 'palm', leaf: 0x4f8a3c },
     carColors: CAR_COLORS,
     vehicles: [
@@ -131,6 +137,7 @@ export const STREET_THEMES: Record<string, StreetTheme> = {
     road: 'asphalt',
     roadLine: 0xf2f2ee,
     leftHand: true,
+    bus: 0xc0392b,
     tree: { kind: 'round', leaf: 0x3f7a34 },
     carColors: CAR_COLORS,
     vehicles: [
@@ -152,6 +159,7 @@ export const STREET_THEMES: Record<string, StreetTheme> = {
     road: 'asphalt',
     roadLine: 0xf2f2ee,
     leftHand: true,
+    bus: 0xd8577e,
     tree: { kind: 'palm', leaf: 0x4a8a3a },
     carColors: CAR_COLORS,
     vehicles: [
@@ -173,6 +181,7 @@ export const STREET_THEMES: Record<string, StreetTheme> = {
     road: 'asphalt',
     roadLine: 0xf2f2ee,
     leftHand: true,
+    bus: 0x4c9a4a,
     tree: { kind: 'round', leaf: 0x6a9a48, blossom: 0xf6c4d4 },
     carColors: CAR_COLORS,
     vehicles: [
@@ -194,6 +203,7 @@ export const STREET_THEMES: Record<string, StreetTheme> = {
     road: 'asphalt',
     roadLine: 0xf2c200,
     leftHand: false,
+    bus: 0xe3b23c,
     tree: { kind: 'palm', leaf: 0x4f8f3a },
     carColors: CAR_COLORS,
     vehicles: [
@@ -214,6 +224,7 @@ export const STREET_THEMES: Record<string, StreetTheme> = {
     road: 'asphalt',
     roadLine: 0xf2c200,
     leftHand: false,
+    bus: 0xb83a6b,
     tree: { kind: 'round', leaf: 0x5a8a44, blossom: 0x9a7ad8 },
     carColors: CAR_COLORS,
     vehicles: [
@@ -234,6 +245,7 @@ export const STREET_THEMES: Record<string, StreetTheme> = {
     road: 'asphalt',
     roadLine: 0xf2c200,
     leftHand: false,
+    bus: 0x2f5e9e,
     tree: { kind: 'round', leaf: 0x5a8a3c },
     carColors: CAR_COLORS,
     vehicles: [

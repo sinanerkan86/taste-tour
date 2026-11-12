@@ -10,3 +10,4 @@ export * from './daily';
 export * from './events';
 export * from './chefs';
 export * from './shop';
+export * from './busStop';

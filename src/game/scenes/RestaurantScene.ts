@@ -74,6 +74,11 @@ import {
   sectionUpgradeCost,
   valetCost,
   buyValet,
+  BUS_STOP,
+  busGroupSize,
+  busPayout,
+  busStopCost,
+  buyBusStopLevels,
   deliveryFlow,
   incomeBreakdown,
   offlineCapSeconds,
@@ -116,7 +121,7 @@ import { GoalBar } from '../ui/GoalBar';
 import { HintBubble } from '../ui/HintBubble';
 import { PANEL_STRIP, UpgradePanel } from '../ui/UpgradePanel';
 import { WelcomeBackModal } from '../ui/WelcomeBackModal';
-import { DELIVERY_SIGN, PARKING_ANCHOR, ROOM, SECTION_ANCHORS, SPOT_ANCHORS, WORLD, spotAt, type Point, type SpotId } from '../view/layout';
+import { BUS_STOP_ANCHOR, BUS_STOP_SPOT, DELIVERY_SIGN, PARKING_ANCHOR, ROOM, SECTION_ANCHORS, SPOT_ANCHORS, WORLD, spotAt, type Point, type SpotId } from '../view/layout';
 import { SpotMarkers } from '../view/SpotMarkers';
 import { RestaurantView } from '../view/RestaurantView';
 import { Decor } from '../view/decor';
@@ -129,6 +134,9 @@ import { ROOM_MARGIN, RoomCamera } from '../view/RoomCamera';
 import { cityTheme } from '../view/themes';
 
 const PANEL_REFRESH_MS = 100;
+// The first bus after the game opens or the stop is bought, and how many riders step off at most.
+const FIRST_BUS_SECONDS = 20;
+const MAX_BUS_RIDERS_SHOWN = 5;
 // HUD and panel draw above everything in the restaurant scene.
 const UI_DEPTH = 10000;
 const MONEY_PILL = { width: 380, height: 84 };
@@ -208,6 +216,8 @@ export class RestaurantScene extends Phaser.Scene {
   private plusReady: boolean | null = null;
   // Seconds of play until the next VIP guest walks in.
   private vipCountdown = 0;
+  // Seconds to the next bus (the timetable only runs while the game is open).
+  private busCountdown = 0;
   // Null until the first UI refresh, so a loaded game does not announce the franchise again.
   private franchiseReady: boolean | null = null;
   private hudCoin!: Phaser.GameObjects.Image;
@@ -257,12 +267,14 @@ export class RestaurantScene extends Phaser.Scene {
     this.hint = null;
     this.franchiseReady = null;
     this.vipCountdown = ADS.vipFirstGapSeconds;
+    this.busCountdown = FIRST_BUS_SECONDS;
     this.event = null;
     this.eventCountdown = EVENTS.firstGapSeconds;
     this.lastEvent = null;
     this.forcedEvent = null;
     // Dev-only shortcuts for testing: /?money=1e6, /?city=2 (look and prices of another city), /?vip=1 (VIP right away),
-    // /?event=critic|tourBus|festival (that event in a few seconds), /?parking=30&valet=1 (a lot of that level)
+    // /?event=critic|tourBus|festival (that event in a few seconds), /?parking=30&valet=1 (a lot of that level),
+    // /?bus=20 (a bus stop of that level, the first bus in a few seconds)
     if (import.meta.env.DEV) {
       const params = new URLSearchParams(location.search);
       const money = Number(params.get('money'));
@@ -273,6 +285,11 @@ export class RestaurantScene extends Phaser.Scene {
       const parking = Number(params.get('parking'));
       if (Number.isInteger(parking) && parking > 0) this.economy.parkingLevel = parking;
       if (params.has('valet') && this.economy.parkingLevel > 0) this.economy.valet = true;
+      const bus = Number(params.get('bus'));
+      if (Number.isInteger(bus) && bus > 0) {
+        this.economy.busStopLevel = bus;
+        this.busCountdown = 3;
+      }
       const event = params.get('event') as EventKind | null;
       if (event === 'critic' || event === 'tourBus' || event === 'festival') {
         this.forcedEvent = event;
@@ -300,6 +317,7 @@ export class RestaurantScene extends Phaser.Scene {
       () => this.buyDelivery(),
       () => this.buyParking(),
       () => this.buyValet(),
+      () => this.buyBusStop(),
       () => this.offerStaffHelp(),
     );
     this.panel.onTabChange = (tab) => {
@@ -417,6 +435,7 @@ export class RestaurantScene extends Phaser.Scene {
     if (can(deliveryCost(e))) affordable.add('kitchen');
     if (can(safeUpgradeCost(e))) affordable.add('cashier');
     if (can(parkingCost(e)) || (canBuyValet(e) && can(valetCost(e)))) affordable.add('parking');
+    if (can(busStopCost(e))) affordable.add('busStop');
     this.spotMarkers.update(affordable, this.panel.openSpot);
   }
 
@@ -1200,6 +1219,7 @@ export class RestaurantScene extends Phaser.Scene {
     this.room.update(delta);
     this.updateVip(delta / 1000);
     this.updateEvent(delta / 1000);
+    this.updateBus(delta / 1000);
     const flow = throughput(this.economy);
     const delivery = deliveryFlow(this.economy);
     const income = incomeBreakdown(this.economy);
@@ -1220,6 +1240,7 @@ export class RestaurantScene extends Phaser.Scene {
           incomePerSecond: income.delivery * boost,
         },
         parking: { level: this.economy.parkingLevel, valet: this.economy.valet, carShare: arrivals(this.economy).carShare },
+        busStopLevel: this.economy.busStopLevel,
       },
       time,
       delta,
@@ -1334,6 +1355,55 @@ export class RestaurantScene extends Phaser.Scene {
     this.celebrate(t('banner.valet'), PALETTE.success);
     if (!this.room.shows(PARKING_ANCHOR, 0)) this.room.panTo(PARKING_ANCHOR);
     this.refreshUi();
+  }
+
+  // Opening the stop is celebrated, the room scrolls to it and the first bus comes soon.
+  private buyBusStop(): void {
+    const level = this.economy.busStopLevel;
+    const bought = buyBusStopLevels(this.economy, this.panel.buyAmount);
+    if (bought === 0) return;
+    void this.saveGame();
+    this.panel.pulseBusStop();
+    if (level === 0) {
+      this.celebrate(t('banner.busStopOpen', { minutes: Math.round(BUS_STOP.intervalSeconds / 60) }), PALETTE.success);
+      this.busCountdown = Math.min(this.busCountdown, FIRST_BUS_SECONDS);
+      if (!this.room.shows(BUS_STOP_ANCHOR, 0)) this.room.panTo(BUS_STOP_ANCHOR);
+    } else {
+      this.track('upgrades', bought);
+      this.celebratePurchase();
+      if (milestonesReached(this.economy.busStopLevel) > milestonesReached(level)) {
+        this.note(t('banner.milestone', { name: t('row.busStop'), bonus: MILESTONE_BONUS.section }));
+      }
+    }
+    this.refreshUi();
+  }
+
+  // The bus timetable: a bus every few minutes while the game is open.
+  private updateBus(seconds: number): void {
+    if (this.economy.busStopLevel <= 0) return;
+    this.busCountdown -= seconds;
+    if (this.busCountdown <= 0) {
+      this.busCountdown = BUS_STOP.intervalSeconds;
+      this.view.callBus(() => this.busArrived());
+    }
+    this.view.setBusCountdown(this.busCountdown);
+  }
+
+  // The bus stands at the stop: its riders pay for the free tables at once. Returns how many
+  // of them step off on screen.
+  private busArrived(): number {
+    const at = { x: BUS_STOP_SPOT.x + 60, y: BUS_STOP_SPOT.y - 300 };
+    const payout = busPayout(this.economy);
+    if (payout <= 0) {
+      floatingText(this, at.x, at.y, t('row.seatsFull'), PALETTE.cream, 40, ROOM_FX_DEPTH);
+      return 0;
+    }
+    earn(this.economy, payout);
+    audio.play('coin');
+    sparkle(this, at.x, at.y + 40, PALETTE.saffron, ROOM_FX_DEPTH);
+    floatingText(this, at.x, at.y, `+${formatNumber(payout)}`, PALETTE.saffron, 56, ROOM_FX_DEPTH);
+    for (let i = 0; i < 4; i++) this.time.delayedCall(i * 90, () => this.flyCoinToHud(this.room.toScreen(at)));
+    return Phaser.Math.Clamp(Math.round(busGroupSize(this.economy) / 4), 1, MAX_BUS_RIDERS_SHOWN);
   }
 
   private buySafe(): void {

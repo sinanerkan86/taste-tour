@@ -356,5 +356,11 @@
   "staff.body": "人手不够？看一段短广告，免费为{section}招募员工。",
   "staff.bodyFree": "人手不够？免费为{section}招募员工。",
   "staff.reward": "+{levels}级",
-  "banner.staffHelp": "{section} +{levels}级！"
+  "banner.staffHelp": "{section} +{levels}级！",
+  "row.busStop": "公交车站",
+  "row.busStopClosed": "每 {minutes} 分钟一班公交，坐满空闲的餐桌",
+  "row.busStopRate": "{rate} 乘客/秒 · 每 {minutes} 分钟一班",
+  "row.busStopSeats": "{rate} / {max} 乘客/秒：扩建餐厅",
+  "row.seatsFull": "座位已满",
+  "banner.busStopOpen": "公交车站开通了！每 {minutes} 分钟一班公交送来客人"
 }

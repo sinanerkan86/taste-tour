@@ -44,6 +44,8 @@ export interface EconomyState {
   // Parking lot level (0 = no lot yet) and whether it has valet service. Both start over with a franchise.
   parkingLevel: number;
   valet: boolean;
+  // Bus stop level (0 = no stop yet); starts over with a franchise.
+  busStopLevel: number;
 }
 
 export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomyState {
@@ -71,6 +73,7 @@ export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomySt
     deliveryLevel: 0,
     parkingLevel: 0,
     valet: false,
+    busStopLevel: 0,
   };
 }
 

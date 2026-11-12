@@ -1483,3 +1483,40 @@ export function valetIcon(scene: Phaser.Scene): string {
     }),
   );
 }
+
+// A city bus seen from the front, for the Bus stop row.
+export function busStopIcon(scene: Phaser.Scene): string {
+  return paintTexture(scene, 'icon-bus-stop', ICON_SIZE, ICON_SIZE, (ctx) =>
+    badge(ctx, 0x2a9d8f, (c) => {
+      c.fillStyle = vGradient(c, -24, 20, [
+        [0, '#ffd166'],
+        [1, '#e09a2a'],
+      ]);
+      roundRect(c, -19, -24, 38, 44, 8);
+      c.fill();
+      outline(c);
+      // Windscreen and the route board.
+      c.fillStyle = '#26323d';
+      roundRect(c, -15, -20, 30, 6, 2);
+      c.fill();
+      c.fillStyle = vGradient(c, -12, 4, [
+        [0, '#bcd3e2'],
+        [1, '#4f6a80'],
+      ]);
+      roundRect(c, -15, -12, 30, 16, 3);
+      c.fill();
+      // Headlights and bumper.
+      c.fillStyle = '#ffffff';
+      c.beginPath();
+      c.arc(-11, 11, 3.5, 0, Math.PI * 2);
+      c.arc(11, 11, 3.5, 0, Math.PI * 2);
+      c.fill();
+      c.fillStyle = '#3a3f45';
+      roundRect(c, -19, 16, 38, 5, 2);
+      c.fill();
+      // Wheels.
+      c.fillRect(-16, 20, 8, 7);
+      c.fillRect(8, 20, 8, 7);
+    }),
+  );
+}

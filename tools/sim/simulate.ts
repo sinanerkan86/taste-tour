@@ -26,7 +26,10 @@ import {
   valetCost,
   incomeBreakdown,
   earn,
-  incomePerSecond,
+  activeIncomePerSecond,
+  busFlow,
+  busIncomePerSecond,
+  busStopCost,
   newEconomy,
   nextLockedDish,
   pendingStars,
@@ -106,6 +109,12 @@ export interface CycleResult {
   valetBought: number | null;
   finalParkingLevel: number;
   carBillMultiplier: number;
+  // Bus stop: when it opened, its level, its share of income at the end and the share of time the
+  // dining room had no seats for all the riders.
+  busOpened: number | null;
+  finalBusLevel: number;
+  busShare: number;
+  busSeatSeconds: number;
   // Perk picked at the end of the cycle, and research levels at its end.
   perk: PerkId | null;
   labLevels: Record<ResearchId, number>;
@@ -150,6 +159,7 @@ function candidates(state: EconomyState): Option[] {
   }
 
   options.push({ label: 'delivery', targets: ['delivery'], cost: deliveryCost(state), apply: (s) => s.deliveryLevel++ });
+  options.push({ label: 'bus', targets: ['bus'], cost: busStopCost(state), apply: (s) => s.busStopLevel++ });
   options.push({ label: 'parking', targets: ['parking'], cost: parkingCost(state), apply: (s) => s.parkingLevel++ });
   if (canBuyValet(state)) options.push({ label: 'valet', targets: ['valet'], cost: valetCost(state), apply: (s) => (s.valet = true) });
 
@@ -241,12 +251,17 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
       valetBought: null,
       finalParkingLevel: 0,
       carBillMultiplier: 1,
+      busOpened: null,
+      finalBusLevel: 0,
+      busShare: 0,
+      busSeatSeconds: 0,
       perk: null,
       labLevels: { ...state.lab.levels },
     };
   }
 
-  const income = (s: EconomyState) => incomePerSecond(s) * options.incomeBoost;
+  // The bot plays actively, so the buses count on average.
+  const income = (s: EconomyState) => activeIncomePerSecond(s) * options.incomeBoost;
 
   // Collects finished research and keeps every lab slot busy.
   function tendLab(): void {
@@ -268,6 +283,7 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
     if (options.labTimeFactor > 0) passTime(state, seconds * options.labTimeFactor);
     cycle.bottleneckSeconds[throughput(state).bottleneck] += seconds;
     if (state.deliveryLevel > 0 && deliveryFlow(state).limitedBy === 'kitchen') cycle.deliveryKitchenSeconds += seconds;
+    if (state.busStopLevel > 0 && busFlow(state).limitedBy === 'seats') cycle.busSeatSeconds += seconds;
     cycle.longestWait = Math.max(cycle.longestWait, seconds);
     time += seconds;
   }
@@ -286,6 +302,8 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
     cycle.finalDeliveryLevel = state.deliveryLevel;
     cycle.finalParkingLevel = state.parkingLevel;
     cycle.carBillMultiplier = arrivals(state).billMultiplier;
+    cycle.finalBusLevel = state.busStopLevel;
+    cycle.busShare = busIncomePerSecond(state) / Math.max(activeIncomePerSecond(state), 1e-300);
     const split = incomeBreakdown(state);
     cycle.deliveryShare = split.delivery / Math.max(split.dineIn + split.delivery, 1e-300);
     cycle.labLevels = { ...state.lab.levels };
@@ -361,6 +379,7 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
     if (best.label === 'delivery' && state.deliveryLevel === 0) cycle.deliveryOpened = time - cycle.startTime;
     if (best.label === 'parking' && state.parkingLevel === 0) cycle.parkingOpened = time - cycle.startTime;
     if (best.label === 'valet') cycle.valetBought = time - cycle.startTime;
+    if (best.label === 'bus' && state.busStopLevel === 0) cycle.busOpened = time - cycle.startTime;
     best.apply(state);
     if (lockedBefore >= 0 && state.dishLevels[lockedBefore] > 0) {
       cycle.dishUnlocks.push({ dish: lockedBefore, time: time - cycle.startTime });

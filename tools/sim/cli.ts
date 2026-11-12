@@ -93,6 +93,18 @@ console.table(
   })),
 );
 
+console.log('Bus stop');
+console.table(
+  result.cycles.map((c) => ({
+    cycle: c.index + 1,
+    opened: c.busOpened === null ? '-' : formatDuration(c.busOpened),
+    level: c.finalBusLevel,
+    'share of income at the end (%)': Math.round(c.busShare * 100),
+    'seat-limited time (%)': Math.round((c.busSeatSeconds / c.duration) * 100),
+    'bus upgrades (%)': Math.round(((c.purchasesByTarget.bus ?? 0) / Math.max(c.purchases, 1)) * 100),
+  })),
+);
+
 console.log('Final levels');
 console.table(
   result.cycles.map((c) =>

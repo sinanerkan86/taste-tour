@@ -668,3 +668,157 @@ function paintFront(ctx: Ctx, shape: string, f: { width: number; height: number;
   ctx.fillStyle = 'rgba(30,30,40,0.7)';
   for (let i = 0; i < 5; i++) ctx.fillRect(-18 + i * 8, -sill - 9, 5, 5);
 }
+
+// --- City bus ----------------------------------------------------------------------------
+
+const BUS = { length: 480, height: 200, wheel: 29, wheels: [-165, 70] as [number, number] };
+// Door centers from the middle of the bus, facing right (mirrored for buses facing left).
+export const BUS_DOORS = { front: 150, rear: -95 } as const;
+
+// A long city bus in the city's colors, seen from the side like the cars.
+export function busArt(scene: Phaser.Scene, body: number, left: boolean): VehicleArt {
+  const key = `vehicle-bus-${body.toString(16)}${left ? '-l' : ''}`;
+  const width = BUS.length + PAD * 2;
+  const height = BUS.height + 40;
+  paintTexture(scene, key, width, height, (ctx) => {
+    if (left) {
+      ctx.translate(width, 0);
+      ctx.scale(-1, 1);
+    }
+    paintBus(ctx, body, left, height);
+  });
+  const wheels = left ? BUS.wheels.map((x) => -x) : BUS.wheels;
+  return { key, width, height, wheelKey: wheelTexture(scene, BUS.wheel), wheelRadius: BUS.wheel, wheels };
+}
+
+function paintBus(ctx: Ctx, body: number, mirrored: boolean, height: number): void {
+  const half = BUS.length / 2;
+  const top = -BUS.height;
+  ctx.translate(PAD + half, height - 6);
+  shadowUnder(ctx, half + 20);
+  // Air conditioning box on the roof.
+  ctx.fillStyle = vGradient(ctx, top - 14, top + 2, [
+    [0, '#e9ecef'],
+    [1, '#9aa3ab'],
+  ]);
+  roundRect(ctx, -150, top - 14, 170, 18, 6);
+  ctx.fill();
+  // Body.
+  ctx.fillStyle = vGradient(ctx, top, -14, [
+    [0, css(body, 0.3)],
+    [0.55, css(body, 0)],
+    [1, css(body, -0.3)],
+  ]);
+  roundRect(ctx, -half, top, BUS.length, BUS.height - 14, [22, 30, 14, 14]);
+  ctx.fill();
+  // Roof edge seen from a little above.
+  ctx.fillStyle = css(body, 0.45);
+  roundRect(ctx, -half + 14, top - 3, BUS.length - 34, 8, 4);
+  ctx.fill();
+  // A light band under the windows and a dark skirt along the bottom.
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  ctx.fillRect(-half + 4, -92, BUS.length - 8, 9);
+  ctx.fillStyle = css(body, -0.45);
+  roundRect(ctx, -half, -48, BUS.length, 34, [0, 0, 14, 14]);
+  ctx.fill();
+  // Side windows split by pillars, with riders inside.
+  const glass = (x0: number, x1: number, y0: number, y1: number) => {
+    ctx.fillStyle = vGradient(ctx, y0, y1, [
+      [0, '#a9c1d2'],
+      [0.5, '#56718a'],
+      [1, '#2f4254'],
+    ]);
+    roundRect(ctx, x0, y0, x1 - x0, y1 - y0, 6);
+    ctx.fill();
+  };
+  const doors = [BUS_DOORS.rear, BUS_DOORS.front];
+  const windowTop = top + 26;
+  const windowBottom = -104;
+  const windows: [number, number][] = [
+    [-half + 14, -139],
+    [-51, 1],
+    [7, 59],
+    [65, 106],
+  ];
+  windows.forEach(([x, x1], i) => {
+    glass(x, x1, windowTop, windowBottom);
+    // A head and shoulders behind some windows.
+    if (i !== 2) {
+      ctx.fillStyle = 'rgba(25,30,40,0.5)';
+      ctx.beginPath();
+      ctx.arc(x + 30, windowBottom - 30, 11, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(x + 16, windowBottom - 20, 28, 20);
+    }
+  });
+  // Windscreen at the front, sloping a little.
+  ctx.fillStyle = vGradient(ctx, top + 8, -70, [
+    [0, '#b8cedd'],
+    [1, '#33495c'],
+  ]);
+  ctx.beginPath();
+  ctx.moveTo(half - 46, top + 30);
+  ctx.lineTo(half - 8, top + 22);
+  ctx.lineTo(half - 2, -74);
+  ctx.lineTo(half - 46, -74);
+  ctx.closePath();
+  ctx.fill();
+  // The driver.
+  ctx.fillStyle = 'rgba(25,30,40,0.55)';
+  ctx.beginPath();
+  ctx.arc(half - 24, -122, 11, 0, Math.PI * 2);
+  ctx.fill();
+  // Doors: two glass leaves in a dark frame.
+  doors.forEach((d) => {
+    ctx.fillStyle = '#2b3036';
+    roundRect(ctx, d - 36, top + 22, 72, BUS.height - 40, 6);
+    ctx.fill();
+    glass(d - 31, d - 2, top + 28, -26);
+    glass(d + 2, d + 31, top + 28, -26);
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.fillRect(d - 26, top + 34, 5, 60);
+    ctx.fillRect(d + 7, top + 34, 5, 60);
+  });
+  // Sky reflection across the windows.
+  ctx.fillStyle = 'rgba(255,255,255,0.16)';
+  ctx.beginPath();
+  ctx.moveTo(-half + 40, windowBottom);
+  ctx.lineTo(-half + 110, windowTop);
+  ctx.lineTo(-half + 150, windowTop);
+  ctx.lineTo(-half + 80, windowBottom);
+  ctx.closePath();
+  ctx.fill();
+  // Route number board over the windscreen (unmirrored so it reads).
+  ctx.fillStyle = '#1d1f22';
+  roundRect(ctx, half - 98, top + 5, 84, 20, 4);
+  ctx.fill();
+  ctx.save();
+  ctx.translate(half - 56, top + 16);
+  if (mirrored) ctx.scale(-1, 1);
+  ctx.fillStyle = '#ffb627';
+  ctx.font = 'bold 18px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('42', 0, 1);
+  ctx.restore();
+  // Head and tail lights.
+  ctx.fillStyle = radial(ctx, half - 6, -40, 1, 11, [
+    [0, '#ffffff'],
+    [1, '#f3d98a'],
+  ]);
+  ellipse(ctx, half - 7, -40, 6, 9);
+  ctx.fill();
+  ctx.fillStyle = '#d23a2e';
+  roundRect(ctx, -half + 1, -78, 7, 26, 3);
+  ctx.fill();
+  // Wheel wells.
+  BUS.wheels.forEach((x) => {
+    ctx.fillStyle = '#121214';
+    ctx.beginPath();
+    ctx.arc(x, -BUS.wheel + 4, BUS.wheel + 5, Math.PI, 0);
+    ctx.lineTo(x + BUS.wheel + 5, -10);
+    ctx.lineTo(x - BUS.wheel - 5, -10);
+    ctx.closePath();
+    ctx.fill();
+  });
+}

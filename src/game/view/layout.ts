@@ -56,6 +56,10 @@ export const LOT_SLOTS: number[] = [130, 296, 462, 628, 794, 960];
 // Where guests stand while the car is parked for them, and the valet's own spot.
 export const VALET_DROP = { left: 330, right: 750 } as const;
 export const PARKING_ANCHOR: Point = { x: 540, y: 1880 };
+// The bus stop on the restaurant's pavement, left of the door: the shelter, the pole with the sign,
+// and where riders step off (the bus stops in the near lane with a door here).
+export const BUS_STOP_SPOT = { x: 130, y: STREET.curb - 6, signX: 242, alightY: STREET.curb + 4 } as const;
+export const BUS_STOP_ANCHOR: Point = { x: BUS_STOP_SPOT.x - 90, y: BUS_STOP_SPOT.y - 280 };
 // Everything the camera may show.
 export const WORLD = { top: ROOM.top, bottom: LOT.bottom, left: 0, right: 1080 } as const;
 // Passers-by walk along the pavement here, between the queue and the curb.
@@ -141,8 +145,15 @@ export const SECTION_ANCHORS: Record<SectionId, Point> = {
 
 // Where a tap in the scene opens a part of the restaurant's upgrades (checked in this order).
 // Rectangles in world coordinates: x, y, width, height.
-export type SpotId = SectionId | 'parking';
+export type SpotId = SectionId | 'parking' | 'busStop';
 export const SPOT_AREAS: [SpotId, [number, number, number, number][]][] = [
+  [
+    'busStop',
+    [
+      [0, 1050, 230, 300],
+      [0, STREET.roadTop, 560, 130],
+    ],
+  ],
   ['cashier', [[40, 530, 260, 240]]],
   ['waiters', [[330, 470, 230, 130]]],
   ['kitchen', [[560, 190, 520, 410]]],
@@ -157,7 +168,7 @@ export const SPOT_AREAS: [SpotId, [number, number, number, number][]][] = [
   ],
   ['parking', [[0, LOT.top, 1080, LOT.bottom - LOT.top]]],
 ];
-export const SPOT_ANCHORS: Record<SpotId, Point> = { ...SECTION_ANCHORS, parking: PARKING_ANCHOR };
+export const SPOT_ANCHORS: Record<SpotId, Point> = { ...SECTION_ANCHORS, parking: PARKING_ANCHOR, busStop: BUS_STOP_ANCHOR };
 
 export function spotAt(point: Point): SpotId | null {
   for (const [id, rects] of SPOT_AREAS) {

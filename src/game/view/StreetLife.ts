@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { CROSSWALK, STREET, STREET_ENDS, WALK_LANES } from './layout';
 import { Person, WALK_SPEED } from './Person';
 import type { StreetTheme, VehicleSpec } from './streetThemes';
-import { createVehicle, hasFrontView, vehicleArt, type VehicleArt } from './vehicles';
+import { busArt, createVehicle, hasFrontView, vehicleArt, type VehicleArt } from './vehicles';
 
 // Background life on the street: traffic in both lanes and people walking by. Cars keep their
 // distance from the car ahead and stop at the crosswalk while someone crosses. Cars going to and
@@ -38,6 +38,8 @@ export interface Vehicle {
   speed: number;
   // A car on its way to the parking lot leaves the traffic at this x.
   exit?: { x: number; done: (vehicle: Vehicle) => void };
+  // A bus pulls up with its middle here and waits (the cars behind queue) until released.
+  stop?: { x: number; reached: boolean; done: (vehicle: Vehicle) => void };
 }
 
 export class StreetLife {
@@ -111,6 +113,15 @@ export class StreetLife {
     for (const v of [...this.vehicles]) {
       const cruise = LANE_SPEEDS[v.lane];
       let target = Math.min(cruise, Math.sqrt(2 * BRAKE * Math.max(0, this.room(v))));
+      if (v.stop) {
+        const toStop = (v.stop.x - v.container.x) * v.direction;
+        target = Math.min(target, Math.sqrt(2 * BRAKE * Math.max(0, toStop)));
+        if (!v.stop.reached && toStop < 3 && v.speed < 12) {
+          v.stop.reached = true;
+          v.speed = 0;
+          v.stop.done(v);
+        }
+      }
       if (v.exit) {
         const toExit = (v.exit.x - v.container.x) * v.direction;
         target = Math.min(target, Math.max(TURN_SPEED, Math.sqrt(2 * BRAKE * Math.max(0, toExit)) + TURN_SPEED));
@@ -125,7 +136,8 @@ export class StreetLife {
         v.exit.done(v);
         continue;
       }
-      if (v.container.x < -OFFSCREEN * 2 || v.container.x > 1080 + OFFSCREEN * 2) {
+      const gone = OFFSCREEN * 2 + v.half;
+      if (v.container.x < -gone || v.container.x > 1080 + gone) {
         v.container.destroy();
         this.vehicles.splice(this.vehicles.indexOf(v), 1);
       }
@@ -200,20 +212,47 @@ export class StreetLife {
     });
   }
 
+  // A city bus that drives in from the end of the lane and stops with its middle at stopX.
+  // Resolves with the bus once it stands; releaseBus() sends it on its way.
+  callBus(lane: number, body: number, stopX: number): Promise<Vehicle> {
+    return new Promise((resolve) => {
+      const art = busArt(this.scene, body, this.direction(lane) === -1);
+      const tryNow = () => {
+        if (!this.spawnVehicle(lane, undefined, undefined, undefined, art, { x: stopX, reached: false, done: resolve })) {
+          this.scene.time.delayedCall(400, tryNow);
+        }
+      };
+      tryNow();
+    });
+  }
+
+  releaseBus(bus: Vehicle): void {
+    bus.stop = undefined;
+  }
+
   // x: where it appears (default: just off the screen on its side). Returns false when the
   // lane end is still taken by the last car.
-  private spawnVehicle(lane: number, x?: number, car?: { spec: VehicleSpec; body: number }, exit?: Vehicle['exit']): boolean {
+  private spawnVehicle(
+    lane: number,
+    x?: number,
+    car?: { spec: VehicleSpec; body: number },
+    exit?: Vehicle['exit'],
+    builtArt?: VehicleArt,
+    stop?: Vehicle['stop'],
+  ): boolean {
     const spec = car?.spec ?? Phaser.Utils.Array.GetRandom(this.street.vehicles);
     const body = car?.body ?? spec.body ?? Phaser.Utils.Array.GetRandom(this.street.carColors);
     const direction = this.direction(lane);
-    const startX = x ?? (direction === 1 ? -OFFSCREEN : 1080 + OFFSCREEN);
-    const art = vehicleArt(this.scene, spec, body, direction === -1);
+    const art = builtArt ?? vehicleArt(this.scene, spec, body, direction === -1);
+    // Long vehicles start farther out so they do not pop in at the edge.
+    const out = Math.max(OFFSCREEN, art.width / 2 + 20);
+    const startX = x ?? (direction === 1 ? -out : 1080 + out);
     const half = art.width / 2 - 26;
     if (!this.canMerge(lane, startX, half)) return false;
     const y = STREET.lanes[lane];
     const { container, wheels } = createVehicle(this.scene, art, startX, y);
     container.setDepth(y);
-    this.vehicles.push({ container, wheels, art, spec: { spec, body }, half, lane, direction, speed: LANE_SPEEDS[lane], exit });
+    this.vehicles.push({ container, wheels, art, spec: { spec, body }, half, lane, direction, speed: LANE_SPEEDS[lane], exit, stop });
     return true;
   }
 

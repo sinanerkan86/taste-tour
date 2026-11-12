@@ -356,5 +356,11 @@
   "staff.body": "Need more hands? Watch a short ad and hire staff for {section} for free.",
   "staff.bodyFree": "Need more hands? Hire staff for {section} for free.",
   "staff.reward": "+{levels} levels",
-  "banner.staffHelp": "{section} +{levels} levels!"
+  "banner.staffHelp": "{section} +{levels} levels!",
+  "row.busStop": "Bus stop",
+  "row.busStopClosed": "A bus every {minutes} min fills your free tables",
+  "row.busStopRate": "{rate} riders/s · a bus every {minutes} min",
+  "row.busStopSeats": "{rate} of {max} riders/s: add seating",
+  "row.seatsFull": "SEATS FULL",
+  "banner.busStopOpen": "The bus stop is open! A bus brings guests every {minutes} minutes"
 }

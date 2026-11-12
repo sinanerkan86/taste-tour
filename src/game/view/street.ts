@@ -23,10 +23,10 @@ const CENTER_LINE = (STREET.roadTop + STREET.roadBottom) / 2;
 // The floor's vanishing point (see room.ts): pavement joints run toward it too.
 const VANISH = { x: GAME_WIDTH / 2, y: -700 };
 
-export const LAMPS = [150, 868];
+export const LAMPS = [590, 868];
 export const TREE = { x: 985, y: 1318 } as const;
 const PLANTER = { x: 110, y: 1180 } as const;
-const BIN = { x: 48, y: 1332 } as const;
+const BIN = { x: 520, y: 1332 } as const;
 // On the far pavement, clear of the driveways and the zebra.
 const BOLLARDS = [250, 450, 640, 860];
 

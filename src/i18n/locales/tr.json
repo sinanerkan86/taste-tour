@@ -356,5 +356,11 @@
   "staff.body": "Eleman mı lazım? Kısa bir reklam izle, {section} için bedava personel al.",
   "staff.bodyFree": "Eleman mı lazım? {section} için bedava personel al.",
   "staff.reward": "+{levels} seviye",
-  "banner.staffHelp": "{section} +{levels} seviye!"
+  "banner.staffHelp": "{section} +{levels} seviye!",
+  "row.busStop": "Otobüs durağı",
+  "row.busStopClosed": "Her {minutes} dakikada bir otobüs boş masaları doldurur",
+  "row.busStopRate": "{rate} yolcu/sn · {minutes} dakikada bir otobüs",
+  "row.busStopSeats": "{rate} / {max} yolcu/sn: salonu büyüt",
+  "row.seatsFull": "MASALAR DOLU",
+  "banner.busStopOpen": "Otobüs durağı açıldı! Her {minutes} dakikada bir otobüs misafir getirir"
 }

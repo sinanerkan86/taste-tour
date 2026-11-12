@@ -38,6 +38,7 @@ import { drawStreet } from './street';
 import { StreetLife } from './StreetLife';
 import { ParkingLot } from './ParkingLot';
 import { Person, createPlate } from './Person';
+import { BusStop } from './BusStop';
 import { drawRoom } from './room';
 import { ART_RES, addArt, paintTexture, roundRect, vGradient, type Ctx } from './paint';
 import { deliveryIcon, dishIcon } from '../ui/icons';
@@ -98,6 +99,7 @@ export interface ViewState {
     // Share of customers who come by car.
     carShare: number;
   };
+  busStopLevel: number;
 }
 
 // How fast each section works on screen. Every section's real rate is scaled by the same
@@ -275,6 +277,7 @@ export class RestaurantView {
   private flow: Flow | null = null;
   private readonly streetLife: StreetLife;
   private readonly lot: ParkingLot;
+  private readonly busStop: BusStop;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -291,6 +294,10 @@ export class RestaurantView {
       onArrived: (person) => void this.runCustomer(person),
     });
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.lot.destroy());
+    this.busStop = new BusStop(scene, theme.street, this.streetLife, {
+      addPerson: (person) => this.addPerson(person),
+      onRider: (person) => void this.runCustomer(person),
+    });
     this.tables = art.tables;
     this.looks = new SectionLooks(scene, theme, art);
     this.seats = TABLES.flatMap((table, i) =>
@@ -322,6 +329,7 @@ export class RestaurantView {
     this.syncStaff(this.flow);
     this.syncDelivery(this.flow, wasStarted);
     this.lot.sync(state.parking.level, state.parking.valet, wasStarted);
+    this.busStop.sync(state.busStopLevel, wasStarted);
     this.deliveryCredit = Math.min(this.deliveryCredit + (this.flow.deliveryRate * delta) / 1000, 1.5);
     this.applyLooks(state.levels, wasStarted);
     this.syncSeats(this.flow.seatsOpen);
@@ -338,6 +346,16 @@ export class RestaurantView {
     this.animateSteam(time);
     this.people.forEach((p) => p.animate(time));
     this.streetLife.update(time, delta);
+  }
+
+  // The next-bus board: seconds to go, or null while the bus is here.
+  setBusCountdown(seconds: number | null): void {
+    this.busStop.setCountdown(this.busStop.busy ? null : seconds);
+  }
+
+  // Brings a bus to the stop; onStop runs when it stands there and returns how many step off.
+  callBus(onStop: () => number): void {
+    void this.busStop.call(onStop);
   }
 
   // Called when the player taps a waiting VIP guest.

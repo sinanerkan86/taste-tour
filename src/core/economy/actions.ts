@@ -20,7 +20,7 @@ export function costScale(state: EconomyState): number {
 }
 
 // Section upgrades also get the Restaurant Manager discount.
-function sectionCostScale(state: EconomyState): number {
+export function sectionCostScale(state: EconomyState): number {
   return costScale(state) * sectionCostMultiplier(state);
 }
 
@@ -44,7 +44,7 @@ export function nextLockedDish(state: EconomyState): number {
   return state.dishLevels.findIndex((level) => level === 0);
 }
 
-function spend(state: EconomyState, cost: number): boolean {
+export function spend(state: EconomyState, cost: number): boolean {
   if (state.money < cost) return false;
   state.money -= cost;
   return true;
@@ -62,7 +62,7 @@ export interface BuyPlan {
 // A fixed amount buys exactly that many levels (fewer only near a level cap), affordable or
 // not, so the button can show the price. 'max' buys as many as the money covers, but at least
 // one, so an unaffordable button still shows the next level's price.
-function planLevels(costOf: (offset: number) => number, amount: BuyAmount, limit: number, money: number): BuyPlan {
+export function planLevels(costOf: (offset: number) => number, amount: BuyAmount, limit: number, money: number): BuyPlan {
   const wanted = Math.min(amount === 'max' ? limit : amount, limit);
   let levels = 0;
   let cost = 0;
@@ -76,7 +76,7 @@ function planLevels(costOf: (offset: number) => number, amount: BuyAmount, limit
 }
 
 // Safety net for 'max' on sections, which have no level cap.
-const MAX_LEVELS_PER_BUY = 1000;
+export const MAX_LEVELS_PER_BUY = 1000;
 
 export function sectionBuyPlan(state: EconomyState, id: SectionId, amount: BuyAmount): BuyPlan {
   const cfg = SECTIONS[id];

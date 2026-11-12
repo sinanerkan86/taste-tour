@@ -74,6 +74,19 @@ export const VALET = {
   extraBillBonus: 0.1,
 };
 
+// Bus stop: a bus brings a group on a timetable while the game is open (never offline). The
+// group is seated at the dining room's spare tables, so a full dining room sends riders away,
+// and they order a set menu that costs less than the taste tour (GDD 13).
+export const BUS_STOP = {
+  unlockCost: 1e9,
+  // Riders per second on average at level 1 (a bus brings rate x interval of them).
+  baseRate: 0.15,
+  baseCost: 4e4,
+  costGrowth: 1.24,
+  intervalSeconds: 180,
+  billFraction: 0.6,
+};
+
 // Unlock costs are calibrated so each new dish arrives as growth from the previous one stalls.
 export const DISH_TIERS: DishTier[] = [
   { basePrice: 2, unlockCost: 0, baseUpgradeCost: 15, costGrowth: 1.25 },

@@ -356,5 +356,11 @@
   "staff.body": "Besoin de renfort ? Regardez une courte pub et recrutez du personnel gratuitement ({section}).",
   "staff.bodyFree": "Besoin de renfort ? Recrutez du personnel gratuitement ({section}).",
   "staff.reward": "+{levels} niveaux",
-  "banner.staffHelp": "{section} +{levels} niveaux !"
+  "banner.staffHelp": "{section} +{levels} niveaux !",
+  "row.busStop": "Arrêt de bus",
+  "row.busStopClosed": "Un bus toutes les {minutes} min remplit vos tables libres",
+  "row.busStopRate": "{rate} passagers/s · un bus toutes les {minutes} min",
+  "row.busStopSeats": "{rate} sur {max} passagers/s : agrandissez la salle",
+  "row.seatsFull": "SALLE PLEINE",
+  "banner.busStopOpen": "L'arrêt de bus est ouvert ! Un bus amène des clients toutes les {minutes} minutes"
 }

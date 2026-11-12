@@ -10,6 +10,9 @@ import {
   arrivals,
   canBuyValet,
   parkingBuyPlan,
+  BUS_STOP,
+  busFlow,
+  busStopBuyPlan,
   valetCost,
   deliveryBuyPlan,
   deliveryFlow,
@@ -46,7 +49,7 @@ import { FONT, GAME_WIDTH, LAYOUT, PALETTE, toCss } from '../config';
 import { adIcon } from '../ads/AdService';
 import { DISH_COLORS, SECTION_COLORS } from '../colors';
 import { BUTTON_STYLES, Button } from './Button';
-import { deliveryIcon, dishIcon, lockIcon, parkingIcon, progressIcon, sectionIcon, valetIcon } from './icons';
+import { busStopIcon, deliveryIcon, dishIcon, lockIcon, parkingIcon, progressIcon, sectionIcon, valetIcon } from './icons';
 import { ART_RES, paintTexture, roundRect, vGradient } from '../view/paint';
 import { card, outlined } from './style';
 import { saveSettings, settings } from '../settings';
@@ -63,7 +66,7 @@ const PROGRESS_BAR = { width: 360, height: 18 };
 export type Tab = 'restaurant' | 'menu' | 'lab' | 'expand';
 const TABS: Tab[] = ['restaurant', 'menu', 'lab', 'expand'];
 // A part of the restaurant the player tapped in the scene: its upgrade rows open in the drawer.
-export type Spot = SectionId | 'parking';
+export type Spot = SectionId | 'parking' | 'busStop';
 type Mode = { kind: 'closed' } | { kind: 'tab'; tab: Tab } | { kind: 'spot'; spot: Spot };
 // What the drawer shows when closed: the tab strip.
 export const PANEL_STRIP = 20 + TAB_HEIGHT + 24;
@@ -352,6 +355,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
   private readonly deliveryRow: UpgradeRow;
   private readonly parkingRow: UpgradeRow;
   private readonly valetRow: UpgradeRow;
+  private readonly busStopRow: UpgradeRow;
   private readonly dishRows: UpgradeRow[];
   private readonly labRows: LabRow[];
   private readonly labInfo: Phaser.GameObjects.Text;
@@ -369,6 +373,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     onBuyDelivery: () => void,
     onBuyParking: () => void,
     onBuyValet: () => void,
+    onBuyBusStop: () => void,
     // The staff help ad on the bottleneck section's row.
     onStaffHelp: () => void,
   ) {
@@ -414,6 +419,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     this.safeRow = new UpgradeRow(scene, rowY(SECTION_IDS.length + 1), onBuySafe);
     this.parkingRow = new UpgradeRow(scene, rowY(0), onBuyParking);
     this.valetRow = new UpgradeRow(scene, rowY(1), onBuyValet);
+    this.busStopRow = new UpgradeRow(scene, rowY(2), onBuyBusStop);
     this.dishRows = DISH_TIERS.map((_, i) => new UpgradeRow(scene, rowY(i), () => onBuyDish(i)));
     this.labRows = RESEARCH_IDS.map((id, i) => new LabRow(scene, rowY(i), id, () => onResearch(id)));
     this.labInfo = scene.add
@@ -425,7 +431,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
         lineSpacing: 6,
       })
       .setOrigin(0.5);
-    this.add([...this.sectionRows, this.deliveryRow, this.safeRow, this.parkingRow, this.valetRow, ...this.dishRows, ...this.labRows, this.labInfo]);
+    this.add([...this.sectionRows, this.deliveryRow, this.safeRow, this.parkingRow, this.valetRow, this.busStopRow, ...this.dishRows, ...this.labRows, this.labInfo]);
 
     this.applyMode();
     scene.add.existing(this);
@@ -434,6 +440,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
   // Rows each spot opens: the section and what belongs to the same place.
   private spotRows(spot: Spot): UpgradeRow[] {
     if (spot === 'parking') return [this.parkingRow, this.valetRow];
+    if (spot === 'busStop') return [this.busStopRow];
     const row = this.sectionRows[SECTION_IDS.indexOf(spot)];
     if (spot === 'kitchen') return [row, this.deliveryRow];
     if (spot === 'cashier') return [row, this.safeRow];
@@ -543,6 +550,10 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     this.valetRow.pulse();
   }
 
+  pulseBusStop(): void {
+    this.busStopRow.pulse();
+  }
+
   pulseSafe(): void {
     this.safeRow.pulse();
   }
@@ -569,7 +580,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
   // Shows the rows of the current mode at their places and hides the rest.
   private applyMode(): void {
     const rowY = (i: number) => 20 + TAB_HEIGHT + 18 + ROW_HEIGHT / 2 + i * (ROW_HEIGHT + ROW_GAP);
-    const all = [...this.sectionRows, this.deliveryRow, this.safeRow, this.parkingRow, this.valetRow, ...this.dishRows, ...this.labRows];
+    const all = [...this.sectionRows, this.deliveryRow, this.safeRow, this.parkingRow, this.valetRow, this.busStopRow, ...this.dishRows, ...this.labRows];
     all.forEach((row) => row.setVisible(false));
     this.labInfo.setVisible(false);
     const mode = this.mode;
@@ -578,7 +589,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     if (tab === 'restaurant') shown = [...this.sectionRows, this.deliveryRow, this.safeRow];
     else if (tab === 'menu') shown = this.dishRows;
     else if (tab === 'lab') shown = this.labRows;
-    else if (tab === 'expand') shown = [this.parkingRow, this.valetRow];
+    else if (tab === 'expand') shown = [this.parkingRow, this.valetRow, this.busStopRow];
     else if (mode.kind === 'spot') shown = this.spotRows(mode.spot);
     shown.forEach((row, i) => row.setVisible(true).setY(rowY(i)));
     this.labInfo.setVisible(tab === 'lab');
@@ -594,7 +605,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     this.labBadge.setVisible(labNeedsAttention(state));
     const mode = this.mode;
     if (mode.kind === 'spot') {
-      if (mode.spot === 'parking') this.refreshExpand(state);
+      if (mode.spot === 'parking' || mode.spot === 'busStop') this.refreshExpand(state);
       else this.refreshSections(state);
     } else if (mode.kind === 'tab') {
       if (mode.tab === 'restaurant') this.refreshSections(state);
@@ -751,6 +762,35 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
       highlight: false,
       icon: valetIcon(this.scene),
       locked: !state.valet && !open,
+    });
+    this.refreshBusStop(state);
+  }
+
+  // The bus stop: one tap opens it, then levels follow the buy amount. When the dining room has
+  // no free tables for the riders, a tag says so (the fix is more seating, not more buses).
+  private refreshBusStop(state: EconomyState): void {
+    const { levels, cost } = busStopBuyPlan(state, settings.buyAmount);
+    const level = state.busStopLevel;
+    const flow = busFlow(state);
+    const seatsFull = level > 0 && flow.limitedBy === 'seats';
+    const minutes = Math.round(BUS_STOP.intervalSeconds / 60);
+    this.busStopRow.render({
+      title: t('row.busStop'),
+      level: level > 0 ? levelText(level, levels) : '',
+      detail:
+        level === 0
+          ? t('row.busStopClosed', { minutes })
+          : seatsFull
+            ? t('row.busStopSeats', { rate: formatNumber(flow.ridersPerSecond, 2), max: formatNumber(flow.busRate, 2) })
+            : t('row.busStopRate', { rate: formatNumber(flow.ridersPerSecond, 2), minutes }) + milestoneText(level, MILESTONE_BONUS.section),
+      buttonLabel: formatNumber(cost),
+      buttonIcon: true,
+      affordable: state.money >= cost,
+      buyable: true,
+      highlight: false,
+      icon: busStopIcon(this.scene),
+      locked: false,
+      tag: seatsFull ? { text: t('row.seatsFull'), color: 0xd9822b } : null,
     });
   }
 

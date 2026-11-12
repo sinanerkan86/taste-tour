@@ -88,6 +88,7 @@ export function parseSave(json: string): SaveData | null {
     chefs: fresh.chefs,
     purchases: fresh.purchases,
     safeLevel: 0,
+    deliveryLevel: Math.max(0, Math.floor(finiteOr(saved.deliveryLevel, 0))),
   };
   for (const id of CHEF_IDS) {
     economy.chefs.levels[id] = Math.min(chefMaxLevel(), Math.max(0, Math.floor(finiteOr(saved.chefs?.levels?.[id], 0))));

@@ -302,6 +302,12 @@
   "row.safeDetail": "Offline: {time}",
   "row.safeNext": "next +{time}",
   "banner.safe": "Night Safe: offline earnings up to {time}",
+  "row.delivery": "Delivery",
+  "row.deliveryClosed": "Couriers sell what the kitchen has time for",
+  "row.deliveryRate": "{rate} orders/s · half a bill each",
+  "row.deliveryKitchen": "{rate} of {max} orders/s: upgrade the kitchen",
+  "row.kitchenFull": "KITCHEN FULL",
+  "banner.deliveryOpen": "Delivery is open! Couriers take out what the kitchen has time for",
   "chefs.recruitCost": "Recruit ({cost} card)",
   "chefs.levelUpCost": "Level up ({cost} cards)",
   "chefs.pool": "Chef cards: {count}",
@@ -335,8 +341,8 @@
   "banner.weeklyTaskDone": "Weekly task done: {task}",
   "staff.button": "+{levels}",
   "staff.title": "Staff help",
-  "staff.body": "Short of money? Watch a short ad and hire staff for {section} for free.",
-  "staff.bodyFree": "Short of money? Hire staff for {section} for free.",
+  "staff.body": "Need more hands? Watch a short ad and hire staff for {section} for free.",
+  "staff.bodyFree": "Need more hands? Hire staff for {section} for free.",
   "staff.reward": "+{levels} levels",
   "banner.staffHelp": "{section} +{levels} levels!"
 }

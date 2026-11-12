@@ -302,6 +302,12 @@
   "row.safeDetail": "Çevrimdışı: {time}",
   "row.safeNext": "sonraki +{time}",
   "banner.safe": "Gece Kasası: çevrimdışı kazanç {time}",
+  "row.delivery": "Paket servis",
+  "row.deliveryClosed": "Kuryeler mutfağın yetiştirebildiğini satar",
+  "row.deliveryRate": "{rate} sipariş/sn · her biri yarım hesap",
+  "row.deliveryKitchen": "{rate}/{max} sipariş/sn: mutfağı yükselt",
+  "row.kitchenFull": "MUTFAK DOLU",
+  "banner.deliveryOpen": "Paket servis açıldı! Kuryeler mutfağın yetiştirebildiğini götürür",
   "chefs.recruitCost": "İşe al ({cost} kart)",
   "chefs.levelUpCost": "Geliştir ({cost} kart)",
   "chefs.pool": "Şef kartların: {count}",
@@ -335,8 +341,8 @@
   "banner.weeklyTaskDone": "Haftalık görev tamam: {task}",
   "staff.button": "+{levels}",
   "staff.title": "Personel desteği",
-  "staff.body": "Paran mı yetmiyor? Kısa bir reklam izle, {section} için bedava personel al.",
-  "staff.bodyFree": "Paran mı yetmiyor? {section} için bedava personel al.",
+  "staff.body": "Eleman mı lazım? Kısa bir reklam izle, {section} için bedava personel al.",
+  "staff.bodyFree": "Eleman mı lazım? {section} için bedava personel al.",
   "staff.reward": "+{levels} seviye",
   "banner.staffHelp": "{section} +{levels} seviye!"
 }

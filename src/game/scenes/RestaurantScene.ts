@@ -63,6 +63,9 @@ import {
   vipTip,
   adsRemoved,
   buySafeLevel,
+  buyDeliveryLevels,
+  deliveryFlow,
+  incomeBreakdown,
   offlineCapSeconds,
   chefsNeedAttention,
   grantPurchase,
@@ -103,7 +106,7 @@ import { GoalBar } from '../ui/GoalBar';
 import { HintBubble } from '../ui/HintBubble';
 import { UpgradePanel } from '../ui/UpgradePanel';
 import { WelcomeBackModal } from '../ui/WelcomeBackModal';
-import { ROOM, SECTION_ANCHORS, type Point } from '../view/layout';
+import { DELIVERY_SIGN, ROOM, SECTION_ANCHORS, type Point } from '../view/layout';
 import { RestaurantView } from '../view/RestaurantView';
 import { Decor } from '../view/decor';
 import { audio } from '../audio';
@@ -278,6 +281,7 @@ export class RestaurantScene extends Phaser.Scene {
       (index) => this.buyDish(index),
       (id) => this.pressResearch(id),
       () => this.buySafe(),
+      () => this.buyDelivery(),
       () => this.offerStaffHelp(),
     );
     this.panel.onTabChange = (tab) => {
@@ -848,7 +852,7 @@ export class RestaurantScene extends Phaser.Scene {
     );
   }
 
-  // Staff help: free levels for the bottleneck section when the player is short of money.
+  // Staff help: free levels for the bottleneck section (an ad, then a cooldown).
   private offerStaffHelp(): void {
     const levels = staffHelpLevels(this.economy);
     if (levels <= 0) return;
@@ -859,7 +863,7 @@ export class RestaurantScene extends Phaser.Scene {
       reward: t('staff.reward', { levels }),
     };
     new AdOfferModal(this, offer, UI_DEPTH + 100, () => {
-      // The money may have come in meanwhile; then the ad is not needed.
+      // Another offer may have been used meanwhile.
       if (staffHelpLevels(this.economy) <= 0) return;
       void this.watchAd('staffHelp', () => {
         const id = throughput(this.economy).bottleneck;
@@ -1149,14 +1153,24 @@ export class RestaurantScene extends Phaser.Scene {
     this.updateVip(delta / 1000);
     this.updateEvent(delta / 1000);
     const flow = throughput(this.economy);
+    const delivery = deliveryFlow(this.economy);
+    const income = incomeBreakdown(this.economy);
+    const boost = boostMultiplier(this.economy);
     this.view.update(
       {
         rates: sectionRates(this.economy),
         levels: this.economy.sectionLevels,
         customersPerSecond: flow.customersPerSecond,
-        incomePerSecond: incomePerSecond(this.economy) + this.festivalBonus(),
+        // Diners pay the dining room's share at the cashier, couriers the delivery share.
+        incomePerSecond: income.dineIn * boost + this.festivalBonus(),
         bottleneck: flow.bottleneck,
         menu: this.economy.dishLevels.flatMap((level, i) => (level > 0 ? [i] : [])),
+        delivery: {
+          level: this.economy.deliveryLevel,
+          courierRate: delivery.courierRate,
+          ordersPerSecond: delivery.ordersPerSecond,
+          incomePerSecond: income.delivery * boost,
+        },
       },
       time,
       delta,
@@ -1218,6 +1232,26 @@ export class RestaurantScene extends Phaser.Scene {
       const name = t(`section.${id}` as TranslationKey);
       this.note(t('banner.milestone', { name, bonus: MILESTONE_BONUS.section }));
     }
+  }
+
+  // Opening delivery is celebrated and the room scrolls to the counter where couriers will come.
+  private buyDelivery(): void {
+    const level = this.economy.deliveryLevel;
+    const bought = buyDeliveryLevels(this.economy, this.panel.buyAmount);
+    if (bought === 0) return;
+    void this.saveGame();
+    this.panel.pulseDelivery();
+    if (level === 0) {
+      this.celebrate(t('banner.deliveryOpen'), PALETTE.success);
+      if (!this.room.shows(DELIVERY_SIGN, 0)) this.room.panTo(DELIVERY_SIGN);
+    } else {
+      this.track('upgrades', bought);
+      this.celebratePurchase();
+      if (milestonesReached(this.economy.deliveryLevel) > milestonesReached(level)) {
+        this.note(t('banner.milestone', { name: t('row.delivery'), bonus: MILESTONE_BONUS.section }));
+      }
+    }
+    this.refreshUi();
   }
 
   private buySafe(): void {

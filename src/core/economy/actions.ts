@@ -1,4 +1,4 @@
-import { ADS, CHEF, DISH_MAX_LEVEL, DISH_TIERS, PERK, SAFE, SECTION_IDS, SECTIONS, type PerkId, type SectionId } from './config';
+import { ADS, CHEF, DELIVERY, DISH_MAX_LEVEL, DISH_TIERS, PERK, SAFE, SECTION_IDS, SECTIONS, type PerkId, type SectionId } from './config';
 import { giveChefCards } from './chefs';
 import { cityCostScale, levelCost, starsForReputation } from './formulas';
 import {
@@ -124,6 +124,26 @@ export function buyDish(state: EconomyState, index: number): boolean {
   return buyDishLevels(state, index, 1) > 0;
 }
 
+// Opening delivery is its first level; after that each courier level costs like a section
+// level (the Restaurant Manager discount applies).
+export function deliveryBuyPlan(state: EconomyState, amount: BuyAmount): BuyPlan {
+  const level = state.deliveryLevel;
+  if (level === 0) return { levels: 1, cost: DELIVERY.unlockCost * costScale(state) };
+  const scale = sectionCostScale(state);
+  return planLevels((k) => levelCost(DELIVERY.baseCost, DELIVERY.costGrowth, level + k) * scale, amount, MAX_LEVELS_PER_BUY, state.money);
+}
+
+export function deliveryCost(state: EconomyState): number {
+  return deliveryBuyPlan(state, 1).cost;
+}
+
+export function buyDeliveryLevels(state: EconomyState, amount: BuyAmount): number {
+  const plan = deliveryBuyPlan(state, amount);
+  if (plan.levels === 0 || !spend(state, plan.cost)) return 0;
+  state.deliveryLevel += plan.levels;
+  return plan.levels;
+}
+
 // Next Night Safe level's cost; Infinity at the top level.
 export function safeUpgradeCost(state: EconomyState): number {
   const cost = SAFE.costs[state.safeLevel];
@@ -201,12 +221,10 @@ export function useTimeSkip(state: EconomyState): number {
 }
 
 // Free levels the staff help ad would hire for the bottleneck section right now: as many as
-// ADS.staffHelpSeconds of income would buy. 0 while it cools down, while the player can afford
-// the next level anyway, or when not even one level fits.
+// ADS.staffHelpSeconds of income would buy. 0 while it cools down or when not even one level fits.
 export function staffHelpLevels(state: EconomyState): number {
   if (state.staffCooldown > 0) return 0;
   const id = throughput(state).bottleneck;
-  if (state.money >= sectionUpgradeCost(state, id)) return 0;
   const budget = baseIncomePerSecond(state) * ADS.staffHelpSeconds;
   const cfg = SECTIONS[id];
   const level = state.sectionLevels[id];

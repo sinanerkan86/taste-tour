@@ -302,6 +302,12 @@
   "row.safeDetail": "Hors ligne : {time}",
   "row.safeNext": "suivant +{time}",
   "banner.safe": "Coffre de nuit : gains hors ligne jusqu'à {time}",
+  "row.delivery": "Livraison",
+  "row.deliveryClosed": "Les livreurs vendent ce que la cuisine a le temps de préparer",
+  "row.deliveryRate": "{rate} commandes/s · une demi-addition chacune",
+  "row.deliveryKitchen": "{rate} sur {max} commandes/s : améliorez la cuisine",
+  "row.kitchenFull": "CUISINE PLEINE",
+  "banner.deliveryOpen": "La livraison est ouverte ! Les livreurs emportent ce que la cuisine a le temps de préparer",
   "chefs.recruitCost": "Recruter ({cost} carte)",
   "chefs.levelUpCost": "Améliorer ({cost} cartes)",
   "chefs.pool": "Cartes de chef : {count}",
@@ -335,8 +341,8 @@
   "banner.weeklyTaskDone": "Mission de la semaine finie : {task}",
   "staff.button": "+{levels}",
   "staff.title": "Renfort du personnel",
-  "staff.body": "Pas assez d'argent ? Regardez une courte pub et recrutez du personnel gratuitement ({section}).",
-  "staff.bodyFree": "Pas assez d'argent ? Recrutez du personnel gratuitement ({section}).",
+  "staff.body": "Besoin de renfort ? Regardez une courte pub et recrutez du personnel gratuitement ({section}).",
+  "staff.bodyFree": "Besoin de renfort ? Recrutez du personnel gratuitement ({section}).",
   "staff.reward": "+{levels} niveaux",
   "banner.staffHelp": "{section} +{levels} niveaux !"
 }

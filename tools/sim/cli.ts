@@ -69,6 +69,18 @@ console.table(
   ),
 );
 
+console.log('Delivery');
+console.table(
+  result.cycles.map((c) => ({
+    cycle: c.index + 1,
+    opened: c.deliveryOpened === null ? '-' : formatDuration(c.deliveryOpened),
+    level: c.finalDeliveryLevel,
+    'share of income at the end (%)': Math.round(c.deliveryShare * 100),
+    'kitchen-limited time (%)': Math.round((c.deliveryKitchenSeconds / c.duration) * 100),
+    'courier upgrades (%)': Math.round(((c.purchasesByTarget.delivery ?? 0) / Math.max(c.purchases, 1)) * 100),
+  })),
+);
+
 console.log('Final levels');
 console.table(
   result.cycles.map((c) =>

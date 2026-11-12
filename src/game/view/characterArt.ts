@@ -41,7 +41,9 @@ export type Part =
   | 'tallToque'
   | 'beret'
   | 'notepad'
-  | 'cap';
+  | 'cap'
+  | 'helmet'
+  | 'deliveryBag';
 
 const PAINTERS: Record<Part, (ctx: Ctx) => void> = {
   shadow: paintShadow,
@@ -76,6 +78,8 @@ const PAINTERS: Record<Part, (ctx: Ctx) => void> = {
   beret: paintBeret,
   notepad: paintNotepad,
   cap: paintCap,
+  helmet: paintHelmet,
+  deliveryBag: paintDeliveryBag,
 };
 
 // Grey ramps: lit side, middle, shadow side.
@@ -773,4 +777,49 @@ function paintCap(ctx: Ctx): void {
   ctx.fillStyle = 'rgba(255,255,255,0.35)';
   ellipse(ctx, -7, -141, 7, 3);
   ctx.fill();
+}
+
+// Courier: a white scooter helmet with a teal stripe and a chin strap.
+function paintHelmet(ctx: Ctx): void {
+  ctx.fillStyle = radial(ctx, -6, -140, 0, 26, [
+    [0, '#ffffff'],
+    [1, '#cfd6d8'],
+  ], -8, -146);
+  ctx.beginPath();
+  ctx.arc(0, -126, 24, Math.PI, 0);
+  ctx.lineTo(24, -120);
+  ctx.lineTo(-24, -120);
+  ctx.closePath();
+  ctx.fill();
+  outline(ctx, 1);
+  ctx.fillStyle = '#2a9d8f';
+  ctx.fillRect(-4, -150, 8, 30);
+  ctx.strokeStyle = '#3a3a3a';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-21, -121);
+  ctx.quadraticCurveTo(-18, -100, 0, -97);
+  ctx.quadraticCurveTo(18, -100, 21, -121);
+  ctx.stroke();
+}
+
+// Courier: an insulated delivery box on the back (it shows past the shoulders) and its straps.
+function paintDeliveryBag(ctx: Ctx): void {
+  ctx.fillStyle = vGradient(ctx, -124, -88, [
+    [0, '#ffd45a'],
+    [1, '#e09a0b'],
+  ]);
+  roundRect(ctx, -32, -124, 64, 38, 6);
+  ctx.fill();
+  outline(ctx, 1.5);
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.fillRect(-29, -117, 58, 4);
+  ctx.strokeStyle = '#2b2b2b';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(-13, -88);
+  ctx.lineTo(-11, -52);
+  ctx.moveTo(13, -88);
+  ctx.lineTo(11, -52);
+  ctx.stroke();
 }

@@ -35,6 +35,22 @@ export const SECTIONS: Record<SectionId, SectionConfig> = {
   dishwashing: { id: 'dishwashing', baseRate: 0.5, baseCost: 60, costGrowth: 1.21 },
 };
 
+// Delivery: a second income line that opens with a one-time purchase. Couriers take orders out,
+// so they skip the dining room, the waiters, the cashier and the dish pit, but the kitchen cooks
+// for both: dine-in customers first, delivery gets the kitchen's spare capacity (GDD 3b).
+export const DELIVERY = {
+  // Cost to open delivery (in the city's cost scale): with the sim's greedy player it opens after
+  // the third dish (about 13 min into the first city, 9 min into later ones). Then the courier
+  // level curve; the sim settles at about 14% of income from delivery.
+  unlockCost: 1e7,
+  // Orders per second at level 1.
+  baseRate: 0.3,
+  baseCost: 2e3,
+  costGrowth: 1.23,
+  // A delivery order pays this share of a dine-in bill (smaller orders, the platform's cut).
+  billFraction: 0.5,
+};
+
 // Unlock costs are calibrated so each new dish arrives as growth from the previous one stalls.
 export const DISH_TIERS: DishTier[] = [
   { basePrice: 2, unlockCost: 0, baseUpgradeCost: 15, costGrowth: 1.25 },
@@ -102,8 +118,12 @@ export const PRESTIGE = {
 };
 
 export const TAP = {
-  // A tap earns this fraction of one customer's bill. Strong while few customers come in,
-  // negligible once the restaurant runs itself, so tapping fades out naturally.
+  // A tap earns this fraction of a second of income (Rush and review included), so its worth is
+  // easy to read next to the income per second and it stays worth tapping in every city:
+  // 5 taps a second double the income while the player taps.
+  incomeFraction: 0.2,
+  // In the first minutes a fifth of a second of income is a few cents, so a tap earns at least
+  // this fraction of one customer's bill (about a second of income at the very start).
   billFraction: 0.25,
 };
 
@@ -130,9 +150,10 @@ export const ADS = {
   // level, and only while more than the minimum is left (shorter waits are not worth an ad).
   labSpeedUpFactor: 0.5,
   labSpeedUpMinSeconds: 5 * 60,
-  // Staff help: when the player cannot afford the next level of the bottleneck section, an ad
-  // hires staff for free: as many levels of it as this many seconds of income would buy (at
-  // least one level must fit). Then it waits for the cooldown.
+  // Staff help: an ad hires staff for the bottleneck section for free: as many levels of it as
+  // this many seconds of income would buy (at least one level must fit). Then it waits for the
+  // cooldown. It used to show only while the next level was unaffordable, but with fast income
+  // the button blinked in and out, so now it stays until it is used.
   staffHelpSeconds: 20 * 60,
   staffHelpCooldownSeconds: 15 * 60,
 };

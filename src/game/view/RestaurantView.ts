@@ -9,7 +9,11 @@ import {
   CASHIER_LINE,
   CASHIER_STAFF,
   CLEAN_STACK,
+  COURIER_OUTSIDE,
+  COURIER_SPOTS,
   CRITIC_SPOT,
+  DELIVERY_SHELF,
+  DELIVERY_SIGN,
   DIRTY_STACK,
   DISHPIT,
   DISHWASHER,
@@ -29,8 +33,8 @@ import {
 } from './layout';
 import { Person, createPlate } from './Person';
 import { drawRoom } from './room';
-import { ART_RES } from './paint';
-import { dishIcon } from '../ui/icons';
+import { ART_RES, addArt, paintTexture, roundRect, vGradient, type Ctx } from './paint';
+import { deliveryIcon, dishIcon } from '../ui/icons';
 import type { CityTheme } from './themes';
 
 // The scene shows at most this many customers per second (kept low so it reads as a calm
@@ -57,9 +61,15 @@ const DOOR_TO_SEAT_SECONDS = 2.6;
 const STACK_VISIBLE = 10;
 // Staff idle this long get a sleepy "zzz" bubble.
 const IDLE_BUBBLE_SECONDS = 4;
+// Delivery on screen: at most this many orders per second go out, couriers are added like other
+// staff, and a ride takes this long at least and at most.
+const MAX_VISUAL_DELIVERY_RATE = 0.3;
+const MAX_COURIERS = COURIER_SPOTS.length;
+const MIN_RIDE_SECONDS = 3;
+const MAX_RIDE_SECONDS = 15;
 
 // Small icons over people that explain why they are not working.
-type Status = 'sleep' | 'noPlates' | 'passFull' | 'bill';
+type Status = 'sleep' | 'noPlates' | 'passFull' | 'bill' | 'kitchenBusy';
 
 export interface ViewState {
   rates: Record<SectionId, number>;
@@ -69,6 +79,13 @@ export interface ViewState {
   bottleneck: SectionId;
   // Indices of dishes on the menu.
   menu: number[];
+  delivery: {
+    level: number;
+    // What the couriers could take, and what they really take (the kitchen's spare capacity).
+    courierRate: number;
+    ordersPerSecond: number;
+    incomePerSecond: number;
+  };
 }
 
 // How fast each section works on screen. Every section's real rate is scaled by the same
@@ -84,6 +101,11 @@ interface Flow {
   washSeconds: number;
   chefs: number;
   waiters: number;
+  couriers: number;
+  // Seconds a courier is away delivering before coming back for the next box.
+  rideSeconds: number;
+  // Orders per second that really go out on screen (for the payment per box).
+  deliveryRate: number;
 }
 
 interface Seat {
@@ -116,6 +138,18 @@ interface Waiter {
   person: Person;
   home: Point;
   busy: boolean;
+}
+
+interface Courier {
+  person: Person;
+  spot: number;
+  // Waiting at the counter for a box.
+  waiting: boolean;
+}
+
+interface DeliveryOrder {
+  courier: Courier;
+  ready: (box: Phaser.GameObjects.Image) => void;
 }
 
 interface Checkout {
@@ -165,7 +199,16 @@ function computeFlow(state: ViewState): Flow {
     TABLES.length * 2,
   );
 
+  // Couriers ride at their own (scaled) rate; the kitchen cooks dine-in orders first, so when it
+  // has no time to spare they stand waiting at the counter.
+  const couriers = state.delivery.level > 0 ? staffCount(state.delivery.level, MAX_COURIERS) : 0;
+  const courierRate = Math.min(state.delivery.courierRate * scale, MAX_VISUAL_DELIVERY_RATE * 1.5);
+  const rideSeconds = Phaser.Math.Clamp(couriers / Math.max(courierRate, 1e-6), MIN_RIDE_SECONDS, MAX_RIDE_SECONDS);
+
   return {
+    couriers,
+    rideSeconds,
+    deliveryRate: Math.min(state.delivery.ordersPerSecond * scale, MAX_VISUAL_DELIVERY_RATE),
     visualRate,
     arrivalRate: state.bottleneck === 'entrance' ? visualRate : Math.min(rate('entrance'), visualRate * ARRIVAL_SURPLUS),
     seatsOpen,
@@ -190,6 +233,12 @@ export class RestaurantView {
   private readonly checkoutWaiting: Checkout[] = [];
   private readonly waiters: Waiter[] = [];
   private readonly chefs: Chef[] = [];
+  private readonly couriers: Courier[] = [];
+  private readonly deliveryOrders: DeliveryOrder[] = [];
+  private deliverySign: Phaser.GameObjects.Image | null = null;
+  // Boxes the kitchen may cook for couriers: it fills at the economy's delivery rate, so the scene
+  // never sends out more than the kitchen's spare time allows (none while it is the bottleneck).
+  private deliveryCredit = 0;
   private readonly people = new Set<Person>();
   private readonly statuses = new Map<Person, StatusBubble>();
   private readonly idleSeconds = new Map<Person, number>();
@@ -249,6 +298,8 @@ export class RestaurantView {
     this.state = state;
     this.flow = computeFlow(state);
     this.syncStaff(this.flow);
+    this.syncDelivery(this.flow, wasStarted);
+    this.deliveryCredit = Math.min(this.deliveryCredit + (this.flow.deliveryRate * delta) / 1000, 1.5);
     this.applyLooks(state.levels, wasStarted);
     this.syncSeats(this.flow.seatsOpen);
     this.updateMarker(state.bottleneck);
@@ -543,29 +594,114 @@ export class RestaurantView {
 
   // --- Kitchen ---------------------------------------------------------------------------
 
-  // A chef needs an order, a clean plate and a free spot on the pass to start cooking.
+  // A dine-in order needs a clean plate and a free spot on the pass. Dine-in comes first; a chef
+  // with nothing to cook for the dining room (or blocked by plates or the pass) cooks for a
+  // waiting courier instead, so delivery gets the kitchen's spare time, as in the economy.
   private startCooking(): void {
     if (!this.flow) return;
     for (const chef of this.chefs) {
       if (chef.cooking) continue;
       const spot = this.passTaken.indexOf(false);
-      if (this.orders.length === 0 || this.cleanPlates === 0 || spot < 0) return;
-      const order = this.orders.shift()!;
-      this.passTaken[spot] = true;
-      this.cleanPlates--;
-      this.drawStacks();
-      chef.cooking = true;
-      chef.person.busy = true;
-      this.scene.time.delayedCall(this.flow.cookSeconds * 1000, () => {
-        chef.cooking = false;
-        chef.person.busy = false;
-        const pass = PASS_SPOTS[spot];
-        const plate = createPlate(this.scene, order.color);
-        plate.setPosition(pass.x, pass.y - 12).setDepth(KITCHEN.counterY + 2).setScale(0);
-        this.scene.tweens.add({ targets: plate, scale: 1, duration: 200, ease: 'Back.easeOut' });
-        this.readyPlates.push({ order, plate, spot });
-      });
+      if (this.orders.length > 0 && this.cleanPlates > 0 && spot >= 0) this.cookForTable(chef, spot);
+      else if (this.deliveryOrders.length > 0 && this.deliveryCredit >= 1) this.cookForCourier(chef);
+      else return;
     }
+  }
+
+  private cookForTable(chef: Chef, spot: number): void {
+    const order = this.orders.shift()!;
+    this.passTaken[spot] = true;
+    this.cleanPlates--;
+    this.drawStacks();
+    this.cook(chef, () => {
+      const pass = PASS_SPOTS[spot];
+      const plate = createPlate(this.scene, order.color);
+      plate.setPosition(pass.x, pass.y - 12).setDepth(KITCHEN.counterY + 2).setScale(0);
+      this.scene.tweens.add({ targets: plate, scale: 1, duration: 200, ease: 'Back.easeOut' });
+      this.readyPlates.push({ order, plate, spot });
+    });
+  }
+
+  private cookForCourier(chef: Chef): void {
+    const order = this.deliveryOrders.shift()!;
+    this.deliveryCredit -= 1;
+    this.cook(chef, () => {
+      const box = addArt(this.scene, DELIVERY_SHELF.x, DELIVERY_SHELF.y, paintTexture(this.scene, 'takeaway-box', 46, 36, paintBox), 23, 30);
+      box.setDepth(KITCHEN.counterY + 2).setScale(0);
+      this.scene.tweens.add({ targets: box, scale: 1 / ART_RES, duration: 200, ease: 'Back.easeOut', onComplete: () => order.ready(box) });
+    });
+  }
+
+  private cook(chef: Chef, done: () => void): void {
+    chef.cooking = true;
+    chef.person.busy = true;
+    this.scene.time.delayedCall((this.flow?.cookSeconds ?? 3) * 1000, () => {
+      chef.cooking = false;
+      chef.person.busy = false;
+      done();
+    });
+  }
+
+  // --- Delivery --------------------------------------------------------------------------
+
+  // Couriers and the sign over the counter appear once delivery is open; more couriers come
+  // with the level, like other staff.
+  private syncDelivery(flow: Flow, animate: boolean): void {
+    if (flow.couriers > 0 && !this.deliverySign) {
+      this.deliverySign = this.scene.add
+        .image(DELIVERY_SIGN.x, DELIVERY_SIGN.y, deliveryIcon(this.scene))
+        .setScale(0.9 / ART_RES)
+        .setDepth(KITCHEN.counterY - 1);
+      if (animate) sparkle(this.scene, DELIVERY_SIGN.x, DELIVERY_SIGN.y, 0xfff3c4, ROOM_FX_DEPTH);
+    }
+    while (this.couriers.length < flow.couriers) {
+      const courier: Courier = {
+        person: this.addPerson(new Person(this.scene, COURIER_OUTSIDE.x, COURIER_OUTSIDE.y, 'courier')),
+        spot: this.couriers.length,
+        waiting: false,
+      };
+      this.couriers.push(courier);
+      // New couriers start one after another rather than all at once.
+      void this.delay(courier.spot * 1500).then(() => this.runCourier(courier));
+    }
+  }
+
+  // A courier comes in, asks for a box, waits for the kitchen, takes it out and rides away.
+  private async runCourier(courier: Courier): Promise<void> {
+    const { person } = courier;
+    for (;;) {
+      await person.walkTo(COURIER_SPOTS[courier.spot]);
+      if (!person.active) return;
+      courier.waiting = true;
+      const box = await new Promise<Phaser.GameObjects.Image>((ready) => this.deliveryOrders.push({ courier, ready }));
+      courier.waiting = false;
+      if (!person.active) return;
+      // The box flies from the counter into the courier's hands.
+      await new Promise<void>((done) =>
+        this.scene.tweens.add({
+          targets: box,
+          x: person.x,
+          y: person.y - 62 * person.scale,
+          duration: 250,
+          ease: 'Quad.easeOut',
+          onComplete: () => done(),
+        }),
+      );
+      person.hands.add(box);
+      box.setPosition(0, 0).setScale(1 / ART_RES);
+      // The amount floats a little to the left so it stays clear of the screen edge.
+      this.onPayment(this.paymentPerDelivery(), { x: Math.min(person.x, 950), y: person.y - 170 });
+      await person.walkTo(COURIER_OUTSIDE);
+      box.destroy();
+      if (!person.active) return;
+      // Rides vary a little, so couriers do not move in lockstep.
+      await this.delay((this.flow?.rideSeconds ?? MIN_RIDE_SECONDS) * Phaser.Math.FloatBetween(0.7, 1.3) * 1000);
+    }
+  }
+
+  private paymentPerDelivery(): number {
+    if (!this.state || !this.flow || this.flow.deliveryRate <= 0) return 0;
+    return this.state.delivery.incomePerSecond / this.flow.deliveryRate;
   }
 
   // --- Waiters ---------------------------------------------------------------------------
@@ -759,6 +895,11 @@ export class RestaurantView {
       this.setStatus(chef.person, status ?? sleepy, 215);
     }
     for (const waiter of this.waiters) this.setStatus(waiter.person, idle(waiter.person, waiter.busy));
+    // A courier kept waiting shows a busy pot: the kitchen has no time for delivery.
+    for (const courier of this.couriers) {
+      const waited = idle(courier.person, !courier.waiting);
+      this.setStatus(courier.person, waited ? 'kitchenBusy' : null, 200);
+    }
     this.setStatus(this.cashier, idle(this.cashier, this.cashierBusy || this.cashierLine.length > 0));
     this.setStatus(this.dishwasher, idle(this.dishwasher, this.washing));
     for (const checkout of this.checkoutWaiting) this.setStatus(checkout.person, 'bill', 175);
@@ -803,6 +944,14 @@ export class RestaurantView {
           g.lineStyle(2, 0xc9c1b4, 1).strokeEllipse(-4, 10 - i * 9, 38, 12);
         }
         g.fillStyle(PALETTE.pomegranate, 1).fillRoundedRect(17, -20, 7, 20, 3).fillCircle(20.5, 6, 4);
+        break;
+      case 'kitchenBusy':
+        // A steaming pot.
+        g.fillStyle(0x6f757b, 1).fillRoundedRect(-18, -8, 36, 22, 6);
+        g.fillStyle(0x8d9399, 1).fillRect(-22, -11, 44, 6);
+        g.fillStyle(0x3a2618, 1).fillRect(-26, -9, 6, 4).fillRect(20, -9, 6, 4);
+        g.lineStyle(3, 0xb8c4cc, 1);
+        [-8, 2, 12].forEach((x) => g.beginPath().arc(x, -18, 4, Math.PI * 0.5, Math.PI * 1.5).strokePath());
         break;
       case 'bill':
         g.fillStyle(PALETTE.saffron, 1).fillCircle(0, -4, 17);
@@ -914,4 +1063,24 @@ function drawStar(g: Phaser.GameObjects.Graphics, x: number, y: number, radius: 
     points.push({ x: x + Math.cos(angle) * r, y: y + Math.sin(angle) * r });
   }
   g.fillStyle(color, 1).fillPoints(points, true);
+}
+
+// A kraft paper takeaway box with a teal band and a handle.
+function paintBox(ctx: Ctx): void {
+  ctx.fillStyle = vGradient(ctx, 8, 36, [
+    [0, '#d9b07a'],
+    [1, '#a77a45'],
+  ]);
+  roundRect(ctx, 3, 8, 40, 26, 4);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(70,45,20,0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.fillStyle = '#2a9d8f';
+  ctx.fillRect(3, 17, 40, 6);
+  ctx.strokeStyle = '#7a5530';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(23, 9, 8, Math.PI, 0);
+  ctx.stroke();
 }

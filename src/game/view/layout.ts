@@ -51,6 +51,17 @@ export const TOURIST_SPOTS: Point[] = [
   { x: 150, y: 950 },
 ];
 
+// Delivery: takeaway boxes come out at the right end of the kitchen counter, and couriers walk in
+// from the right edge of the room and wait in front of it.
+export const DELIVERY_SHELF: Point = { x: 1015, y: KITCHEN.counterY - 8 };
+export const DELIVERY_SIGN: Point = { x: 1020, y: KITCHEN.counterY - 175 };
+export const COURIER_OUTSIDE: Point = { x: 1180, y: 560 };
+export const COURIER_SPOTS: Point[] = [
+  { x: 1008, y: KITCHEN.counterY + 70 },
+  { x: 1044, y: KITCHEN.counterY + 90 },
+  { x: 972, y: KITCHEN.counterY + 96 },
+];
+
 // Where finished plates wait for a waiter, along the kitchen counter's front edge.
 export const PASS_SPOTS: Point[] = [640, 720, 800, 880, 960].map((x) => ({ x, y: KITCHEN.counterY + 4 }));
 export const STOVES: Point[] = [660, 820, 980].map((x) => ({ x, y: KITCHEN.counterY - 70 }));

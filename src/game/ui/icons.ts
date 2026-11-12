@@ -1342,3 +1342,56 @@ export function chefCardIcon(scene: Phaser.Scene): string {
     ctx.fill();
   });
 }
+
+export const DELIVERY_COLOR = 0x2a9d8f;
+
+// A courier scooter with an insulated delivery box, for the Delivery row.
+export function deliveryIcon(scene: Phaser.Scene): string {
+  return paintTexture(scene, 'icon-delivery', ICON_SIZE, ICON_SIZE, (ctx) =>
+    badge(ctx, DELIVERY_COLOR, (c) => {
+      // Wheels.
+      for (const x of [-15, 15]) {
+        c.fillStyle = '#2b2b2b';
+        ellipse(c, x, 15, 8, 8);
+        c.fill();
+        c.fillStyle = '#c9c9c9';
+        ellipse(c, x, 15, 3, 3);
+        c.fill();
+      }
+      // Body: a low deck and a rounded front shield.
+      c.fillStyle = vGradient(c, -6, 14, [
+        [0, '#ff7a59'],
+        [1, '#c8402a'],
+      ]);
+      c.beginPath();
+      c.moveTo(-20, 12);
+      c.lineTo(10, 12);
+      c.quadraticCurveTo(16, 0, 14, -12);
+      c.lineTo(20, -12);
+      c.quadraticCurveTo(24, 4, 18, 13);
+      c.lineTo(-22, 13);
+      c.quadraticCurveTo(-24, 6, -20, 4);
+      c.closePath();
+      c.fill();
+      outline(c);
+      // Handlebar.
+      c.strokeStyle = '#3a2618';
+      c.lineWidth = 3;
+      c.beginPath();
+      c.moveTo(16, -12);
+      c.lineTo(14, -20);
+      c.lineTo(8, -21);
+      c.stroke();
+      // Insulated box on the back with a lid stripe.
+      c.fillStyle = vGradient(c, -22, 4, [
+        [0, '#ffd45a'],
+        [1, '#e0a00b'],
+      ]);
+      roundRect(c, -24, -22, 24, 24, 4);
+      c.fill();
+      outline(c);
+      c.fillStyle = 'rgba(255,255,255,0.55)';
+      c.fillRect(-22, -15, 20, 3);
+    }),
+  );
+}

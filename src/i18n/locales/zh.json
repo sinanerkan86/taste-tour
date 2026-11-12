@@ -302,6 +302,12 @@
   "row.safeDetail": "离线：{time}",
   "row.safeNext": "下一级 +{time}",
   "banner.safe": "夜间保险箱：离线收益最长{time}",
+  "row.delivery": "外卖",
+  "row.deliveryClosed": "外卖员卖出厨房忙得过来的订单",
+  "row.deliveryRate": "{rate} 单/秒 · 每单半份账单",
+  "row.deliveryKitchen": "{rate}/{max} 单/秒：升级厨房",
+  "row.kitchenFull": "厨房满负荷",
+  "banner.deliveryOpen": "外卖开张了！外卖员会送出厨房忙得过来的订单",
   "chefs.recruitCost": "招募（{cost}张卡）",
   "chefs.levelUpCost": "升级（{cost}张卡）",
   "chefs.pool": "厨师卡：{count}",
@@ -335,8 +341,8 @@
   "banner.weeklyTaskDone": "每周任务完成：{task}",
   "staff.button": "+{levels}",
   "staff.title": "员工支援",
-  "staff.body": "钱不够？看一段短广告，免费为{section}招募员工。",
-  "staff.bodyFree": "钱不够？免费为{section}招募员工。",
+  "staff.body": "人手不够？看一段短广告，免费为{section}招募员工。",
+  "staff.bodyFree": "人手不够？免费为{section}招募员工。",
   "staff.reward": "+{levels}级",
   "banner.staffHelp": "{section} +{levels}级！"
 }

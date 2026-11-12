@@ -38,7 +38,7 @@ import {
 import { createSave, offlineReward, parseSave, serializeSave } from '../save';
 
 describe('staff help', () => {
-  it('hires free levels for the bottleneck when the player is short of money', () => {
+  it('hires free levels for the bottleneck, then cools down', () => {
     const state = newEconomy();
     state.money = 0;
     const id = throughput(state).bottleneck;
@@ -57,11 +57,10 @@ describe('staff help', () => {
     expect(staffHelpLevels(state)).toBeGreaterThan(0);
   });
 
-  it('is not offered when the next level is affordable', () => {
+  it('stays offered whatever the money, so the button does not blink', () => {
     const state = newEconomy();
     state.money = 1e12;
-    expect(staffHelpLevels(state)).toBe(0);
-    expect(useStaffHelp(state)).toBe(0);
+    expect(staffHelpLevels(state)).toBeGreaterThan(0);
   });
 });
 

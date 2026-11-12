@@ -18,6 +18,9 @@ import {
   cityConfig,
   cityCostScale,
   dishCost,
+  deliveryCost,
+  deliveryFlow,
+  incomeBreakdown,
   earn,
   incomePerSecond,
   newEconomy,
@@ -87,6 +90,12 @@ export interface CycleResult {
   dishUnlocks: { dish: number; time: number }[];
   finalSectionLevels: Record<SectionId, number>;
   finalDishLevels: number[];
+  // Delivery: when it opened (seconds into the cycle), courier level and its share of income at
+  // the end, and the share of time the kitchen held it back.
+  deliveryOpened: number | null;
+  finalDeliveryLevel: number;
+  deliveryShare: number;
+  deliveryKitchenSeconds: number;
   // Perk picked at the end of the cycle, and research levels at its end.
   perk: PerkId | null;
   labLevels: Record<ResearchId, number>;
@@ -129,6 +138,8 @@ function candidates(state: EconomyState): Option[] {
       apply: (s) => tied.forEach((id) => s.sectionLevels[id]++),
     });
   }
+
+  options.push({ label: 'delivery', targets: ['delivery'], cost: deliveryCost(state), apply: (s) => s.deliveryLevel++ });
 
   DISH_TIERS.forEach((_, i) => {
     if (state.dishLevels[i] > 0 || i === nextLockedDish(state)) {
@@ -210,6 +221,10 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
       dishUnlocks: [{ dish: 0, time: 0 }],
       finalSectionLevels: { ...state.sectionLevels },
       finalDishLevels: [...state.dishLevels],
+      deliveryOpened: null,
+      finalDeliveryLevel: 0,
+      deliveryShare: 0,
+      deliveryKitchenSeconds: 0,
       perk: null,
       labLevels: { ...state.lab.levels },
     };
@@ -236,6 +251,7 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
     earn(state, inc * seconds);
     if (options.labTimeFactor > 0) passTime(state, seconds * options.labTimeFactor);
     cycle.bottleneckSeconds[throughput(state).bottleneck] += seconds;
+    if (state.deliveryLevel > 0 && deliveryFlow(state).limitedBy === 'kitchen') cycle.deliveryKitchenSeconds += seconds;
     cycle.longestWait = Math.max(cycle.longestWait, seconds);
     time += seconds;
   }
@@ -251,6 +267,9 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
     cycle.finalIncome = income(state);
     cycle.finalSectionLevels = { ...state.sectionLevels };
     cycle.finalDishLevels = [...state.dishLevels];
+    cycle.finalDeliveryLevel = state.deliveryLevel;
+    const split = incomeBreakdown(state);
+    cycle.deliveryShare = split.delivery / Math.max(split.dineIn + split.delivery, 1e-300);
     cycle.labLevels = { ...state.lab.levels };
     cycles.push(cycle);
   }
@@ -321,6 +340,7 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
     advance(bestWait);
     state.money = Math.max(0, state.money - best.cost);
     const lockedBefore = nextLockedDish(state);
+    if (best.label === 'delivery' && state.deliveryLevel === 0) cycle.deliveryOpened = time - cycle.startTime;
     best.apply(state);
     if (lockedBefore >= 0 && state.dishLevels[lockedBefore] > 0) {
       cycle.dishUnlocks.push({ dish: lockedBefore, time: time - cycle.startTime });

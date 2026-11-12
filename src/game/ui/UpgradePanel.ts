@@ -6,6 +6,8 @@ import {
   MILESTONE_BONUS,
   RESEARCH_IDS,
   SAFE,
+  deliveryBuyPlan,
+  deliveryFlow,
   offlineCapSeconds,
   safeUpgradeCost,
   SECTION_IDS,
@@ -39,14 +41,15 @@ import { FONT, GAME_WIDTH, LAYOUT, PALETTE, toCss } from '../config';
 import { adIcon } from '../ads/AdService';
 import { DISH_COLORS, SECTION_COLORS } from '../colors';
 import { BUTTON_STYLES, Button } from './Button';
-import { dishIcon, lockIcon, progressIcon, sectionIcon } from './icons';
+import { deliveryIcon, dishIcon, lockIcon, progressIcon, sectionIcon } from './icons';
 import { ART_RES, paintTexture, roundRect, vGradient } from '../view/paint';
 import { card, outlined } from './style';
 import { saveSettings, settings } from '../settings';
 
 const MARGIN = 24;
-const ROW_HEIGHT = 100;
-const ROW_GAP = 6;
+// Eight rows (six sections, delivery, the Night Safe) fit the fixed-height panel.
+const ROW_HEIGHT = 90;
+const ROW_GAP = 4;
 const TAB_HEIGHT = 90;
 const BUTTON_WIDTH = 270;
 const AMOUNT_WIDTH = 150;
@@ -97,6 +100,8 @@ interface RowView {
   locked: boolean;
   // Label of the staff help ad button ("+12"), or null to hide it.
   help?: string | null;
+  // A small label after the level other than the bottleneck tag (e.g. "Kitchen full").
+  tag?: { text: string; color: number } | null;
 }
 
 const HELP_BUTTON = { width: 150, height: 80 };
@@ -163,7 +168,10 @@ class UpgradeRow extends Phaser.GameObjects.Container {
     else this.icon.clearTint();
     this.level.setText(view.level);
     this.level.x = this.title.x + this.title.width + 12;
-    this.tag.setVisible(view.highlight);
+    const tag = view.tag ?? (view.highlight ? { text: t('row.bottleneck'), color: PALETTE.pomegranate } : null);
+    this.tag.setVisible(tag !== null);
+    if (tag && this.tag.text !== tag.text) this.tag.setText(tag.text);
+    if (tag) this.tag.setBackgroundColor(toCss(tag.color));
     this.tag.x = this.level.x + this.level.width + (view.level ? 12 : 0);
     this.detail.setText(view.detail);
     // The detail line shrinks to stay clear of the buttons.
@@ -314,6 +322,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
   private lastState: EconomyState | null = null;
   private readonly sectionRows: UpgradeRow[];
   private readonly safeRow: UpgradeRow;
+  private readonly deliveryRow: UpgradeRow;
   private readonly dishRows: UpgradeRow[];
   private readonly labRows: LabRow[];
   private readonly labInfo: Phaser.GameObjects.Text;
@@ -327,6 +336,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     onBuyDish: (index: number) => void,
     onResearch: (id: ResearchId) => void,
     onBuySafe: () => void,
+    onBuyDelivery: () => void,
     // The staff help ad on the bottleneck section's row.
     onStaffHelp: () => void,
   ) {
@@ -358,11 +368,12 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     scene.tweens.add({ targets: this.labBadge, scale: 1.18, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     this.add([this.tabButtons.restaurant, this.tabButtons.menu, this.tabButtons.lab, this.amountButton, this.labBadge]);
 
-    const rowY = (i: number) => 20 + TAB_HEIGHT + 24 + ROW_HEIGHT / 2 + i * (ROW_HEIGHT + ROW_GAP);
+    const rowY = (i: number) => 20 + TAB_HEIGHT + 18 + ROW_HEIGHT / 2 + i * (ROW_HEIGHT + ROW_GAP);
     this.sectionRows = SECTION_IDS.map(
       (id, i) => new UpgradeRow(scene, rowY(i), () => onBuySection(id), onStaffHelp),
     );
-    this.safeRow = new UpgradeRow(scene, rowY(SECTION_IDS.length), onBuySafe);
+    this.deliveryRow = new UpgradeRow(scene, rowY(SECTION_IDS.length), onBuyDelivery);
+    this.safeRow = new UpgradeRow(scene, rowY(SECTION_IDS.length + 1), onBuySafe);
     this.dishRows = DISH_TIERS.map((_, i) => new UpgradeRow(scene, rowY(i), () => onBuyDish(i)));
     this.labRows = RESEARCH_IDS.map((id, i) => new LabRow(scene, rowY(i), id, () => onResearch(id)));
     this.labInfo = scene.add
@@ -374,7 +385,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
         lineSpacing: 6,
       })
       .setOrigin(0.5);
-    this.add([...this.sectionRows, this.safeRow, ...this.dishRows, ...this.labRows, this.labInfo]);
+    this.add([...this.sectionRows, this.deliveryRow, this.safeRow, ...this.dishRows, ...this.labRows, this.labInfo]);
 
     this.showTab('restaurant');
     scene.add.existing(this);
@@ -411,6 +422,10 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     this.dishRows[index].flash();
   }
 
+  pulseDelivery(): void {
+    this.deliveryRow.pulse();
+  }
+
   pulseSafe(): void {
     this.safeRow.pulse();
   }
@@ -433,6 +448,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     this.tab = tab;
     this.sectionRows.forEach((row) => row.setVisible(tab === 'restaurant'));
     this.safeRow.setVisible(tab === 'restaurant');
+    this.deliveryRow.setVisible(tab === 'restaurant');
     this.dishRows.forEach((row) => row.setVisible(tab === 'menu'));
     this.labRows.forEach((row) => row.setVisible(tab === 'lab'));
     this.labInfo.setVisible(tab === 'lab');
@@ -514,6 +530,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
         help: id === bottleneck && helpLevels > 0 ? t('staff.button', { levels: helpLevels }) : null,
       });
     });
+    this.refreshDelivery(state);
     // The Night Safe: one level per tap whatever the buy amount says.
     const cost = safeUpgradeCost(state);
     const maxed = !Number.isFinite(cost);
@@ -529,6 +546,33 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
       highlight: false,
       icon: progressIcon(this.scene, 'nightShift'),
       locked: false,
+    });
+  }
+
+  // Delivery: one tap opens it, then courier levels follow the buy amount. When the kitchen has
+  // no time left for it, a tag says so (the fix is a kitchen upgrade, not more couriers).
+  private refreshDelivery(state: EconomyState): void {
+    const { levels, cost } = deliveryBuyPlan(state, settings.buyAmount);
+    const level = state.deliveryLevel;
+    const flow = deliveryFlow(state);
+    const kitchenFull = level > 0 && flow.limitedBy === 'kitchen';
+    this.deliveryRow.render({
+      title: t('row.delivery'),
+      level: level > 0 ? levelText(level, levels) : '',
+      detail:
+        level === 0
+          ? t('row.deliveryClosed')
+          : kitchenFull
+            ? t('row.deliveryKitchen', { rate: formatNumber(flow.ordersPerSecond, 2), max: formatNumber(flow.courierRate, 2) })
+            : t('row.deliveryRate', { rate: formatNumber(flow.ordersPerSecond, 2) }) + milestoneText(level, MILESTONE_BONUS.section),
+      buttonLabel: formatNumber(cost),
+      buttonIcon: true,
+      affordable: state.money >= cost,
+      buyable: true,
+      highlight: false,
+      icon: deliveryIcon(this.scene),
+      locked: false,
+      tag: kitchenFull ? { text: t('row.kitchenFull'), color: 0xd9822b } : null,
     });
   }
 

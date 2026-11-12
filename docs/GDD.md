@@ -17,7 +17,7 @@ Customer arrives → sits → orders → chef cooks → waiter serves → custom
 → restaurant grows → prestige (franchise) restarts in a new city with a permanent multiplier.
 
 Early on the player can speed things up by tapping; as staff are hired, everything becomes automated.
-A tap on the restaurant earns a tip worth 25% of one customer's bill. At the start that is about a second of income per tap; once customers flow in quickly it becomes negligible, so tapping fades out naturally without a separate rule. (The balance simulation ignores tapping.)
+A tap on the restaurant earns a fifth of a second of income (Rush and review included), but at least 25% of one customer's bill. The minimum only matters in the first minutes, where it makes a tap worth about a second of income. (Changed 2026-11-11, version 1.8.1: before, a tap was always 25% of a bill, so its worth had no visible link to the income per second and it faded to nothing in later cities, while daily tasks still asked for taps.) Five taps a second double the income while the player taps; the balance simulation ignores tapping. Tour bus taps (section 6e) pay a whole second of income times the combo.
 
 The panel has an x1 / x10 / Max toggle: one tap buys that many levels (Max: as many as the money covers). The choice is remembered (player settings are stored apart from the save). The economy is the same; it only cuts the number of taps (the simulation buys about one level every 5 seconds in the first city).
 
@@ -31,14 +31,16 @@ The panel has an x1 / x10 / Max toggle: one tap buys that many levels (Max: as m
 | Waiters | Serving speed | Waiter count, waiter speed |
 | Cashier | Payment speed | Cashier, contactless payment |
 | Dishwashing | Clean plate supply; service stops if it falls short | Dishwasher staff, dishwashing machine |
-| Delivery | Extra income line independent of the dining room | Courier count, scooter speed, delivery capacity |
+| Delivery | Second income line: couriers sell what the kitchen has time for (section 3b) | Courier level (opened with a one-time purchase) |
 
-Sections unlock gradually as the game progresses (e.g. dishwashing and delivery come later).
+All six dine-in sections are there from the start; delivery opens later with a one-time purchase.
 
 ### Bottleneck mechanic (the heart of the game)
 
 The restaurant's actual throughput = the throughput of the **slowest link** in the chain.
 `throughput = min(arrivals, seating, kitchen, waiters, cashier, dishwashing)`
+
+Delivery (section 3b) sits outside this chain: it only uses what the kitchen has left after the dining room.
 
 - The player decides "what should I invest in now?" → strategy.
 - The bottleneck is visible: growing queue, piling dishes, angry customer faces, plates waiting to be served.
@@ -58,6 +60,18 @@ How the scene shows it: every section's real rate is scaled by the same factor s
 Guidance: tapping the "!" marker switches to the Restaurant tab and flashes that section's row. Status bubbles explain stalls: "zzz" over staff idle for 4+ s, "no plates" or "pass full" over chefs who have orders but cannot cook, a coin over diners waiting for room in the cashier line. A one-time tip in the first session explains the bottleneck and points at the marker.
 
 Staff on screen: chefs and waiters grow by one every 25 section levels (waiters also when they would otherwise have to run), plus one cashier and one dishwasher.
+
+## 3b. Delivery
+
+Added 2026-11-12 (version 1.9.0). A second income line next to the dining room, and a reason to grow the kitchen past the dine-in bottleneck.
+
+- **Opening:** the "Delivery" row in the Restaurant tab (between the dish pit and the Night Safe) costs 1e7 in the city's cost scale. The greedy simulation opens it after the third dish, about 13 minutes into the first city and 8-9 minutes into later ones. It starts over closed with every franchise, like the Night Safe (`deliveryLevel` in the save, 0 = closed).
+- **Couriers:** after opening, the row levels up couriers like a section: `courier rate = 0.3 × level × 1.5^milestones` orders per second, cost `2e3 × 1.23^(level-1)` (the Restaurant Manager discount applies, Head Start does not).
+- **Shared kitchen:** couriers skip the dining room, the waiters, the cashier and the dish pit (takeaway boxes, paid in the app), but the kitchen cooks for both, dine-in customers first. `delivery orders/s = min(courier rate, kitchen rate - dine-in customers/s)`. While the kitchen is the dine-in bottleneck there is nothing to spare and delivery earns nothing.
+- **Pay:** a delivery order pays half a dine-in bill (smaller orders, the platform's cut). `income = (dine-in customers/s + 0.5 × delivery orders/s) × bill × bonuses`; offline earnings, Rush, the critic's review and every "seconds of income" reward include it.
+- **Panel:** the row shows the orders per second going out. When the kitchen holds delivery back, an orange "KITCHEN FULL" tag appears and the detail reads "x of y orders/s: upgrade the kitchen", because more couriers would not help.
+- **Scene:** a delivery badge hangs over the right end of the kitchen counter. Couriers (teal jacket, white helmet, yellow insulated box on the back; one more every 25 levels, up to 3) walk in from the right edge, wait in front of the counter, take a kraft box when a chef cooks one, show the payment and ride off. Chefs cook for tables first and for couriers only with spare time (the scene follows the economy's delivery rate), so with a busy kitchen the couriers wait under a steaming-pot bubble.
+- **Balance (sim):** delivery ends each city at about 14% of income; the kitchen holds it back about three quarters of the time, so kitchen upgrades become a real choice even when the kitchen is not the bottleneck, and couriers are about 6% of purchases. Cities got a little faster (Istanbul 57 → 52 min, later cities 35-39 min), which stays inside the 35-40 minute target, so no cost was retuned.
 
 ## 4. Menu (world cuisine)
 
@@ -256,7 +270,7 @@ Later ideas: the head chef of the city cooking in the kitchen; more chefs per ci
 
 All numbers live in `src/core/economy/config.ts`. Balance is checked with the simulation (`npm run sim`, or `/sim.html` on the dev server for charts).
 
-- **Income/s** = `min(section rates) × bill per customer × (1 + 0.1 × stars) × (1 + 0.25 × Secret Spices) × (1 + 0.5 × Famous Chain) × (1 + chef income bonus) × (2 with the Golden Kitchen)`
+- **Income/s** = `(min(section rates) + 0.5 × delivery orders/s) × bill per customer × (1 + 0.1 × stars) × (1 + 0.25 × Secret Spices) × (1 + 0.5 × Famous Chain) × (1 + chef income bonus) × (2 with the Golden Kitchen)`
 - **Section rate** = `baseRate × level × 1.5^milestones`. **Dish price** = `basePrice × level × 2^milestones`. Milestones: 10, 25, 50, 75, 100, 150, 200, …
 - **Upgrade cost:** `cost(level) = baseCost × r^(level-1)`. Sections have r = 1.20–1.22 and dishes r = 1.25. Each section has its own curve, so the bottleneck moves around as the restaurant grows (entrance and waiters early, kitchen and seating later).
 - **Dish unlock costs** are calibrated so that each new dish arrives just as growth from the previous one starts to stall.
@@ -272,12 +286,12 @@ The bot franchises once the menu is complete and its stars per hour peak. It kee
 
 | City | Duration | Stars gained | Lab (Spices/Suppliers) at the end |
 |---|---|---|---|
-| Istanbul | 57m | 11 | 3/3 |
-| Rome | 40m | 10 | 4/4 |
-| Paris | 44m | 11 | 5/4 |
-| Cairo … Rio | 34-39m | 9-11 | 5-6/4-5 |
+| Istanbul | 52m | 11 | 3/3 |
+| Rome | 39m | 10 | 4/4 |
+| Paris | 37m | 9 | 4/4 |
+| Cairo, Mumbai | 35-36m | 9-10 | 5/4-5 |
 
-Before the Lab and perks every city took 1h 31m (each one a copy of the first). A player who barely leaves the game (`--lab 1`) sees 1h 9m, 52m, 50m, 47m. Prices grow ×1000 per city, so even many tours stay far below the 1e308 limit of plain JS numbers.
+The bot also opens delivery and buys couriers (section 3b); before delivery the same run took 57m, 40m, 44m, 34m, 36m. Before the Lab and perks every city took 1h 31m (each one a copy of the first). A player who barely leaves the game (`--lab 1`) sees 1h 3m, 51m, 48m, 46m. Prices grow ×1000 per city, so even many tours stay far below the 1e308 limit of plain JS numbers.
 
 ## 8. Rewarded ad placements
 
@@ -287,11 +301,11 @@ Before the Lab and perks every city took 1h 31m (each one a copy of the first). 
 | Time skip | Instant 1 hour of earnings |
 | Offline earnings | Collect 2x/3x on return |
 | Wandering customer / VIP tourist | Randomly appearing customer, big tip for watching an ad |
-| Staff help (was "staff discount") | Free levels for the bottleneck section when the player is short of money |
+| Staff help (was "staff discount") | Free levels for the bottleneck section (15 min cooldown) |
 
 Implemented (7a): Rush gives 2x income for 4 hours per ad and stacks up to 12 hours; its time keeps running while the player is away, so offline earnings use the boosted rate only for the Rush part. Time skip ("Extra cash") pays one hour of current income at once and then has a 30 minute cooldown; it is offered from a green "+" at the right end of the money counter, which turns grey while cooling down (tapping it then shows the time left). The welcome-back dialog offers "Collect 2x". Every ad starts from a dialog that shows the reward, and a skipped ad gives nothing. Rush time and the cooldown carry over through a franchise. Numbers live in `ADS` in the economy config.
 
-Implemented (7b): a VIP guest (a food tourist with a sun hat and a star bubble) walks in after 4 minutes of play and then every 8-12 minutes (kept rare so ads never feel pushed), and waits near the door for 40 s. Tapping them offers a tip worth 15 minutes of income (Rush does not raise it) for an ad; saying no or ignoring them sends them away. The staff discount became **staff help** (added 2026-11-11, version 1.8.0, placement `staffHelp`): a discount is no use to a player who is short of money, so instead, when the player cannot afford the next level of the bottleneck section, a small blue "+N" button with the ad icon appears on its row. The ad hires those N levels for free: as many as 20 minutes of income would buy (less than a time skip). Then it waits 15 minutes (`staffCooldown`, saved, runs offline). It stays hidden until the first bottleneck tip is seen. Code: `staffHelpLevels`, `useStaffHelp` in `actions.ts`, `ADS.staffHelp*` in config.
+Implemented (7b): a VIP guest (a food tourist with a sun hat and a star bubble) walks in after 4 minutes of play and then every 8-12 minutes (kept rare so ads never feel pushed), and waits near the door for 40 s. Tapping them offers a tip worth 15 minutes of income (Rush does not raise it) for an ad; saying no or ignoring them sends them away. The staff discount became **staff help** (added 2026-11-11, version 1.8.0, placement `staffHelp`): a discount is no use to a player who is short of money, so instead a small blue "+N" button with the ad icon sits on the bottleneck section's row. The ad hires those N levels for free: as many as 20 minutes of income would buy (less than a time skip). Then it waits 15 minutes (`staffCooldown`, saved, runs offline). At first the button showed only while the next level was unaffordable, but income is fast, so it blinked in and out within seconds; since 1.8.1 it stays until used (it follows the bottleneck from row to row). It stays hidden until the first bottleneck tip is seen. Code: `staffHelpLevels`, `useStaffHelp` in `actions.ts`, `ADS.staffHelp*` in config.
 
 Added with the retention features: "Collect 2x" on the daily reward (`dailyDouble`, section 6d), doubling the tour bus tips (`busDouble`, section 6e) and halving the time left on a Kitchen Lab project (`labSpeedUp`, section 6b), saving a daily streak (`streakSave`, section 6d) and staff help (`staffHelp`, above). Each placement has its own ad unit in AdMob (`src/game/ads/adUnits.ts`).
 
@@ -345,7 +359,6 @@ Later ideas: consumable packs (chef cards, Rush), a limited-time offer after the
 
 ## 12. Open questions
 
-- Should delivery be in the first release, or come with an update?
 - Final list of dishes and cities
 - Music/sound: synthesized in code for now (see section 9); real recordings later if needed
 
@@ -374,7 +387,7 @@ A bigger scene with a street in front of the restaurant, where customers visibly
 - *Bus timetable:* a sign at the stop counts down to the next bus (every 3-5 minutes), which gives the player a reason to get seats ready. Upgrades: more frequent buses, group tables.
 - *Tour bus event:* the existing event (section 6e) can arrive on the real street instead of appearing at the door.
 - *Lunch and dinner waves:* a timed wave of walkers and cars, which also covers the planned "rush hour" event.
-- *Delivery:* the planned delivery section can share the street with couriers leaving on mopeds.
+- *Delivery:* the couriers of section 3b already walk out on the right; with a street they could leave on mopeds.
 
 **How it fits the economy.** Income is `min(section rates) × bill` and offline earnings depend on that being a steady rate, so:
 

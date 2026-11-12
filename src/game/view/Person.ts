@@ -3,7 +3,7 @@ import { CELL, PEOPLE_TEXTURE, ensurePeopleAtlas, type Part } from './characterA
 import { depthScale, type Point } from './layout';
 import { ART_RES, type Ctx, addArt, ellipse, paintTexture, radial } from './paint';
 
-export type PersonKind = 'customer' | 'waiter' | 'chef' | 'cashier' | 'dishwasher' | 'vip' | 'critic' | 'tourist';
+export type PersonKind = 'customer' | 'waiter' | 'chef' | 'cashier' | 'dishwasher' | 'vip' | 'critic' | 'tourist' | 'courier';
 
 const SKIN_TONES = [0xffdcbf, 0xf3c29b, 0xd9a27a, 0xb07a52, 0x82573a];
 const SHIRT_COLORS = [0xe0503f, 0x2f88a8, 0x5fae4a, 0xf5a623, 0x9466c0, 0x45b0d6, 0xec7aa6, 0x7d8a93];
@@ -32,6 +32,7 @@ const STAFF_SHIRTS: Record<Exclude<PersonKind, 'customer'>, number> = {
   vip: 0x8e4fb0,
   critic: 0x2a2a36,
   tourist: 0x45b0d6,
+  courier: 0x2a9d8f,
 };
 const STAFF_PANTS = 0x2b2b3a;
 const CHEF_PANTS = 0x6f7b84;
@@ -73,6 +74,7 @@ const OUTFITS: Partial<Record<PersonKind, { body?: Part; head?: Part }>> = {
   vip: { body: 'sash', head: 'sunHat' },
   critic: { body: 'notepad', head: 'beret' },
   tourist: { body: 'sash', head: 'cap' },
+  courier: { body: 'deliveryBag', head: 'helmet' },
 };
 
 function makePart(scene: Phaser.Scene, name: Part, tint?: number): Phaser.GameObjects.Image {

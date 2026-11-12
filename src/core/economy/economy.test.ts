@@ -12,6 +12,7 @@ import {
   nextVipGap,
   vipTip,
   SECTION_IDS,
+  TAP,
   buyDish,
   canFranchise,
   cityConfig,
@@ -104,16 +105,17 @@ describe('economy state', () => {
 });
 
 describe('tap', () => {
-  it('tips a fraction of one bill, so it matters less as customers speed up', () => {
+  it('tips a fifth of a second of income, but at least a quarter of a bill at the start', () => {
     const state = newEconomy();
     const tip = tap(state);
     expect(state.money).toBe(tip);
     // At the start a tap is worth about a second of income...
-    const early = tip / incomePerSecond(state);
-    expect(early).toBeGreaterThanOrEqual(1);
-    // ...and much less once customers flow in faster.
+    expect(tip / incomePerSecond(state)).toBeGreaterThanOrEqual(1);
+    // ...and then a fixed share of it, Rush included.
     SECTION_IDS.forEach((id) => (state.sectionLevels[id] = 50));
-    expect(tap(state) / incomePerSecond(state)).toBeLessThan(early / 50);
+    expect(tap(state)).toBeCloseTo(incomePerSecond(state) * TAP.incomeFraction);
+    state.rushSeconds = 60;
+    expect(tap(state)).toBeCloseTo(incomePerSecond(state) * TAP.incomeFraction);
   });
 });
 

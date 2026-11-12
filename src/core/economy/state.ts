@@ -1,4 +1,4 @@
-import { ADS, DISH_TIERS, EVENTS, MILESTONE_BONUS, SECTION_IDS, SECTIONS, TAP, type SectionId } from './config';
+import { ADS, DELIVERY, DISH_TIERS, EVENTS, MILESTONE_BONUS, SECTION_IDS, SECTIONS, TAP, type SectionId } from './config';
 import { cityCostScale, cityPriceScale, scaledValue } from './formulas';
 import { incomeMultiplier, newLab, newPerks, sectionRateMultiplier, type LabState, type PerkLevels } from './bonuses';
 import { newChefs, type ChefState } from './chefs';
@@ -39,6 +39,8 @@ export interface EconomyState {
   purchases: Purchases;
   // Night Safe level of this restaurant (longer offline earnings); starts over with a franchise.
   safeLevel: number;
+  // Courier level of this restaurant; 0 while delivery is not open. Starts over with a franchise.
+  deliveryLevel: number;
 }
 
 export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomyState {
@@ -63,6 +65,7 @@ export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomySt
     chefs: newChefs(),
     purchases: newPurchases(),
     safeLevel: 0,
+    deliveryLevel: 0,
   };
 }
 
@@ -103,9 +106,46 @@ export function throughput(state: EconomyState): Throughput {
   return { customersPerSecond: rates[bottleneck], bottleneck };
 }
 
+// Delivery orders per second the couriers could take out (0 while delivery is closed).
+export function courierRate(state: EconomyState): number {
+  return scaledValue(DELIVERY.baseRate, state.deliveryLevel, MILESTONE_BONUS.section);
+}
+
+export interface DeliveryFlow {
+  // Orders the couriers take out per second.
+  ordersPerSecond: number;
+  // What the couriers could take, and what the kitchen has left after the dining room.
+  courierRate: number;
+  kitchenSpare: number;
+  // What holds delivery back: too few couriers, or a kitchen busy with dine-in customers.
+  limitedBy: 'couriers' | 'kitchen';
+}
+
+// The kitchen cooks for dine-in customers first; delivery gets what it has left.
+export function deliveryFlow(state: EconomyState): DeliveryFlow {
+  const couriers = courierRate(state);
+  const kitchenSpare = Math.max(0, sectionRates(state).kitchen - throughput(state).customersPerSecond);
+  return {
+    ordersPerSecond: Math.min(couriers, kitchenSpare),
+    courierRate: couriers,
+    kitchenSpare,
+    limitedBy: couriers <= kitchenSpare ? 'couriers' : 'kitchen',
+  };
+}
+
+// Income without the timed boosts, split into the dining room and delivery.
+export function incomeBreakdown(state: EconomyState): { dineIn: number; delivery: number } {
+  const perBill = billPerCustomer(state) * incomeMultiplier(state);
+  return {
+    dineIn: throughput(state).customersPerSecond * perBill,
+    delivery: deliveryFlow(state).ordersPerSecond * DELIVERY.billFraction * perBill,
+  };
+}
+
 // Income without the Rush boost.
 export function baseIncomePerSecond(state: EconomyState): number {
-  return throughput(state).customersPerSecond * billPerCustomer(state) * incomeMultiplier(state);
+  const { dineIn, delivery } = incomeBreakdown(state);
+  return dineIn + delivery;
 }
 
 // The timed boosts on income right now (Rush and a good review multiply).
@@ -146,8 +186,15 @@ export function earn(state: EconomyState, amount: number): void {
 }
 
 // Tip earned by one tap on the restaurant. Returns the amount earned.
+// What one tap on the restaurant earns: a fifth of a second of income, but at least a quarter
+// of one customer's bill (which only matters in the first minutes).
+export function tapAmount(state: EconomyState): number {
+  const bill = billPerCustomer(state) * incomeMultiplier(state) * TAP.billFraction;
+  return Math.max(incomePerSecond(state) * TAP.incomeFraction, bill);
+}
+
 export function tap(state: EconomyState): number {
-  const amount = billPerCustomer(state) * incomeMultiplier(state) * TAP.billFraction;
+  const amount = tapAmount(state);
   earn(state, amount);
   return amount;
 }

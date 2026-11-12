@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, PALETTE } from '../config';
-import { CASHIER_DESK, DISHPIT, DOOR, KITCHEN, POSTER, ROOM, SEAT_OFFSET_X, STOVES, TABLES, depthScale } from './layout';
+import { CASHIER_DESK, DISHPIT, DOOR_WIDTH, DOOR_X, FRONT, KITCHEN, POSTER, ROOM, SEAT_OFFSET_X, STOVES, TABLES, depthScale } from './layout';
 import {
   type Ctx,
   ART_RES,
@@ -86,7 +86,7 @@ function paintBackground(ctx: Ctx, theme: CityTheme): void {
   paintFaucet(ctx);
   SCONCES.forEach((x) => paintSconce(ctx, x, POSTER.y - 6));
   paintFloor(ctx, theme);
-  paintDoor(ctx, theme);
+  paintDoor(ctx);
   paintFurnitureShadows(ctx);
 }
 
@@ -476,45 +476,20 @@ function paintFloor(ctx: Ctx, theme: CityTheme): void {
   ctx.fillRect(0, ROOM.wallBottom, GAME_WIDTH, BG_BOTTOM - ROOM.wallBottom);
 }
 
-function paintDoor(ctx: Ctx, theme: CityTheme): void {
-  // Daylight spilling in through the doorway on the left wall.
-  ctx.fillStyle = hGradient(ctx, 0, 300, [
-    [0, 'rgba(255,248,225,0.32)'],
-    [1, 'rgba(255,248,225,0)'],
+// Daylight from the open front door falls in a soft fan across the floor.
+function paintDoor(ctx: Ctx): void {
+  const top = FRONT.floorEnd;
+  ctx.fillStyle = vGradient(ctx, top - 260, top, [
+    [0, 'rgba(255,248,225,0)'],
+    [1, 'rgba(255,248,225,0.3)'],
   ]);
   ctx.beginPath();
-  ctx.moveTo(0, DOOR.y - 150);
-  ctx.lineTo(300, DOOR.y - 60);
-  ctx.lineTo(300, DOOR.y + 90);
-  ctx.lineTo(0, DOOR.y + 30);
+  ctx.moveTo(DOOR_X - DOOR_WIDTH / 2, top);
+  ctx.lineTo(DOOR_X + DOOR_WIDTH / 2, top);
+  ctx.lineTo(DOOR_X + DOOR_WIDTH / 2 + 40, top - 260);
+  ctx.lineTo(DOOR_X - DOOR_WIDTH / 2 - 70, top - 260);
   ctx.closePath();
   ctx.fill();
-  // Door frame seen from the side.
-  ctx.fillStyle = hGradient(ctx, 0, 28, [
-    [0, css(0x5a3a24, -0.3)],
-    [0.6, css(0x5a3a24, 0.15)],
-    [1, css(0x5a3a24, -0.1)],
-  ]);
-  ctx.fillRect(0, DOOR.y - 175, 26, 200);
-  ctx.fillStyle = 'rgba(255,255,255,0.18)';
-  ctx.fillRect(16, DOOR.y - 175, 3, 200);
-  // Welcome mat with a woven border and a little thickness.
-  const mat = { x: DOOR.x - 20, y: DOOR.y + 6, w: 120, h: 30 };
-  ctx.fillStyle = css(theme.accent, -0.45);
-  roundRect(ctx, mat.x, mat.y + 4, mat.w, mat.h, 8);
-  ctx.fill();
-  ctx.fillStyle = vGradient(ctx, mat.y, mat.y + mat.h, [
-    [0, css(theme.accent, 0.12)],
-    [1, css(theme.accent, -0.12)],
-  ]);
-  roundRect(ctx, mat.x, mat.y, mat.w, mat.h, 8);
-  ctx.fill();
-  ctx.strokeStyle = css(theme.accent, 0.35, 0.8);
-  ctx.setLineDash([6, 4]);
-  ctx.lineWidth = 2;
-  roundRect(ctx, mat.x + 6, mat.y + 5, mat.w - 12, mat.h - 10, 5);
-  ctx.stroke();
-  ctx.setLineDash([]);
 }
 
 function paintFurnitureShadows(ctx: Ctx): void {

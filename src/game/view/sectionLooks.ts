@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { STYLE_TIERS, styleTier, type SectionId } from '../../core/economy';
 import { ROOM_FX_DEPTH, sparkle } from '../fx';
-import { CASHIER_DESK, DISHPIT, DOOR, KITCHEN, PASS_SPOTS, ROOM, TABLES, depthScale } from './layout';
+import { CASHIER_DESK, DISHPIT, DOOR_WIDTH, DOOR_X, FRONT, KITCHEN, PASS_SPOTS, ROOM, TABLES, depthScale } from './layout';
 import { type Ctx, ART_RES, addArt, css, ellipse, floorShadow, hGradient, paintTexture, radial, roundRect, vGradient } from './paint';
 import { type RoomArt, paintTable } from './room';
 import type { CityTheme } from './themes';
@@ -135,22 +135,27 @@ export class SectionLooks {
 
   // --- Entrance -----------------------------------------------------------------------------
 
+  // A menu board on the pavement, left of the door.
   welcomeSign(): Piece[] {
-    const y = ROOM.bottom - 8;
-    return [this.image(205, y, 'looks-aframe', 70, 90, 35, 86, paintAFrame).setScale(depthScale(y) / ART_RES).setDepth(y)];
+    const y = 1236;
+    return [this.image(DOOR_X - 105, y, 'looks-aframe', 70, 90, 35, 86, paintAFrame).setScale(depthScale(y) / ART_RES).setDepth(y)];
   }
 
+  // Clipped trees in pots on both sides of the door.
   topiaries(): Piece[] {
-    return [DOOR.y - 60, DOOR.y + 105].map((y) => {
-      const s = depthScale(y);
-      return this.image(42, y, 'looks-topiary', 80, 150, 40, 146, paintTopiary).setScale((s * 0.9) / ART_RES).setDepth(y);
-    });
+    const y = FRONT.faceBottom + 16;
+    return [DOOR_X - DOOR_WIDTH / 2 - 52, DOOR_X + DOOR_WIDTH / 2 + 52].map((x) =>
+      this.image(x, y, 'looks-topiary', 80, 150, 40, 146, paintTopiary).setScale((depthScale(y) * 0.9) / ART_RES).setDepth(y),
+    );
   }
 
+  // Lanterns on top of the door posts.
   doorLanterns(): Piece[] {
-    const y = DOOR.y - 250;
-    const lantern = this.image(40, y, 'looks-lantern', 40, 70, 8, 6, paintLantern).setDepth(-980);
-    return [lantern, this.glow(52, y + 44, 90, 0.55, -979)];
+    const y = FRONT.capTop - 92;
+    return [DOOR_X - DOOR_WIDTH / 2 - 9, DOOR_X + DOOR_WIDTH / 2 + 9].flatMap((x) => [
+      this.image(x - 16, y, 'looks-lantern', 40, 70, 8, 6, paintLantern).setDepth(FRONT.faceTop + 1),
+      this.glow(x, y + 32, 90, 0.55, FRONT.faceTop + 2),
+    ]);
   }
 
   // --- Cashier ------------------------------------------------------------------------------

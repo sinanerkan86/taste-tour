@@ -1,9 +1,12 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH } from '../config';
-import { ROOM, type Point } from './layout';
+import { QUEUE_SPOTS, ROOM, WORLD, type Point } from './layout';
 
-const ROOM_HEIGHT = ROOM.bottom - ROOM.top;
-const ROOM_CENTER_Y = ROOM.top + ROOM_HEIGHT / 2;
+// The view opens on the room down to the line outside the door; the street below it is a drag
+// away.
+const FIT = { top: ROOM.top, bottom: QUEUE_SPOTS[0].y + 50 } as const;
+const FIT_HEIGHT = FIT.bottom - FIT.top;
+const WORLD_HEIGHT = WORLD.bottom - WORLD.top;
 // Wall and floor art reach this far above and below the room, so zooming out shows more of
 // the restaurant instead of empty bands.
 export const ROOM_MARGIN = 400;
@@ -14,7 +17,7 @@ const FRICTION = 0.994;
 const MIN_FLING_SPEED = 0.02; // world pixels per millisecond
 const PAN_MS = 450;
 // Zoom limits: all the way out shows the whole room width; all the way in is this much closer
-// than the zoom that fits the room's height (and at least MIN_MAX_ZOOM).
+// than the opening zoom (and at least MIN_MAX_ZOOM).
 const MAX_ZOOM_OVER_FIT = 1.75;
 const MIN_MAX_ZOOM = 2;
 const WHEEL_ZOOM_STEP = 0.999; // zoom factor per wheel delta unit
@@ -22,7 +25,8 @@ const WHEEL_ZOOM_STEP = 0.999; // zoom factor per wheel delta unit
 // The restaurant is drawn in fixed world coordinates. This camera shows it in the band between
 // the HUD and the panel: one finger drags it around, two fingers pinch to zoom (mouse wheel on
 // desktop), and a press that does not move is a tap. It starts zoomed so the room's height fills
-// the band, which on tall phones makes the room wider than the screen.
+// the band (from the back wall to the line outside the door), which on tall phones makes the
+// room wider than the screen.
 export class RoomCamera {
   private readonly touches = new Map<number, Point>();
   // Where the current gesture started, and whether it has moved enough to stop being a tap.
@@ -62,11 +66,12 @@ export class RoomCamera {
     const relative = this.zoom / this.fitZoom;
     const center = this.center;
     this.camera.setViewport(0, top, GAME_WIDTH, height);
-    this.fitZoom = Math.max(1, height / ROOM_HEIGHT);
+    this.fitZoom = Math.max(1, height / FIT_HEIGHT);
     this.minZoom = 1;
     this.maxZoom = Math.max(MIN_MAX_ZOOM, this.fitZoom * MAX_ZOOM_OVER_FIT);
     this.camera.setZoom(Phaser.Math.Clamp(first ? this.fitZoom : this.fitZoom * relative, this.minZoom, this.maxZoom));
-    this.centerOn(first ? { x: GAME_WIDTH / 2, y: ROOM_CENTER_Y } : center);
+    // On short screens the opening view keeps the back wall at the top.
+    this.centerOn(first ? { x: GAME_WIDTH / 2, y: FIT.top + height / this.zoom / 2 } : center);
   }
 
   // Called from the room's tap area on pointer down.
@@ -219,14 +224,15 @@ export class RoomCamera {
     this.camera.centerOn(x, y);
   }
 
-  // Keeps the room filling the view: the view may not leave the room's width, and vertically it
-  // stays inside the room, or is centered on it when zoomed out far enough to show more.
+  // Keeps the world filling the view: the view may not leave its width, and vertically it stays
+  // inside it, or is centered on it when zoomed out far enough to show more.
   private clampCenter(point: Point, zoom: number): Point {
     const halfWidth = this.camera.width / zoom / 2;
     const halfHeight = this.camera.height / zoom / 2;
-    const x = halfWidth * 2 >= GAME_WIDTH ? GAME_WIDTH / 2 : Phaser.Math.Clamp(point.x, halfWidth, GAME_WIDTH - halfWidth);
+    const width = WORLD.right - WORLD.left;
+    const x = halfWidth * 2 >= width ? (WORLD.left + WORLD.right) / 2 : Phaser.Math.Clamp(point.x, WORLD.left + halfWidth, WORLD.right - halfWidth);
     const y =
-      halfHeight * 2 >= ROOM_HEIGHT ? ROOM_CENTER_Y : Phaser.Math.Clamp(point.y, ROOM.top + halfHeight, ROOM.bottom - halfHeight);
+      halfHeight * 2 >= WORLD_HEIGHT ? (WORLD.top + WORLD.bottom) / 2 : Phaser.Math.Clamp(point.y, WORLD.top + halfHeight, WORLD.bottom - halfHeight);
     return { x, y };
   }
 }

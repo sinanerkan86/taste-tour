@@ -367,7 +367,11 @@ Later ideas: consumable packs (chef cards, Rush), a limited-time offer after the
 
 Nothing in this section is built or committed to. Items move into the design above when they are picked.
 
-### The street outside (noted 2026-11-08)
+### The street outside (noted 2026-11-08; step 1 built 2026-11-12)
+
+**Built (step 1, visuals only, economy unchanged):** the street lies in front of the restaurant, below the room. The front wall is cut low like a doll's house: a coping stone, the outer face in the city's material (stone, brick, stucco, painted wood panels or glazed tiles), the "Taste Tour" name board with the globe-chef emblem lit by two lamps, and a doorway between two posts. Below it the pavement (cobbles, slabs, bricks or Rio's black and white waves), a granite curb, a two-lane road with wheel tracks, a drain, a manhole, a zebra crossing and the city's center line (white dashes, double yellow in the Americas), and a strip of far pavement with bollards. Street lamps, a tree in an iron grate (round, palm, stone pine; cherry and jacaranda blossoms in Tokyo and Mexico City), a flower planter and a bin stand on the pavement. Traffic drives in both lanes (keeping left in Mumbai, Bangkok and Tokyo): cars, the city's taxis (yellow in Istanbul and New York with a checker band, pink in Bangkok, pink and white in Mexico City...), minibuses, tuk-tuks, kei cars and scooters; people walk by. Customers come along the pavement from either side and line up outside along the front wall (up to 8); a full line turns newcomers away. The entrance's style pieces stand outside (menu board, topiaries, lanterns on the door posts) and the menu decor adds a red runner and velvet ropes along the line. The camera opens on the room down to the line outside; the street is a drag away. Code: `src/game/view/street.ts`, `vehicles.ts`, `StreetLife.ts`, `streetThemes.ts`; `node tools/street/shot.mjs` takes dev screenshots.
+
+**Original note:**
 
 A bigger scene with a street in front of the restaurant, where customers visibly arrive on foot, by car and by bus, each with its own rhythm and upgrades.
 

@@ -1,5 +1,6 @@
 import type Phaser from 'phaser';
 import { PALETTE } from '../config';
+import { STREET_THEMES, type StreetTheme } from './streetThemes';
 
 type Graphics = Phaser.GameObjects.Graphics;
 
@@ -15,6 +16,8 @@ export interface CityTheme {
   sky: number;
   // Draws the landmark silhouette inside a 220x90 poster centered on (x, y).
   landmark: (g: Graphics, x: number, y: number) => void;
+  // The street in front of the restaurant.
+  street: StreetTheme;
 }
 
 function mosque(g: Graphics, x: number, y: number): void {
@@ -167,6 +170,7 @@ export const CITY_THEMES: Record<string, CityTheme> = {
     accent: 0xc0304a,
     sky: 0xc9d8f0,
     landmark: (g, x, y) => eiffel(g, x, y, 0xc9d8f0),
+    street: STREET_THEMES.paris,
   },
   cairo: {
     wall: 0xf4dcae,
@@ -177,6 +181,7 @@ export const CITY_THEMES: Record<string, CityTheme> = {
     accent: 0x2a8a7a,
     sky: 0xf7d9a0,
     landmark: pyramidsOfGiza,
+    street: STREET_THEMES.cairo,
   },
   mumbai: {
     wall: 0xfbe3c8,
@@ -187,6 +192,7 @@ export const CITY_THEMES: Record<string, CityTheme> = {
     accent: 0xd8b020,
     sky: 0xfac0a0,
     landmark: (g, x, y) => gateway(g, x, y, 0xfac0a0),
+    street: STREET_THEMES.mumbai,
   },
   rio: {
     wall: 0xe8f4e0,
@@ -197,6 +203,7 @@ export const CITY_THEMES: Record<string, CityTheme> = {
     accent: 0x1f6fbf,
     sky: 0x9fdcf0,
     landmark: sugarloaf,
+    street: STREET_THEMES.rio,
   },
   istanbul: {
     wall: PALETTE.wall,
@@ -207,6 +214,7 @@ export const CITY_THEMES: Record<string, CityTheme> = {
     accent: PALETTE.pomegranate,
     sky: 0xf6c48f,
     landmark: mosque,
+    street: STREET_THEMES.istanbul,
   },
   rome: {
     wall: 0xf6dcc0,
@@ -217,6 +225,7 @@ export const CITY_THEMES: Record<string, CityTheme> = {
     accent: 0x2e7d32,
     sky: 0x9fd3e8,
     landmark: (g, x, y) => colosseum(g, x, y, 0x9fd3e8),
+    street: STREET_THEMES.rome,
   },
   tokyo: {
     wall: 0xf7f2e8,
@@ -227,6 +236,7 @@ export const CITY_THEMES: Record<string, CityTheme> = {
     accent: 0xc0392b,
     sky: 0xf8d7da,
     landmark: torii,
+    street: STREET_THEMES.tokyo,
   },
   newYork: {
     wall: 0xe4d9cc,
@@ -237,6 +247,7 @@ export const CITY_THEMES: Record<string, CityTheme> = {
     accent: 0xf4b400,
     sky: 0xf2a65a,
     landmark: skyline,
+    street: STREET_THEMES.newYork,
   },
   mexicoCity: {
     wall: 0xf9d98f,
@@ -247,6 +258,7 @@ export const CITY_THEMES: Record<string, CityTheme> = {
     accent: 0xd35d8a,
     sky: 0x8fd1e8,
     landmark: pyramid,
+    street: STREET_THEMES.mexicoCity,
   },
   bangkok: {
     wall: 0xf6e9c8,
@@ -257,6 +269,7 @@ export const CITY_THEMES: Record<string, CityTheme> = {
     accent: 0x7b4fa0,
     sky: 0xf9c784,
     landmark: temple,
+    street: STREET_THEMES.bangkok,
   },
 };
 

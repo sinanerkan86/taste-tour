@@ -18,19 +18,24 @@ import {
   DISHPIT,
   DISHWASHER,
   DOOR,
+  DOOR_IN,
+  DOOR_OUT,
   KITCHEN,
-  OUTSIDE,
   PASS_SPOTS,
   QUEUE_SPOTS,
   SEAT_OFFSET_X,
   SECTION_ANCHORS,
   STOVES,
+  STREET_ENDS,
   TABLES,
   TOURIST_SPOTS,
   VIP_SPOT,
   WAITER_HOME,
+  WALK_LANES,
   type Point,
 } from './layout';
+import { drawStreet } from './street';
+import { StreetLife } from './StreetLife';
 import { Person, createPlate } from './Person';
 import { drawRoom } from './room';
 import { ART_RES, addArt, paintTexture, roundRect, vGradient, type Ctx } from './paint';
@@ -56,8 +61,8 @@ const LEVELS_PER_STAFF = 25;
 const WAITER_TRIP_PX = 650;
 const PASS_TO_TABLE_PX = 350;
 const MAX_WAITER_SPEED = 330;
-// A seat is claimed at the door, so the walk there counts toward the stay.
-const DOOR_TO_SEAT_SECONDS = 2.6;
+// A seat is claimed outside the door, so the walk to it counts toward the stay.
+const DOOR_TO_SEAT_SECONDS = 3.7;
 const STACK_VISIBLE = 10;
 // Staff idle this long get a sleepy "zzz" bubble.
 const IDLE_BUBBLE_SECONDS = 4;
@@ -261,6 +266,7 @@ export class RestaurantView {
   private state: ViewState | null = null;
   private readonly looks: SectionLooks;
   private flow: Flow | null = null;
+  private readonly streetLife: StreetLife;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -269,6 +275,8 @@ export class RestaurantView {
     private readonly dishes: string[],
   ) {
     const art = drawRoom(scene, theme);
+    drawStreet(scene, theme.street);
+    this.streetLife = new StreetLife(scene, theme.street);
     this.tables = art.tables;
     this.looks = new SectionLooks(scene, theme, art);
     this.seats = TABLES.flatMap((table, i) =>
@@ -314,6 +322,7 @@ export class RestaurantView {
 
     this.animateSteam(time);
     this.people.forEach((p) => p.animate(time));
+    this.streetLife.update(time, delta);
   }
 
   // Called when the player taps a waiting VIP guest.
@@ -327,10 +336,10 @@ export class RestaurantView {
   // after staySeconds unless the player taps them first.
   async spawnVip(staySeconds: number): Promise<void> {
     if (this.vip) return;
-    const person = this.addPerson(new Person(this.scene, OUTSIDE.x, OUTSIDE.y, 'vip'));
+    const person = this.addPerson(this.newPasserBy('vip'));
     const vip: NonNullable<RestaurantView['vip']> = { person, bubble: null, leave: null };
     this.vip = vip;
-    await person.walkTo(DOOR);
+    await this.walkIn(person);
     await person.walkTo(VIP_SPOT);
     if (this.vip !== vip) return;
     person.face(1);
@@ -360,8 +369,7 @@ export class RestaurantView {
     const person = vip.person;
     if (!person.active) return;
     if (!happy) {
-      await person.walkTo(OUTSIDE);
-      this.removePerson(person);
+      await this.walkOut(person);
       return;
     }
     const bubble = this.showBubble(person, (g) => {
@@ -371,18 +379,16 @@ export class RestaurantView {
     });
     await this.delay(900);
     bubble.close();
-    await person.walkTo(DOOR);
-    await person.walkTo(OUTSIDE);
-    this.removePerson(person);
+    await this.walkOut(person);
   }
 
   // A food critic walks in and stands taking notes until dismissCritic().
   async spawnCritic(): Promise<void> {
     if (this.critic) return;
-    const person = this.addPerson(new Person(this.scene, OUTSIDE.x, OUTSIDE.y, 'critic'));
+    const person = this.addPerson(this.newPasserBy('critic'));
     const critic: NonNullable<RestaurantView['critic']> = { person, bubble: null };
     this.critic = critic;
-    await person.walkTo(DOOR);
+    await this.walkIn(person);
     await person.walkTo(CRITIC_SPOT);
     if (this.critic !== critic) return;
     person.face(1);
@@ -420,9 +426,7 @@ export class RestaurantView {
     );
     await this.delay(1600);
     bubble.close();
-    await person.walkTo(DOOR);
-    await person.walkTo(OUTSIDE);
-    this.removePerson(person);
+    await this.walkOut(person);
   }
 
   // A group of tourists from the tour bus walks in and gathers by the door.
@@ -430,9 +434,9 @@ export class RestaurantView {
     if (this.tourists.length > 0) return;
     TOURIST_SPOTS.forEach((spot, i) => {
       this.scene.time.delayedCall(i * 260, async () => {
-        const person = this.addPerson(new Person(this.scene, OUTSIDE.x, OUTSIDE.y, 'tourist'));
+        const person = this.addPerson(this.newPasserBy('tourist'));
         this.tourists.push(person);
-        await person.walkTo(DOOR, 260);
+        await this.walkIn(person, 260);
         if (!this.tourists.includes(person)) return;
         await person.walkTo(spot, 260);
         if (this.tourists.includes(person)) person.face(1);
@@ -456,9 +460,7 @@ export class RestaurantView {
     leaving.forEach((person, i) =>
       this.scene.time.delayedCall(i * 180, async () => {
         if (!person.active) return;
-        await person.walkTo(DOOR, 260);
-        await person.walkTo(OUTSIDE, 260);
-        this.removePerson(person);
+        await this.walkOut(person, 260);
       }),
     );
   }
@@ -500,16 +502,47 @@ export class RestaurantView {
     void this.runCustomer();
   }
 
+  // Someone walking along the pavement from either end of the street.
+  private newPasserBy(kind: 'customer' | 'vip' | 'critic' | 'tourist'): Person {
+    const fromLeft = Math.random() < 0.5;
+    const lane = Phaser.Utils.Array.GetRandom(WALK_LANES) + Phaser.Math.Between(-6, 6);
+    return new Person(this.scene, fromLeft ? STREET_ENDS.left : STREET_ENDS.right, lane, kind);
+  }
+
+  // From the pavement through the door onto the floor.
+  private async walkIn(person: Person, speed?: number): Promise<void> {
+    if (person.y > DOOR_OUT.y + 20) await person.walkTo({ x: DOOR_OUT.x + (person.x < DOOR_OUT.x ? -30 : 30), y: person.y }, speed);
+    await person.walkTo(DOOR_OUT, speed);
+    await person.walkTo(DOOR, speed);
+    await person.walkTo(DOOR_IN, speed);
+  }
+
+  // Out through the door and away along the pavement, then gone.
+  private async walkOut(person: Person, speed?: number): Promise<void> {
+    if (person.y < DOOR_IN.y - 10) await person.walkTo(DOOR_IN, speed);
+    await person.walkTo(DOOR, speed);
+    await person.walkTo(DOOR_OUT, speed);
+    const lane = Phaser.Utils.Array.GetRandom(WALK_LANES) + Phaser.Math.Between(-6, 6);
+    const toLeft = Math.random() < 0.5;
+    await person.walkTo({ x: DOOR_OUT.x + (toLeft ? -40 : 40), y: lane }, speed);
+    await person.walkTo({ x: toLeft ? STREET_ENDS.left : STREET_ENDS.right, y: lane }, speed);
+    this.removePerson(person);
+  }
+
   private async runCustomer(): Promise<void> {
-    const person = this.addPerson(new Person(this.scene, OUTSIDE.x, OUTSIDE.y, 'customer'));
-    await person.walkTo(DOOR);
+    const person = this.addPerson(this.newPasserBy('customer'));
+    // Walk along the pavement to where the line ends (or to the door), then decide.
+    const tail = this.doorQueue.length === 0 ? DOOR_OUT : QUEUE_SPOTS[Math.min(this.doorQueue.length, QUEUE_SPOTS.length - 1)];
+    await person.walkTo({ x: tail.x + (person.x < tail.x ? -20 : 20), y: person.y });
 
     let seat: Seat;
     const free = this.doorQueue.length === 0 ? this.freeSeat() : null;
     if (free) {
       seat = this.claimSeat(free, person);
+      await this.walkIn(person);
     } else if (this.doorQueue.length < QUEUE_SPOTS.length) {
       seat = await this.waitForSeat(person);
+      await this.walkIn(person);
     } else {
       await this.turnAway(person);
       return;
@@ -534,8 +567,7 @@ export class RestaurantView {
       if (this.cashierLine.length < CASHIER_LINE.length) this.enterCashierLine(checkout);
       else this.checkoutWaiting.push(checkout);
     });
-    await person.walkTo(OUTSIDE);
-    this.removePerson(person);
+    await this.walkOut(person);
   }
 
   private async turnAway(person: Person): Promise<void> {
@@ -547,7 +579,9 @@ export class RestaurantView {
     });
     await this.delay(800);
     bubble.close();
-    await person.walkTo(OUTSIDE);
+    // Walk on along the pavement, the way they were going.
+    const goingRight = person.x >= DOOR_OUT.x;
+    await person.walkTo({ x: goingRight ? STREET_ENDS.right : STREET_ENDS.left, y: person.y });
     this.removePerson(person);
   }
 
@@ -576,7 +610,10 @@ export class RestaurantView {
   private waitForSeat(person: Person): Promise<Seat> {
     return new Promise((admit) => {
       this.doorQueue.push({ person, admit });
-      void person.walkTo(QUEUE_SPOTS[this.doorQueue.length - 1]);
+      void person.walkTo(QUEUE_SPOTS[this.doorQueue.length - 1]).then(() => {
+        // Wait facing the door.
+        if (this.doorQueue.some((q) => q.person === person)) person.face(-1);
+      });
     });
   }
 
@@ -589,7 +626,13 @@ export class RestaurantView {
       next.admit(this.claimSeat(seat, next.person));
       moved = true;
     }
-    if (moved) this.doorQueue.forEach((q, i) => void q.person.walkTo(QUEUE_SPOTS[i]));
+    if (moved) {
+      this.doorQueue.forEach((q, i) =>
+        void q.person.walkTo(QUEUE_SPOTS[i]).then(() => {
+          if (this.doorQueue.some((w) => w.person === q.person)) q.person.face(-1);
+        }),
+      );
+    }
   }
 
   // --- Kitchen ---------------------------------------------------------------------------

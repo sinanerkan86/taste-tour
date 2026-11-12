@@ -106,7 +106,7 @@ import { GoalBar } from '../ui/GoalBar';
 import { HintBubble } from '../ui/HintBubble';
 import { UpgradePanel } from '../ui/UpgradePanel';
 import { WelcomeBackModal } from '../ui/WelcomeBackModal';
-import { DELIVERY_SIGN, ROOM, SECTION_ANCHORS, type Point } from '../view/layout';
+import { DELIVERY_SIGN, ROOM, SECTION_ANCHORS, WORLD, type Point } from '../view/layout';
 import { RestaurantView } from '../view/RestaurantView';
 import { Decor } from '../view/decor';
 import { audio } from '../audio';
@@ -1191,7 +1191,7 @@ export class RestaurantScene extends Phaser.Scene {
   // earns a tip; tips matter most before the restaurant runs itself.
   private createTapArea(): void {
     const area = this.add
-      .zone(0, ROOM.top - ROOM_MARGIN, GAME_WIDTH, ROOM.bottom - ROOM.top + ROOM_MARGIN * 2)
+      .zone(0, WORLD.top - ROOM_MARGIN, GAME_WIDTH, WORLD.bottom - WORLD.top + ROOM_MARGIN * 2)
       .setOrigin(0)
       .setInteractive();
     area.on('pointerdown', (pointer: Phaser.Input.Pointer) => this.room.startPress(pointer));

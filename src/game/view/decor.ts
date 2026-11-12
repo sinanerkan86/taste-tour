@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH } from '../config';
 import { ROOM_FX_DEPTH, sparkle } from '../fx';
-import { ROOM, TABLES, depthScale } from './layout';
+import { DOOR_X, FRONT, QUEUE_SPOTS, ROOM, TABLES, depthScale } from './layout';
 import {
   type Ctx,
   ART_RES,
@@ -28,13 +28,10 @@ const PLANTS = [
 ];
 const RUG = { backY: 592, frontY: 968, backLeft: 352, backRight: 968, frontLeft: 322, frontRight: 1000 } as const;
 const BOARD = { x: 302, y: 381, width: 196, height: 66 } as const;
-const CARPET = { left: 0, right: 300, top: 814, bottom: 870 } as const;
-const STANCHIONS = [
-  { x: 92, y: 806 },
-  { x: 252, y: 806 },
-  { x: 92, y: 884 },
-  { x: 252, y: 884 },
-];
+// A red runner from the door step out across the pavement, and velvet ropes along the line.
+const CARPET = { left: DOOR_X - 44, right: DOOR_X + 44, top: FRONT.faceBottom - 2, bottom: 1252 } as const;
+const ROPES_Y = QUEUE_SPOTS[1].y + 38;
+const ROPES_X = [QUEUE_SPOTS[0].x + 52, QUEUE_SPOTS[0].x + 212];
 const POP_MS = 420;
 
 export class Decor {
@@ -140,11 +137,10 @@ export class Decor {
   private entrance(): Phaser.GameObjects.Image[] {
     const carpetKey = paintTexture(this.scene, 'decor-carpet', CARPET.right - CARPET.left, CARPET.bottom - CARPET.top + 8, paintCarpet);
     const carpet = addArt(this.scene, CARPET.left, CARPET.top, carpetKey, 0, 0).setDepth(-990);
-    // Brass posts with velvet ropes: the back pair behind people walking in, the front pair in front.
+    // Brass posts with velvet ropes in front of the people waiting outside.
     const ropeKey = paintTexture(this.scene, 'decor-rope', 180, 70, paintRopeLine);
-    const back = addArt(this.scene, STANCHIONS[0].x - 10, STANCHIONS[0].y, ropeKey, 0, 60).setDepth(STANCHIONS[0].y).setScale(depthScale(806) / ART_RES);
-    const front = addArt(this.scene, STANCHIONS[2].x - 10, STANCHIONS[2].y, ropeKey, 0, 60).setDepth(STANCHIONS[2].y).setScale(depthScale(884) / ART_RES);
-    return [carpet, back, front];
+    const ropes = ROPES_X.map((x) => addArt(this.scene, x - 10, ROPES_Y, ropeKey, 0, 60).setDepth(ROPES_Y).setScale(depthScale(ROPES_Y) / ART_RES));
+    return [carpet, ...ropes];
   }
 }
 
@@ -332,16 +328,19 @@ function paintCarpet(ctx: Ctx): void {
   const w = CARPET.right - CARPET.left;
   const h = CARPET.bottom - CARPET.top;
   ctx.fillStyle = 'rgba(30,15,5,0.3)';
-  ctx.fillRect(0, 6, w, h);
-  ctx.fillStyle = hGradient(ctx, 0, w, [
+  ctx.fillRect(3, 4, w, h);
+  ctx.fillStyle = vGradient(ctx, 0, h, [
     [0, '#7a1420'],
-    [0.5, '#b8243a'],
-    [1, 'rgba(184,36,58,0.85)'],
+    [0.25, '#b8243a'],
+    [1, '#a01e32'],
   ]);
   ctx.fillRect(0, 0, w, h);
   ctx.fillStyle = '#e0b04a';
-  ctx.fillRect(0, 4, w, 3);
-  ctx.fillRect(0, h - 7, w, 3);
+  ctx.fillRect(5, 0, 3, h);
+  ctx.fillRect(w - 8, 0, 3, h);
+  // The end lies flat on the pavement with a fringe.
+  ctx.fillStyle = 'rgba(255,230,180,0.6)';
+  for (let x = 2; x < w; x += 6) ctx.fillRect(x, h - 2, 2, 5);
 }
 
 // One rope between two brass posts 160 px apart. Texture origin: left post's foot (10, 60).

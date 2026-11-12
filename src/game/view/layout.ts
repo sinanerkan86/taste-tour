@@ -138,3 +138,30 @@ export const SECTION_ANCHORS: Record<SectionId, Point> = {
   cashier: { x: CASHIER_DESK.x, y: CASHIER_DESK.y - 150 },
   dishwashing: { x: 135, y: 270 },
 };
+
+// Where a tap in the scene opens a part of the restaurant's upgrades (checked in this order).
+// Rectangles in world coordinates: x, y, width, height.
+export type SpotId = SectionId | 'parking';
+export const SPOT_AREAS: [SpotId, [number, number, number, number][]][] = [
+  ['cashier', [[40, 530, 260, 240]]],
+  ['waiters', [[330, 470, 230, 130]]],
+  ['kitchen', [[560, 190, 520, 410]]],
+  ['dishwashing', [[0, 190, 300, 330]]],
+  ['seating', [[330, 600, 750, 400]]],
+  [
+    'entrance',
+    [
+      [140, 940, 330, 220],
+      [140, 1150, 760, 120],
+    ],
+  ],
+  ['parking', [[0, LOT.top, 1080, LOT.bottom - LOT.top]]],
+];
+export const SPOT_ANCHORS: Record<SpotId, Point> = { ...SECTION_ANCHORS, parking: PARKING_ANCHOR };
+
+export function spotAt(point: Point): SpotId | null {
+  for (const [id, rects] of SPOT_AREAS) {
+    if (rects.some(([x, y, w, h]) => point.x >= x && point.x <= x + w && point.y >= y && point.y <= y + h)) return id;
+  }
+  return null;
+}

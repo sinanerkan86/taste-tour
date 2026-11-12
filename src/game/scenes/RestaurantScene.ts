@@ -66,6 +66,13 @@ import {
   buyDeliveryLevels,
   buyParkingLevels,
   arrivals,
+  canBuyValet,
+  SECTION_IDS,
+  deliveryCost,
+  parkingCost,
+  safeUpgradeCost,
+  sectionUpgradeCost,
+  valetCost,
   buyValet,
   deliveryFlow,
   incomeBreakdown,
@@ -93,7 +100,7 @@ import { adPolicy, adText, showRewardedAd, type AdPlacement } from '../ads/AdSer
 import { store } from '../store/StoreService';
 import { ChefsModal } from '../ui/ChefsModal';
 import { ShopModal } from '../ui/ShopModal';
-import { FONT, GAME_WIDTH, PALETTE, panelTop, toCss } from '../config';
+import { FONT, GAME_WIDTH, PALETTE, toCss } from '../config';
 import { FX_DEPTH, ROOM_FX_DEPTH, UI_LAYER_DEPTH, banner, confetti, fireworksShow, floatingText, sparkle } from '../fx';
 import { notifications } from '../notifications';
 import { saves } from '../persistence';
@@ -107,9 +114,10 @@ import { chefName, researchName } from '../ui/progressText';
 import { DISH_COLORS } from '../colors';
 import { GoalBar } from '../ui/GoalBar';
 import { HintBubble } from '../ui/HintBubble';
-import { UpgradePanel } from '../ui/UpgradePanel';
+import { PANEL_STRIP, UpgradePanel } from '../ui/UpgradePanel';
 import { WelcomeBackModal } from '../ui/WelcomeBackModal';
-import { DELIVERY_SIGN, PARKING_ANCHOR, ROOM, SECTION_ANCHORS, WORLD, type Point } from '../view/layout';
+import { DELIVERY_SIGN, PARKING_ANCHOR, ROOM, SECTION_ANCHORS, SPOT_ANCHORS, WORLD, spotAt, type Point, type SpotId } from '../view/layout';
+import { SpotMarkers } from '../view/SpotMarkers';
 import { RestaurantView } from '../view/RestaurantView';
 import { Decor } from '../view/decor';
 import { audio } from '../audio';
@@ -185,6 +193,7 @@ export class RestaurantScene extends Phaser.Scene {
   private hint: HintBubble | null = null;
   private hintId: string | null = null;
   private view!: RestaurantView;
+  private spotMarkers!: SpotMarkers;
   private decor!: Decor;
   private decorShown = false;
   private panel!: UpgradePanel;
@@ -296,6 +305,13 @@ export class RestaurantScene extends Phaser.Scene {
     this.panel.onTabChange = (tab) => {
       if (tab === 'lab' && this.hint && this.hintId === LAB_HINT) this.hint.close();
     };
+    this.panel.onMove = (top) => this.placeCornerButtons(top);
+    this.panel.onSpotChange = (spot) => {
+      if (spot) this.room.reveal(SPOT_ANCHORS[spot], this.panel.restingTop);
+      else this.room.uncover();
+      this.refreshSpotMarkers();
+    };
+    this.spotMarkers = new SpotMarkers(this);
     this.panel.setDepth(UI_DEPTH);
     this.createMarkerArrow();
     this.goalBar = new GoalBar(this, GAME_WIDTH / 2, ROOM.top + GOAL_BAR_Y, () => this.followGoal()).setDepth(FX_DEPTH - 3);
@@ -385,6 +401,25 @@ export class RestaurantScene extends Phaser.Scene {
     this.panel.focusSection(section);
   }
 
+  // The back button closes an open upgrade drawer first. Returns whether it did.
+  closeDrawer(): boolean {
+    if (this.panel.isClosed) return false;
+    this.panel.close();
+    return true;
+  }
+
+  // Green arrows over the parts of the restaurant with an upgrade the player can pay for now.
+  private refreshSpotMarkers(): void {
+    const e = this.economy;
+    const affordable = new Set<SpotId>();
+    const can = (cost: number) => Number.isFinite(cost) && cost <= e.money;
+    for (const id of SECTION_IDS) if (can(sectionUpgradeCost(e, id))) affordable.add(id);
+    if (can(deliveryCost(e))) affordable.add('kitchen');
+    if (can(safeUpgradeCost(e))) affordable.add('cashier');
+    if (can(parkingCost(e)) || (canBuyValet(e) && can(valetCost(e)))) affordable.add('parking');
+    this.spotMarkers.update(affordable, this.panel.openSpot);
+  }
+
   // First-session tip that explains the bottleneck and teaches the marker tap. The room first
   // scrolls so the marker is in view; the card itself is screen UI so it is not zoomed.
   private showBottleneckHint(): void {
@@ -427,13 +462,17 @@ export class RestaurantScene extends Phaser.Scene {
     });
   }
 
-  // Places the panel at the bottom of the screen and gives the room all the height in between.
+  // The drawer sits at the bottom of the screen; the room gets all the height above its tab strip
+  // (an open drawer slides over the room).
   private layout(): void {
     const height = this.scale.height;
-    const top = panelTop(height);
-    this.room.layout(ROOM.top, top - ROOM.top);
+    this.room.layout(ROOM.top, height - PANEL_STRIP - ROOM.top);
     this.uiCamera.setSize(GAME_WIDTH, height);
-    this.panel.setY(top);
+    this.panel.layout(height);
+  }
+
+  // The corner buttons ride on the drawer's top edge.
+  private placeCornerButtons(top: number): void {
     const adY = top - AD_BUTTON.abovePanel;
     this.rushButton.setY(adY);
     this.rushCaption.setY(adY + AD_BUTTON.height / 2 + 18);
@@ -1206,7 +1245,11 @@ export class RestaurantScene extends Phaser.Scene {
     area.on('pointerdown', (pointer: Phaser.Input.Pointer) => this.room.startPress(pointer));
   }
 
+  // A tap tips and, on a part of the restaurant, opens its upgrades; elsewhere it closes the drawer.
   private tapRoom(at: Point, screen: Point): void {
+    const spot = spotAt(at);
+    if (spot) this.panel.showSpot(spot);
+    else this.panel.close();
     const amount = tap(this.economy);
     this.track('taps');
     if (this.event?.kind === 'tourBus') this.tapForBus(at);
@@ -1347,7 +1390,7 @@ export class RestaurantScene extends Phaser.Scene {
 
   // Small moments (level milestones), which happen often: a short note above the panel.
   private note(message: string): void {
-    floatingText(this, GAME_WIDTH / 2, panelTop(this.scale.height) - 150, message, PALETTE.cream, 34);
+    floatingText(this, GAME_WIDTH / 2, this.panel.y - 150, message, PALETTE.cream, 34);
   }
 
   // `from` is a screen position.
@@ -1388,6 +1431,7 @@ export class RestaurantScene extends Phaser.Scene {
     );
     this.starsText.setText(formatNumber(this.economy.stars, 0));
     this.panel.refresh(this.economy);
+    this.refreshSpotMarkers();
     this.refreshFranchise();
     this.refreshAdButtons();
     this.refreshDaily();

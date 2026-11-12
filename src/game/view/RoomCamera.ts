@@ -1,12 +1,11 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH } from '../config';
-import { QUEUE_SPOTS, ROOM, WORLD, type Point } from './layout';
+import { ROOM, WORLD, type Point } from './layout';
 
-// The view opens on the room down to the line outside the door; the street below it is a drag
-// away.
-const FIT = { top: ROOM.top, bottom: QUEUE_SPOTS[0].y + 50 } as const;
+// The view opens on the room at the full width; on tall screens it zooms in so the whole world
+// (room, street and the parking lot) just fills the band. Whatever does not fit is a drag away.
+const FIT = { top: ROOM.top, bottom: WORLD.bottom } as const;
 const FIT_HEIGHT = FIT.bottom - FIT.top;
-const WORLD_HEIGHT = WORLD.bottom - WORLD.top;
 // Wall and floor art reach this far above and below the room, so zooming out shows more of
 // the restaurant instead of empty bands.
 export const ROOM_MARGIN = 400;
@@ -37,6 +36,9 @@ export class RoomCamera {
   private minZoom = 1;
   private maxZoom = MIN_MAX_ZOOM;
   private laidOut = false;
+  // Screen pixels at the bottom of the band hidden by an open drawer: the view may scroll that
+  // much further down, so the bottom of the world can show above the drawer.
+  private covered = 0;
 
   // A press on the room that ended without dragging, in world coordinates.
   onTap: (at: Point, screen: Point) => void = () => {};
@@ -151,6 +153,29 @@ export class RoomCamera {
     this.camera.pan(target.x, target.y, PAN_MS, 'Sine.easeInOut', true);
   }
 
+  // Scrolls so a world position shows in the part of the band above screen y `coveredFrom`
+  // (where a panel covers the room), unless it already does.
+  reveal(point: Point, coveredFrom: number): void {
+    this.covered = Math.max(0, this.camera.y + this.camera.height - coveredFrom);
+    const screen = this.toScreen(point);
+    const top = this.camera.y + 80;
+    const bottom = Math.min(coveredFrom, this.camera.y + this.camera.height) - 60;
+    const insideX = screen.x > this.camera.x + 60 && screen.x < this.camera.x + this.camera.width - 60;
+    if (insideX && screen.y > top && screen.y < bottom) return;
+    const wanted = (top + bottom) / 2;
+    const middle = this.camera.y + this.camera.height / 2;
+    this.panTo({ x: point.x, y: point.y + (middle - wanted) / this.zoom });
+  }
+
+  // The drawer closed: the view returns inside the world if it had scrolled past its bottom.
+  uncover(): void {
+    if (this.covered === 0) return;
+    this.covered = 0;
+    const center = this.center;
+    const clamped = this.clampCenter(center, this.zoom);
+    if (Math.abs(clamped.y - center.y) > 1) this.panTo(clamped);
+  }
+
   // Whether a world position is inside the view, at least `margin` world pixels from its edges.
   shows(point: Point, margin = 0): boolean {
     const view = this.view;
@@ -231,8 +256,9 @@ export class RoomCamera {
     const halfHeight = this.camera.height / zoom / 2;
     const width = WORLD.right - WORLD.left;
     const x = halfWidth * 2 >= width ? (WORLD.left + WORLD.right) / 2 : Phaser.Math.Clamp(point.x, WORLD.left + halfWidth, WORLD.right - halfWidth);
+    const bottom = WORLD.bottom + this.covered / zoom;
     const y =
-      halfHeight * 2 >= WORLD_HEIGHT ? (WORLD.top + WORLD.bottom) / 2 : Phaser.Math.Clamp(point.y, WORLD.top + halfHeight, WORLD.bottom - halfHeight);
+      halfHeight * 2 >= bottom - WORLD.top ? (WORLD.top + bottom) / 2 : Phaser.Math.Clamp(point.y, WORLD.top + halfHeight, bottom - halfHeight);
     return { x, y };
   }
 }

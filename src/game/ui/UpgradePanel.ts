@@ -62,6 +62,12 @@ const PROGRESS_BAR = { width: 360, height: 18 };
 
 export type Tab = 'restaurant' | 'menu' | 'lab' | 'expand';
 const TABS: Tab[] = ['restaurant', 'menu', 'lab', 'expand'];
+// A part of the restaurant the player tapped in the scene: its upgrade rows open in the drawer.
+export type Spot = SectionId | 'parking';
+type Mode = { kind: 'closed' } | { kind: 'tab'; tab: Tab } | { kind: 'spot'; spot: Spot };
+// What the drawer shows when closed: the tab strip.
+export const PANEL_STRIP = 20 + TAB_HEIGHT + 24;
+const SLIDE_MS = 260;
 
 const ROW_CARDS = {
   normal: { top: 0xffffff, bottom: 0xfff0d6, border: 0xe6c49a, radius: 24 },
@@ -327,9 +333,17 @@ function sectionDetail(state: EconomyState, id: SectionId, rate: number): string
   return t('row.entranceRate', { rate: formatNumber(rate, 2), cars: formatNumber(parking, 2) });
 }
 
+// The upgrade drawer at the bottom of the screen. Closed, it shows only the tabs; a tab opens the
+// whole list, and a part of the restaurant tapped in the scene (a spot) opens just its own rows.
 export class UpgradePanel extends Phaser.GameObjects.Container {
   private tab: Tab = 'restaurant';
+  private mode: Mode = { kind: 'closed' };
+  private screenHeight = 0;
   onTabChange: ((tab: Tab) => void) | null = null;
+  // Called while the drawer slides, with its top edge in screen pixels.
+  onMove: ((top: number) => void) | null = null;
+  // Called when the drawer closes or another spot opens.
+  onSpotChange: ((spot: Spot | null) => void) | null = null;
   // Whether the staff help ad may show (the scene keeps it off in the first minutes).
   staffHelpAllowed = false;
   private lastState: EconomyState | null = null;
@@ -344,6 +358,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
   private readonly labBadge: Phaser.GameObjects.Container;
   private readonly tabButtons: Record<Tab, Button>;
   private readonly amountButton: Button;
+  private readonly handle: Phaser.GameObjects.Container;
 
   constructor(
     scene: Phaser.Scene,
@@ -368,10 +383,10 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     const tabY = 20 + TAB_HEIGHT / 2;
     const tabX = (i: number) => MARGIN + tabWidth / 2 + i * (tabWidth + gap);
     this.tabButtons = {
-      restaurant: new Button(scene, tabX(0), tabY, tabWidth, TAB_HEIGHT, () => this.showTab('restaurant')),
-      menu: new Button(scene, tabX(1), tabY, tabWidth, TAB_HEIGHT, () => this.showTab('menu')),
-      lab: new Button(scene, tabX(2), tabY, tabWidth, TAB_HEIGHT, () => this.showTab('lab')),
-      expand: new Button(scene, tabX(3), tabY, tabWidth, TAB_HEIGHT, () => this.showTab('expand')),
+      restaurant: new Button(scene, tabX(0), tabY, tabWidth, TAB_HEIGHT, () => this.toggleTab('restaurant')),
+      menu: new Button(scene, tabX(1), tabY, tabWidth, TAB_HEIGHT, () => this.toggleTab('menu')),
+      lab: new Button(scene, tabX(2), tabY, tabWidth, TAB_HEIGHT, () => this.toggleTab('lab')),
+      expand: new Button(scene, tabX(3), tabY, tabWidth, TAB_HEIGHT, () => this.toggleTab('expand')),
     };
     for (const tab of TABS) this.tabButtons[tab].setLabel(t(`tab.${tab}`));
     this.amountButton = new Button(scene, GAME_WIDTH - MARGIN - AMOUNT_WIDTH / 2, tabY, AMOUNT_WIDTH, TAB_HEIGHT, () => this.cycleAmount());
@@ -382,7 +397,14 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     const mark = scene.add.text(0, -2, '!', outlined(30)).setOrigin(0.5);
     this.labBadge = scene.add.container(tabX(2) + tabWidth / 2 - 14, tabY - TAB_HEIGHT / 2 + 8, [dot, mark]).setVisible(false);
     scene.tweens.add({ targets: this.labBadge, scale: 1.18, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-    this.add([...TABS.map((tab) => this.tabButtons[tab]), this.amountButton, this.labBadge]);
+    // A grip on the top edge closes the open drawer.
+    const grip = scene.add.graphics();
+    grip.fillStyle(0xc98a4a, 1).fillRoundedRect(-70, -26, 140, 40, 18);
+    grip.fillStyle(0xfff8ea, 1).fillRoundedRect(-64, -21, 128, 34, 15);
+    grip.lineStyle(6, 0xb0763c, 1).beginPath().moveTo(-18, -9).lineTo(0, 3).lineTo(18, -9).strokePath();
+    this.handle = scene.add.container(GAME_WIDTH / 2, -6, [grip]).setSize(220, 70).setVisible(false);
+    this.handle.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.close());
+    this.add([...TABS.map((tab) => this.tabButtons[tab]), this.amountButton, this.labBadge, this.handle]);
 
     const rowY = (i: number) => 20 + TAB_HEIGHT + 18 + ROW_HEIGHT / 2 + i * (ROW_HEIGHT + ROW_GAP);
     this.sectionRows = SECTION_IDS.map(
@@ -405,8 +427,77 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
       .setOrigin(0.5);
     this.add([...this.sectionRows, this.deliveryRow, this.safeRow, this.parkingRow, this.valetRow, ...this.dishRows, ...this.labRows, this.labInfo]);
 
-    this.showTab('restaurant');
+    this.applyMode();
     scene.add.existing(this);
+  }
+
+  // Rows each spot opens: the section and what belongs to the same place.
+  private spotRows(spot: Spot): UpgradeRow[] {
+    if (spot === 'parking') return [this.parkingRow, this.valetRow];
+    const row = this.sectionRows[SECTION_IDS.indexOf(spot)];
+    if (spot === 'kitchen') return [row, this.deliveryRow];
+    if (spot === 'cashier') return [row, this.safeRow];
+    return [row];
+  }
+
+  private visibleHeight(): number {
+    if (this.mode.kind === 'closed') return PANEL_STRIP;
+    if (this.mode.kind === 'tab') return LAYOUT.panelHeight;
+    return PANEL_STRIP - 6 + this.spotRows(this.mode.spot).length * (ROW_HEIGHT + ROW_GAP) + 18;
+  }
+
+  // Screen y of the drawer's top edge once it has finished sliding.
+  get restingTop(): number {
+    return this.screenHeight - this.visibleHeight();
+  }
+
+  get openSpot(): Spot | null {
+    return this.mode.kind === 'spot' ? this.mode.spot : null;
+  }
+
+  get isClosed(): boolean {
+    return this.mode.kind === 'closed';
+  }
+
+  // Places the drawer for a (new) screen height without animation.
+  layout(screenHeight: number): void {
+    this.screenHeight = screenHeight;
+    this.scene.tweens.killTweensOf(this);
+    this.setY(this.restingTop);
+    this.onMove?.(this.y);
+  }
+
+  private setMode(mode: Mode): void {
+    const spotBefore = this.openSpot;
+    this.mode = mode;
+    if (mode.kind === 'tab') this.tab = mode.tab;
+    this.applyMode();
+    this.scene.tweens.killTweensOf(this);
+    this.scene.tweens.add({
+      targets: this,
+      y: this.restingTop,
+      duration: SLIDE_MS,
+      ease: 'Cubic.easeOut',
+      onUpdate: () => this.onMove?.(this.y),
+    });
+    if (this.openSpot !== spotBefore) this.onSpotChange?.(this.openSpot);
+    if (mode.kind === 'tab') this.onTabChange?.(mode.tab);
+    // Draw the new rows right away instead of on the next refresh tick.
+    if (this.lastState) this.refresh(this.lastState);
+  }
+
+  private toggleTab(tab: Tab): void {
+    if (this.mode.kind === 'tab' && this.mode.tab === tab) this.close();
+    else this.showTab(tab);
+  }
+
+  showSpot(spot: Spot): void {
+    if (this.openSpot === spot) return;
+    this.setMode({ kind: 'spot', spot });
+  }
+
+  close(): void {
+    if (this.mode.kind !== 'closed') this.setMode({ kind: 'closed' });
   }
 
   get buyAmount(): BuyAmount {
@@ -428,15 +519,15 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     this.sectionRows[SECTION_IDS.indexOf(id)].pulse();
   }
 
-  // Switches to the restaurant tab and points at the section's row.
+  // Opens the section's spot and points at its row.
   focusSection(id: SectionId): void {
-    if (this.tab !== 'restaurant') this.showTab('restaurant');
+    this.showSpot(id);
     this.sectionRows[SECTION_IDS.indexOf(id)].flash();
   }
 
-  // Switches to the menu tab and points at the dish's row.
+  // Opens the menu tab and points at the dish's row.
   focusDish(index: number): void {
-    if (this.tab !== 'menu') this.showTab('menu');
+    if (this.mode.kind !== 'tab' || this.tab !== 'menu') this.showTab('menu');
     this.dishRows[index].flash();
   }
 
@@ -470,32 +561,47 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     return { x: tab.x, y: this.y + tab.y + TAB_HEIGHT / 2 };
   }
 
+  // Opens the whole list of a tab.
   showTab(tab: Tab): void {
-    this.tab = tab;
-    this.sectionRows.forEach((row) => row.setVisible(tab === 'restaurant'));
-    this.safeRow.setVisible(tab === 'restaurant');
-    this.deliveryRow.setVisible(tab === 'restaurant');
-    this.dishRows.forEach((row) => row.setVisible(tab === 'menu'));
-    this.labRows.forEach((row) => row.setVisible(tab === 'lab'));
+    this.setMode({ kind: 'tab', tab });
+  }
+
+  // Shows the rows of the current mode at their places and hides the rest.
+  private applyMode(): void {
+    const rowY = (i: number) => 20 + TAB_HEIGHT + 18 + ROW_HEIGHT / 2 + i * (ROW_HEIGHT + ROW_GAP);
+    const all = [...this.sectionRows, this.deliveryRow, this.safeRow, this.parkingRow, this.valetRow, ...this.dishRows, ...this.labRows];
+    all.forEach((row) => row.setVisible(false));
+    this.labInfo.setVisible(false);
+    const mode = this.mode;
+    const tab = mode.kind === 'tab' ? mode.tab : null;
+    let shown: Phaser.GameObjects.Container[] = [];
+    if (tab === 'restaurant') shown = [...this.sectionRows, this.deliveryRow, this.safeRow];
+    else if (tab === 'menu') shown = this.dishRows;
+    else if (tab === 'lab') shown = this.labRows;
+    else if (tab === 'expand') shown = [this.parkingRow, this.valetRow];
+    else if (mode.kind === 'spot') shown = this.spotRows(mode.spot);
+    shown.forEach((row, i) => row.setVisible(true).setY(rowY(i)));
     this.labInfo.setVisible(tab === 'lab');
-    this.parkingRow.setVisible(tab === 'expand');
-    this.valetRow.setVisible(tab === 'expand');
     this.amountButton.setVisible(tab !== 'lab');
+    this.handle.setVisible(mode.kind !== 'closed');
     for (const id of TABS) {
       this.tabButtons[id].setButtonStyle(tab === id ? BUTTON_STYLES.primary : BUTTON_STYLES.disabled);
     }
-    this.onTabChange?.(tab);
-    // Draw the new tab right away instead of on the next refresh tick.
-    if (this.lastState) this.refresh(this.lastState);
   }
 
   refresh(state: EconomyState): void {
     this.lastState = state;
     this.labBadge.setVisible(labNeedsAttention(state));
-    if (this.tab === 'restaurant') this.refreshSections(state);
-    else if (this.tab === 'menu') this.refreshDishes(state);
-    else if (this.tab === 'expand') this.refreshExpand(state);
-    else this.refreshLab(state);
+    const mode = this.mode;
+    if (mode.kind === 'spot') {
+      if (mode.spot === 'parking') this.refreshExpand(state);
+      else this.refreshSections(state);
+    } else if (mode.kind === 'tab') {
+      if (mode.tab === 'restaurant') this.refreshSections(state);
+      else if (mode.tab === 'menu') this.refreshDishes(state);
+      else if (mode.tab === 'expand') this.refreshExpand(state);
+      else this.refreshLab(state);
+    }
   }
 
   private refreshLab(state: EconomyState): void {

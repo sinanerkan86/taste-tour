@@ -12,9 +12,11 @@ export function setUpNativeApp(game: Phaser.Game): void {
   document.documentElement.classList.add('native');
   // The back button would otherwise close the app (and the game would start over from the
   // save); an idle game should go to the background instead, like Home.
-  // An open world map closes first.
+  // An open world map or upgrade drawer closes first.
   void App.addListener('backButton', () => {
+    const restaurant = game.scene.getScene('Restaurant') as { closeDrawer?: () => boolean } | null;
     if (game.scene.isActive('WorldMap')) game.scene.stop('WorldMap');
+    else if (game.scene.isActive('Restaurant') && restaurant?.closeDrawer?.()) return;
     else void App.minimizeApp();
   });
   void ads.init();

@@ -51,6 +51,29 @@ export const DELIVERY = {
   billFraction: 0.5,
 };
 
+// Parking lot: a second way in. Drivers come on top of the walk-in customers (the entrance's
+// rate is walk-ins + parking) and spend more, so a lot both widens the door and raises the
+// average bill of the dining room (GDD 13).
+export const PARKING = {
+  // Cost to open the lot (in the city's cost scale), then the level curve of its spaces.
+  unlockCost: 5e3,
+  // Drivers per second at level 1.
+  baseRate: 0.15,
+  baseCost: 300,
+  costGrowth: 1.21,
+  // A table that came by car orders this much more (0.4 = +40% on its bill).
+  carBillBonus: 0.15,
+};
+
+// Valet service: a one-time upgrade of a big enough lot. Valets park faster (more drivers per
+// second) and guests who were driven to the door spend even more.
+export const VALET = {
+  minParkingLevel: 25,
+  cost: 3e8,
+  rateMultiplier: 1.25,
+  extraBillBonus: 0.1,
+};
+
 // Unlock costs are calibrated so each new dish arrives as growth from the previous one stalls.
 export const DISH_TIERS: DishTier[] = [
   { basePrice: 2, unlockCost: 0, baseUpgradeCost: 15, costGrowth: 1.25 },

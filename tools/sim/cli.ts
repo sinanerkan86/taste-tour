@@ -81,6 +81,18 @@ console.table(
   })),
 );
 
+console.log('Parking');
+console.table(
+  result.cycles.map((c) => ({
+    cycle: c.index + 1,
+    opened: c.parkingOpened === null ? '-' : formatDuration(c.parkingOpened),
+    level: c.finalParkingLevel,
+    valet: c.valetBought === null ? '-' : formatDuration(c.valetBought),
+    'bill bonus at the end (%)': Math.round((c.carBillMultiplier - 1) * 100),
+    'parking upgrades (%)': Math.round(((c.purchasesByTarget.parking ?? 0) / Math.max(c.purchases, 1)) * 100),
+  })),
+);
+
 console.log('Final levels');
 console.table(
   result.cycles.map((c) =>

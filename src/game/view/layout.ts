@@ -34,8 +34,30 @@ export const STREET = {
   // The strip of the far pavement at the bottom edge of the world.
   bottom: 1730,
 } as const;
+// People cross the road here (traffic stops for them), between the near and the far pavement.
+export const CROSSWALK = { left: 700, right: 840 } as const;
+
+// The parking lot across the street, behind the far pavement. Traffic is one-way through it:
+// cars turn in from the far lane at one end, drive along the aisle and leave at the other end
+// (which end depends on the side of the road the city drives on). Parked cars face the viewer.
+export const LOT = {
+  top: STREET.bottom,
+  // The ground line of cars driving along the aisle, and of parked cars.
+  aisle: 1838,
+  slot: 1990,
+  // Slots are drawn between these lines; the low wall closes the lot at the bottom.
+  slotTop: 1880,
+  slotBottom: 2010,
+  bottom: 2100,
+} as const;
+// Gaps in the far pavement where cars turn in and out.
+export const DRIVEWAYS = { left: { from: 20, to: 200 }, right: { from: 880, to: 1060 } } as const;
+export const LOT_SLOTS: number[] = [130, 296, 462, 628, 794, 960];
+// Where guests stand while the car is parked for them, and the valet's own spot.
+export const VALET_DROP = { left: 330, right: 750 } as const;
+export const PARKING_ANCHOR: Point = { x: 540, y: 1880 };
 // Everything the camera may show.
-export const WORLD = { top: ROOM.top, bottom: STREET.bottom, left: 0, right: 1080 } as const;
+export const WORLD = { top: ROOM.top, bottom: LOT.bottom, left: 0, right: 1080 } as const;
 // Passers-by walk along the pavement here, between the queue and the curb.
 export const WALK_LANES = [1272, 1300];
 

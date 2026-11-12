@@ -1,4 +1,4 @@
-import { ADS, DELIVERY, DISH_TIERS, EVENTS, MILESTONE_BONUS, SECTION_IDS, SECTIONS, TAP, type SectionId } from './config';
+import { ADS, DELIVERY, DISH_TIERS, EVENTS, MILESTONE_BONUS, PARKING, SECTION_IDS, SECTIONS, TAP, VALET, type SectionId } from './config';
 import { cityCostScale, cityPriceScale, scaledValue } from './formulas';
 import { incomeMultiplier, newLab, newPerks, sectionRateMultiplier, type LabState, type PerkLevels } from './bonuses';
 import { newChefs, type ChefState } from './chefs';
@@ -41,6 +41,9 @@ export interface EconomyState {
   safeLevel: number;
   // Courier level of this restaurant; 0 while delivery is not open. Starts over with a franchise.
   deliveryLevel: number;
+  // Parking lot level (0 = no lot yet) and whether it has valet service. Both start over with a franchise.
+  parkingLevel: number;
+  valet: boolean;
 }
 
 export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomyState {
@@ -66,6 +69,8 @@ export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomySt
     purchases: newPurchases(),
     safeLevel: 0,
     deliveryLevel: 0,
+    parkingLevel: 0,
+    valet: false,
   };
 }
 
@@ -88,7 +93,32 @@ export function sectionRates(state: EconomyState): Record<SectionId, number> {
   for (const id of SECTION_IDS) {
     rates[id] = scaledValue(SECTIONS[id].baseRate, state.sectionLevels[id], MILESTONE_BONUS.section) * sectionRateMultiplier(state, id);
   }
+  rates.entrance += parkingRate(state);
   return rates;
+}
+
+// Drivers per second the parking lot brings in (0 without a lot).
+export function parkingRate(state: EconomyState): number {
+  return scaledValue(PARKING.baseRate, state.parkingLevel, MILESTONE_BONUS.section) * (state.valet ? VALET.rateMultiplier : 1);
+}
+
+export interface Arrivals {
+  // Customers per second who walk in and who come by car (the entrance's rate is their sum).
+  walkIn: number;
+  parking: number;
+  // Share of the dining room's customers who came by car, and what that adds to the average bill.
+  carShare: number;
+  billMultiplier: number;
+}
+
+// Seats are filled from both ways in, in proportion to how many each one brings.
+export function arrivals(state: EconomyState): Arrivals {
+  const parking = parkingRate(state);
+  const total = sectionRates(state).entrance;
+  const walkIn = total - parking;
+  const carShare = total > 0 ? parking / total : 0;
+  const bonus = PARKING.carBillBonus + (state.valet ? VALET.extraBillBonus : 0);
+  return { walkIn, parking, carShare, billMultiplier: 1 + carShare * bonus };
 }
 
 export interface Throughput {
@@ -137,7 +167,7 @@ export function deliveryFlow(state: EconomyState): DeliveryFlow {
 export function incomeBreakdown(state: EconomyState): { dineIn: number; delivery: number } {
   const perBill = billPerCustomer(state) * incomeMultiplier(state);
   return {
-    dineIn: throughput(state).customersPerSecond * perBill,
+    dineIn: throughput(state).customersPerSecond * perBill * arrivals(state).billMultiplier,
     delivery: deliveryFlow(state).ordersPerSecond * DELIVERY.billFraction * perBill,
   };
 }

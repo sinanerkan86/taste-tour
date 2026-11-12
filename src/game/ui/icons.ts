@@ -1395,3 +1395,91 @@ export function deliveryIcon(scene: Phaser.Scene): string {
     }),
   );
 }
+
+export const PARKING_COLOR = 0x3a7bd5;
+
+// A blue road sign with a white "P", for the Parking lot row.
+export function parkingIcon(scene: Phaser.Scene): string {
+  return paintTexture(scene, 'icon-parking', ICON_SIZE, ICON_SIZE, (ctx) =>
+    badge(ctx, PARKING_COLOR, (c) => {
+      // Post.
+      c.fillStyle = '#8a8f96';
+      c.fillRect(-2, 10, 4, 18);
+      c.fillStyle = vGradient(c, -24, 14, [
+        [0, '#4f95f0'],
+        [1, '#1f5fb8'],
+      ]);
+      roundRect(c, -18, -24, 36, 36, 7);
+      c.fill();
+      outline(c);
+      c.strokeStyle = '#ffffff';
+      c.lineWidth = 2.5;
+      roundRect(c, -15, -21, 30, 30, 5);
+      c.stroke();
+      c.fillStyle = '#ffffff';
+      c.font = 'bold 26px sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText('P', 0, -5);
+    }),
+  );
+}
+
+// A car key on a numbered valet tag, for the Valet service row.
+export function valetIcon(scene: Phaser.Scene): string {
+  return paintTexture(scene, 'icon-valet', ICON_SIZE, ICON_SIZE, (ctx) =>
+    badge(ctx, 0x8e44ad, (c) => {
+      // Tag on a string.
+      c.strokeStyle = '#5a3a20';
+      c.lineWidth = 2;
+      c.beginPath();
+      c.moveTo(-4, -12);
+      c.quadraticCurveTo(-10, -18, -14, -10);
+      c.stroke();
+      c.fillStyle = vGradient(c, -12, 22, [
+        [0, '#fff3c4'],
+        [1, '#f1c96a'],
+      ]);
+      c.beginPath();
+      c.moveTo(-22, -6);
+      c.lineTo(-8, -6);
+      c.lineTo(-8, 22);
+      c.lineTo(-22, 22);
+      c.closePath();
+      c.fill();
+      outline(c);
+      c.fillStyle = '#c0302a';
+      c.font = 'bold 12px sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText('7', -15, 10);
+      // Key: a rounded fob and a toothed blade.
+      c.fillStyle = vGradient(c, -22, 4, [
+        [0, '#4a4a52'],
+        [1, '#1e1e24'],
+      ]);
+      roundRect(c, -6, -24, 22, 24, 9);
+      c.fill();
+      outline(c);
+      c.fillStyle = '#c94b4b';
+      ellipse(c, 5, -13, 4, 4);
+      c.fill();
+      c.fillStyle = vGradient(c, 0, 26, [
+        [0, '#f1f1f1'],
+        [1, '#a9adb3'],
+      ]);
+      c.beginPath();
+      c.moveTo(1, 0);
+      c.lineTo(9, 0);
+      c.lineTo(9, 24);
+      c.lineTo(5, 26);
+      c.lineTo(5, 20);
+      c.lineTo(1, 18);
+      c.lineTo(5, 14);
+      c.lineTo(1, 10);
+      c.closePath();
+      c.fill();
+      outline(c, 1.5);
+    }),
+  );
+}

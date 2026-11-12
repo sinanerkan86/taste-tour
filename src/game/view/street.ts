@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { FONT, GAME_WIDTH } from '../config';
 import { ICON_COLORS, SIZE as ICON_SIZE, paintForeground } from '../../../tools/icon/paint';
-import { DOOR_WIDTH, DOOR_X, FRONT, STREET } from './layout';
+import { CROSSWALK, DOOR_WIDTH, DOOR_X, DRIVEWAYS, FRONT, STREET } from './layout';
 import { type Ctx, addArt, css, ellipse, floorShadow, hGradient, paintTexture, radial, rgba, roundRect, seeded, vGradient } from './paint';
 import type { StreetTheme } from './streetThemes';
 
@@ -19,7 +19,6 @@ const DOOR_RIGHT = DOOR_X + DOOR_WIDTH / 2;
 const POST = 18;
 // The restaurant's sign on the front wall, right of the door.
 const SIGN = { left: 455, right: 815, top: FRONT.faceTop + 7, bottom: FRONT.faceBottom - 17 } as const;
-const CROSSWALK = { left: 820, right: 960 } as const;
 const CENTER_LINE = (STREET.roadTop + STREET.roadBottom) / 2;
 // The floor's vanishing point (see room.ts): pavement joints run toward it too.
 const VANISH = { x: GAME_WIDTH / 2, y: -700 };
@@ -28,7 +27,8 @@ export const LAMPS = [150, 868];
 export const TREE = { x: 985, y: 1318 } as const;
 const PLANTER = { x: 110, y: 1180 } as const;
 const BIN = { x: 48, y: 1332 } as const;
-const BOLLARDS = [70, 300, 545, 790, 1030];
+// On the far pavement, clear of the driveways and the zebra.
+const BOLLARDS = [250, 450, 640, 860];
 
 export function drawStreet(scene: Phaser.Scene, street: StreetTheme): void {
   const key = `street-${street.facadeColor.toString(16)}-${street.pavingA.toString(16)}-${street.road}`;
@@ -69,12 +69,31 @@ function paintGround(ctx: Ctx, street: StreetTheme): void {
   paintRoad(ctx, street);
   paintCurb(ctx, STREET.roadBottom, false);
   paintPavement(ctx, street, STREET.roadBottom + 12, STREET.bottom);
-  // The far pavement is the nearest thing to the viewer: a touch of shade at the very bottom.
-  ctx.fillStyle = vGradient(ctx, STREET.bottom - 50, STREET.bottom, [
-    [0, 'rgba(20,12,5,0)'],
-    [1, 'rgba(20,12,5,0.25)'],
+  paintDriveway(ctx, DRIVEWAYS.left.from, DRIVEWAYS.left.to);
+  paintDriveway(ctx, DRIVEWAYS.right.from, DRIVEWAYS.right.to);
+}
+
+// A lowered curb and a concrete apron across the far pavement, into the parking lot.
+function paintDriveway(ctx: Ctx, from: number, to: number): void {
+  const top = STREET.roadBottom;
+  const bottom = STREET.bottom;
+  ctx.fillStyle = vGradient(ctx, top, bottom, [
+    [0, '#bdb9b0'],
+    [0.15, '#aaa69d'],
+    [1, '#9c988f'],
   ]);
-  ctx.fillRect(0, STREET.bottom - 50, GAME_WIDTH, 50);
+  ctx.fillRect(from, top, to - from, bottom - top);
+  // Expansion joints and tyre marks.
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
+  ctx.fillRect(from, top + 12, to - from, 2);
+  for (let x = from + 60; x < to - 20; x += 60) ctx.fillRect(x, top + 12, 2, bottom - top - 12);
+  ctx.fillStyle = 'rgba(30,30,30,0.08)';
+  [0.3, 0.7].forEach((f) => ctx.fillRect(from + (to - from) * f - 14, top, 28, bottom - top));
+  // Ramps down at both ends.
+  [from, to].forEach((x, i) => {
+    ctx.fillStyle = hGradient(ctx, x - 14, x + 14, i === 0 ? [[0, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,0.22)']] : [[0, 'rgba(0,0,0,0.22)'], [1, 'rgba(0,0,0,0)']]);
+    ctx.fillRect(x - 14, top, 28, bottom - top);
+  });
 }
 
 // The floor runs out through the door onto a stone sill and a step down to the pavement.

@@ -1,4 +1,4 @@
-import { ADS, CHEF, DELIVERY, DISH_MAX_LEVEL, DISH_TIERS, PERK, SAFE, SECTION_IDS, SECTIONS, type PerkId, type SectionId } from './config';
+import { ADS, CHEF, DELIVERY, DISH_MAX_LEVEL, DISH_TIERS, PARKING, PERK, SAFE, SECTION_IDS, SECTIONS, VALET, type PerkId, type SectionId } from './config';
 import { giveChefCards } from './chefs';
 import { cityCostScale, levelCost, starsForReputation } from './formulas';
 import {
@@ -142,6 +142,40 @@ export function buyDeliveryLevels(state: EconomyState, amount: BuyAmount): numbe
   if (plan.levels === 0 || !spend(state, plan.cost)) return 0;
   state.deliveryLevel += plan.levels;
   return plan.levels;
+}
+
+// Opening the lot is its first level; after that each level of spaces costs like a section level.
+export function parkingBuyPlan(state: EconomyState, amount: BuyAmount): BuyPlan {
+  const level = state.parkingLevel;
+  if (level === 0) return { levels: 1, cost: PARKING.unlockCost * costScale(state) };
+  const scale = sectionCostScale(state);
+  return planLevels((k) => levelCost(PARKING.baseCost, PARKING.costGrowth, level + k) * scale, amount, MAX_LEVELS_PER_BUY, state.money);
+}
+
+export function parkingCost(state: EconomyState): number {
+  return parkingBuyPlan(state, 1).cost;
+}
+
+export function buyParkingLevels(state: EconomyState, amount: BuyAmount): number {
+  const plan = parkingBuyPlan(state, amount);
+  if (plan.levels === 0 || !spend(state, plan.cost)) return 0;
+  state.parkingLevel += plan.levels;
+  return plan.levels;
+}
+
+// Valet service: offered once the lot is big enough; Infinity once it is bought.
+export function valetCost(state: EconomyState): number {
+  return state.valet ? Infinity : VALET.cost * costScale(state);
+}
+
+export function canBuyValet(state: EconomyState): boolean {
+  return !state.valet && state.parkingLevel >= VALET.minParkingLevel;
+}
+
+export function buyValet(state: EconomyState): boolean {
+  if (!canBuyValet(state) || !spend(state, valetCost(state))) return false;
+  state.valet = true;
+  return true;
 }
 
 // Next Night Safe level's cost; Infinity at the top level.

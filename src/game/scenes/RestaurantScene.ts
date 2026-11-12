@@ -64,6 +64,9 @@ import {
   adsRemoved,
   buySafeLevel,
   buyDeliveryLevels,
+  buyParkingLevels,
+  arrivals,
+  buyValet,
   deliveryFlow,
   incomeBreakdown,
   offlineCapSeconds,
@@ -106,7 +109,7 @@ import { GoalBar } from '../ui/GoalBar';
 import { HintBubble } from '../ui/HintBubble';
 import { UpgradePanel } from '../ui/UpgradePanel';
 import { WelcomeBackModal } from '../ui/WelcomeBackModal';
-import { DELIVERY_SIGN, ROOM, SECTION_ANCHORS, WORLD, type Point } from '../view/layout';
+import { DELIVERY_SIGN, PARKING_ANCHOR, ROOM, SECTION_ANCHORS, WORLD, type Point } from '../view/layout';
 import { RestaurantView } from '../view/RestaurantView';
 import { Decor } from '../view/decor';
 import { audio } from '../audio';
@@ -250,7 +253,7 @@ export class RestaurantScene extends Phaser.Scene {
     this.lastEvent = null;
     this.forcedEvent = null;
     // Dev-only shortcuts for testing: /?money=1e6, /?city=2 (look and prices of another city), /?vip=1 (VIP right away),
-    // /?event=critic|tourBus|festival (that event in a few seconds)
+    // /?event=critic|tourBus|festival (that event in a few seconds), /?parking=30&valet=1 (a lot of that level)
     if (import.meta.env.DEV) {
       const params = new URLSearchParams(location.search);
       const money = Number(params.get('money'));
@@ -258,6 +261,9 @@ export class RestaurantScene extends Phaser.Scene {
       const city = Number(params.get('city'));
       if (Number.isInteger(city) && city > 0 && !data.arrived) this.economy.city = city;
       if (params.has('vip')) this.vipCountdown = 1;
+      const parking = Number(params.get('parking'));
+      if (Number.isInteger(parking) && parking > 0) this.economy.parkingLevel = parking;
+      if (params.has('valet') && this.economy.parkingLevel > 0) this.economy.valet = true;
       const event = params.get('event') as EventKind | null;
       if (event === 'critic' || event === 'tourBus' || event === 'festival') {
         this.forcedEvent = event;
@@ -283,6 +289,8 @@ export class RestaurantScene extends Phaser.Scene {
       (id) => this.pressResearch(id),
       () => this.buySafe(),
       () => this.buyDelivery(),
+      () => this.buyParking(),
+      () => this.buyValet(),
       () => this.offerStaffHelp(),
     );
     this.panel.onTabChange = (tab) => {
@@ -1172,6 +1180,7 @@ export class RestaurantScene extends Phaser.Scene {
           ordersPerSecond: delivery.ordersPerSecond,
           incomePerSecond: income.delivery * boost,
         },
+        parking: { level: this.economy.parkingLevel, valet: this.economy.valet, carShare: arrivals(this.economy).carShare },
       },
       time,
       delta,
@@ -1252,6 +1261,35 @@ export class RestaurantScene extends Phaser.Scene {
         this.note(t('banner.milestone', { name: t('row.delivery'), bonus: MILESTONE_BONUS.section }));
       }
     }
+    this.refreshUi();
+  }
+
+  // Opening the lot and valet service are celebrated and the room scrolls to the lot.
+  private buyParking(): void {
+    const level = this.economy.parkingLevel;
+    const bought = buyParkingLevels(this.economy, this.panel.buyAmount);
+    if (bought === 0) return;
+    void this.saveGame();
+    this.panel.pulseParking();
+    if (level === 0) {
+      this.celebrate(t('banner.parkingOpen'), PALETTE.success);
+      if (!this.room.shows(PARKING_ANCHOR, 0)) this.room.panTo(PARKING_ANCHOR);
+    } else {
+      this.track('upgrades', bought);
+      this.celebratePurchase();
+      if (milestonesReached(this.economy.parkingLevel) > milestonesReached(level)) {
+        this.note(t('banner.milestone', { name: t('row.parking'), bonus: MILESTONE_BONUS.section }));
+      }
+    }
+    this.refreshUi();
+  }
+
+  private buyValet(): void {
+    if (!buyValet(this.economy)) return;
+    void this.saveGame();
+    this.panel.pulseValet();
+    this.celebrate(t('banner.valet'), PALETTE.success);
+    if (!this.room.shows(PARKING_ANCHOR, 0)) this.room.panTo(PARKING_ANCHOR);
     this.refreshUi();
   }
 

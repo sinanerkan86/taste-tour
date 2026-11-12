@@ -36,6 +36,7 @@ import {
 } from './layout';
 import { drawStreet } from './street';
 import { StreetLife } from './StreetLife';
+import { ParkingLot } from './ParkingLot';
 import { Person, createPlate } from './Person';
 import { drawRoom } from './room';
 import { ART_RES, addArt, paintTexture, roundRect, vGradient, type Ctx } from './paint';
@@ -90,6 +91,12 @@ export interface ViewState {
     courierRate: number;
     ordersPerSecond: number;
     incomePerSecond: number;
+  };
+  parking: {
+    level: number;
+    valet: boolean;
+    // Share of customers who come by car.
+    carShare: number;
   };
 }
 
@@ -267,6 +274,7 @@ export class RestaurantView {
   private readonly looks: SectionLooks;
   private flow: Flow | null = null;
   private readonly streetLife: StreetLife;
+  private readonly lot: ParkingLot;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -277,6 +285,12 @@ export class RestaurantView {
     const art = drawRoom(scene, theme);
     drawStreet(scene, theme.street);
     this.streetLife = new StreetLife(scene, theme.street);
+    this.lot = new ParkingLot(scene, theme.street, this.streetLife, {
+      addPerson: (person) => this.addPerson(person),
+      removePerson: (person) => this.removePerson(person),
+      onArrived: (person) => void this.runCustomer(person),
+    });
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.lot.destroy());
     this.tables = art.tables;
     this.looks = new SectionLooks(scene, theme, art);
     this.seats = TABLES.flatMap((table, i) =>
@@ -307,6 +321,7 @@ export class RestaurantView {
     this.flow = computeFlow(state);
     this.syncStaff(this.flow);
     this.syncDelivery(this.flow, wasStarted);
+    this.lot.sync(state.parking.level, state.parking.valet, wasStarted);
     this.deliveryCredit = Math.min(this.deliveryCredit + (this.flow.deliveryRate * delta) / 1000, 1.5);
     this.applyLooks(state.levels, wasStarted);
     this.syncSeats(this.flow.seatsOpen);
@@ -499,6 +514,15 @@ export class RestaurantView {
     if (this.spawnTimer < interval) return;
     // Never bank more than one extra arrival (e.g. after the tab was hidden).
     this.spawnTimer = Math.min(this.spawnTimer - interval, interval);
+    // Drivers come in groups: a car brings a few customers at once, which counts for the next
+    // arrivals too.
+    const carShare = this.state?.parking.carShare ?? 0;
+    if (carShare > 0 && Math.random() < carShare && this.lot.canTakeCar()) {
+      const passengers = Phaser.Math.Between(1, 3);
+      this.spawnTimer -= (passengers - 1) * interval;
+      void this.lot.bringCar(passengers);
+      return;
+    }
     void this.runCustomer();
   }
 
@@ -529,8 +553,9 @@ export class RestaurantView {
     this.removePerson(person);
   }
 
-  private async runCustomer(): Promise<void> {
-    const person = this.addPerson(this.newPasserBy('customer'));
+  // person: someone already on the pavement (a driver who crossed from the lot).
+  private async runCustomer(arrived?: Person): Promise<void> {
+    const person = arrived ?? this.addPerson(this.newPasserBy('customer'));
     // Walk along the pavement to where the line ends (or to the door), then decide.
     const tail = this.doorQueue.length === 0 ? DOOR_OUT : QUEUE_SPOTS[Math.min(this.doorQueue.length, QUEUE_SPOTS.length - 1)];
     await person.walkTo({ x: tail.x + (person.x < tail.x ? -20 : 20), y: person.y });

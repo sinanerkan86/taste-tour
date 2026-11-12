@@ -3,7 +3,7 @@ import { CELL, PEOPLE_TEXTURE, ensurePeopleAtlas, type Part } from './characterA
 import { depthScale, type Point } from './layout';
 import { ART_RES, type Ctx, addArt, ellipse, paintTexture, radial } from './paint';
 
-export type PersonKind = 'customer' | 'waiter' | 'chef' | 'cashier' | 'dishwasher' | 'vip' | 'critic' | 'tourist' | 'courier';
+export type PersonKind = 'customer' | 'waiter' | 'chef' | 'cashier' | 'dishwasher' | 'vip' | 'critic' | 'tourist' | 'courier' | 'valet';
 
 const SKIN_TONES = [0xffdcbf, 0xf3c29b, 0xd9a27a, 0xb07a52, 0x82573a];
 const SHIRT_COLORS = [0xe0503f, 0x2f88a8, 0x5fae4a, 0xf5a623, 0x9466c0, 0x45b0d6, 0xec7aa6, 0x7d8a93];
@@ -33,6 +33,7 @@ const STAFF_SHIRTS: Record<Exclude<PersonKind, 'customer'>, number> = {
   critic: 0x2a2a36,
   tourist: 0x45b0d6,
   courier: 0x2a9d8f,
+  valet: 0xffffff,
 };
 const STAFF_PANTS = 0x2b2b3a;
 const CHEF_PANTS = 0x6f7b84;
@@ -53,6 +54,8 @@ const SERVICE_LOOKS = (simpleShirt: number): Look[] => [
   { shirt: 0xffffff, sleeves: 0x2a2a36, body: ['tailcoat', 'bowTie'], head: [] },
 ];
 const STAFF_LOOKS: Partial<Record<PersonKind, Look[]>> = {
+  // Valets wear a burgundy jacket with a bow tie and a cap.
+  valet: [{ shirt: 0xffffff, sleeves: 0x7a2230, body: ['tailcoat', 'bowTie'], head: ['cap'] }],
   waiter: SERVICE_LOOKS(0x6fb3cf),
   cashier: SERVICE_LOOKS(0xf0c987),
   chef: [

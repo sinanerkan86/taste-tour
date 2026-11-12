@@ -499,3 +499,172 @@ function paintScooter(ctx: Ctx, body: number): void {
   ctx.closePath();
   ctx.fill();
 }
+
+// --- Front view ------------------------------------------------------------------------------
+
+// Cars parked in the lot face the viewer. Width, height and window line per shape.
+const FRONTS: Record<'sedan' | 'hatch' | 'van' | 'minibus' | 'bug' | 'kei', { width: number; height: number; belt: number; roof: number }> = {
+  sedan: { width: 176, height: 124, belt: 66, roof: 0.62 },
+  hatch: { width: 166, height: 128, belt: 66, roof: 0.66 },
+  van: { width: 186, height: 156, belt: 78, roof: 0.84 },
+  minibus: { width: 196, height: 168, belt: 82, roof: 0.88 },
+  bug: { width: 156, height: 120, belt: 58, roof: 0.56 },
+  kei: { width: 150, height: 136, belt: 64, roof: 0.82 },
+};
+const FRONT_PAD = 16;
+
+export interface FrontArt {
+  key: string;
+  width: number;
+  height: number;
+}
+
+// Shapes that come as front views (private cars; tuk-tuks and scooters do not park in the lot).
+export function hasFrontView(shape: VehicleShape): shape is keyof typeof FRONTS {
+  return shape in FRONTS;
+}
+
+// Texture origin: the ground under the middle of the car (width / 2, height - FRONT_PAD / 2).
+export function vehicleFrontArt(scene: Phaser.Scene, shape: keyof typeof FRONTS, body: number): FrontArt {
+  const f = FRONTS[shape];
+  const width = f.width + FRONT_PAD * 2;
+  const height = f.height + FRONT_PAD + 8;
+  const key = `vehicle-front-${shape}-${body.toString(16)}`;
+  paintTexture(scene, key, width, height, (ctx) => paintFront(ctx, shape, f, body, width, height));
+  return { key, width, height };
+}
+
+function paintFront(ctx: Ctx, shape: string, f: { width: number; height: number; belt: number; roof: number }, body: number, width: number, height: number): void {
+  ctx.translate(width / 2, height - FRONT_PAD / 2);
+  const half = f.width / 2;
+  shadowUnder(ctx, half + 14);
+  // Tyres peek out under the body.
+  ctx.fillStyle = '#141416';
+  [-1, 1].forEach((side) => {
+    roundRect(ctx, side * (half - 20) - 14, -30, 28, 30, 6);
+    ctx.fill();
+  });
+
+  // Cabin: a trapezoid from the window line up to the roof, with the windscreen inside.
+  const roofHalf = half * f.roof;
+  const baseHalf = half - 10;
+  const top = -f.height;
+  const belt = -f.belt;
+  ctx.fillStyle = vGradient(ctx, top, belt, [
+    [0, css(body, 0.25)],
+    [1, css(body, -0.05)],
+  ]);
+  ctx.beginPath();
+  ctx.moveTo(-baseHalf, belt);
+  ctx.quadraticCurveTo(-roofHalf - 4, top + 6, -roofHalf + 10, top);
+  ctx.lineTo(roofHalf - 10, top);
+  ctx.quadraticCurveTo(roofHalf + 4, top + 6, baseHalf, belt);
+  ctx.closePath();
+  ctx.fill();
+  const inset = 8;
+  ctx.beginPath();
+  ctx.moveTo(-baseHalf + inset + 4, belt - 3);
+  ctx.lineTo(-roofHalf + inset + 4, top + inset);
+  ctx.lineTo(roofHalf - inset - 4, top + inset);
+  ctx.lineTo(baseHalf - inset - 4, belt - 3);
+  ctx.closePath();
+  ctx.fillStyle = vGradient(ctx, top + inset, belt, [
+    [0, '#a9c1d2'],
+    [0.55, '#5a7690'],
+    [1, '#33485c'],
+  ]);
+  ctx.fill();
+  ctx.save();
+  ctx.clip();
+  // The driver and the passenger seat behind the glass.
+  ctx.fillStyle = 'rgba(25,30,40,0.5)';
+  ellipse(ctx, -roofHalf * 0.45, belt - 22, 11, 12);
+  ctx.fill();
+  ctx.fillRect(-roofHalf * 0.45 - 16, belt - 12, 32, 12);
+  ctx.fillStyle = 'rgba(25,30,40,0.25)';
+  roundRect(ctx, roofHalf * 0.2, belt - 26, 26, 26, 6);
+  ctx.fill();
+  // Sky reflection across the windscreen.
+  ctx.fillStyle = 'rgba(255,255,255,0.26)';
+  ctx.beginPath();
+  ctx.moveTo(-roofHalf, top);
+  ctx.lineTo(-roofHalf + 40, top);
+  ctx.lineTo(-roofHalf + 4, belt);
+  ctx.lineTo(-roofHalf - 36, belt);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+  // Roof edge seen from a little above.
+  ctx.fillStyle = vGradient(ctx, top - 6, top + 3, [
+    [0, css(body, 0.4)],
+    [1, css(body, 0.1)],
+  ]);
+  roundRect(ctx, -roofHalf + 6, top - 5, roofHalf * 2 - 12, 9, 4);
+  ctx.fill();
+
+  // Mirrors.
+  ctx.fillStyle = css(body, -0.15);
+  [-1, 1].forEach((side) => {
+    roundRect(ctx, side * (half + 2) - 9, belt - 10, 18, 12, 4);
+    ctx.fill();
+  });
+
+  // Lower body: the bonnet seen from the front, lighter on top.
+  const sill = 12;
+  ctx.fillStyle = vGradient(ctx, belt - 6, -sill, [
+    [0, css(body, 0.35)],
+    [0.22, css(body, 0.08)],
+    [0.75, css(body, -0.08)],
+    [1, css(body, -0.35)],
+  ]);
+  roundRect(ctx, -half, belt - 6, f.width, -sill - belt + 6, [22, 22, 12, 12]);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  roundRect(ctx, -half + 18, belt - 2, f.width - 36, 3, 1.5);
+  ctx.fill();
+  // Headlights.
+  const lightY = belt + 16;
+  [-1, 1].forEach((side) => {
+    const x = side * (half - 26);
+    ctx.fillStyle = 'rgba(20,20,20,0.35)';
+    ellipse(ctx, x, lightY, 17, 11);
+    ctx.fill();
+    ctx.fillStyle = radial(ctx, x - side * 3, lightY - 2, 1, 15, [
+      [0, '#ffffff'],
+      [0.6, '#fff1c2'],
+      [1, '#d8c48a'],
+    ]);
+    ellipse(ctx, x, lightY, shape === 'bug' ? 13 : 15, shape === 'bug' ? 13 : 9);
+    ctx.fill();
+  });
+  // Grille (the beetle has none, only small vents).
+  if (shape === 'bug') {
+    ctx.fillStyle = 'rgba(30,30,30,0.45)';
+    [-1, 1].forEach((side) => {
+      roundRect(ctx, side * 16 - 8, belt + 30, 16, 6, 3);
+      ctx.fill();
+    });
+  } else {
+    const gw = f.width * 0.4;
+    ctx.fillStyle = vGradient(ctx, lightY - 9, lightY + 11, [
+      [0, '#3a3d42'],
+      [1, '#16171a'],
+    ]);
+    roundRect(ctx, -gw / 2, lightY - 9, gw, 20, 6);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    for (let y = lightY - 5; y < lightY + 9; y += 5) ctx.fillRect(-gw / 2 + 6, y, gw - 12, 1.5);
+  }
+  // Bumper and number plate.
+  ctx.fillStyle = vGradient(ctx, -sill - 16, -sill + 2, [
+    [0, '#62666b'],
+    [1, '#2a2c2f'],
+  ]);
+  roundRect(ctx, -half + 4, -sill - 16, f.width - 8, 18, 7);
+  ctx.fill();
+  ctx.fillStyle = '#f4f2ea';
+  roundRect(ctx, -24, -sill - 13, 48, 13, 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(30,30,40,0.7)';
+  for (let i = 0; i < 5; i++) ctx.fillRect(-18 + i * 8, -sill - 9, 5, 5);
+}

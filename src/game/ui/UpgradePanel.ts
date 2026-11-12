@@ -6,6 +6,11 @@ import {
   MILESTONE_BONUS,
   RESEARCH_IDS,
   SAFE,
+  VALET,
+  arrivals,
+  canBuyValet,
+  parkingBuyPlan,
+  valetCost,
   deliveryBuyPlan,
   deliveryFlow,
   offlineCapSeconds,
@@ -41,7 +46,7 @@ import { FONT, GAME_WIDTH, LAYOUT, PALETTE, toCss } from '../config';
 import { adIcon } from '../ads/AdService';
 import { DISH_COLORS, SECTION_COLORS } from '../colors';
 import { BUTTON_STYLES, Button } from './Button';
-import { deliveryIcon, dishIcon, lockIcon, progressIcon, sectionIcon } from './icons';
+import { deliveryIcon, dishIcon, lockIcon, parkingIcon, progressIcon, sectionIcon, valetIcon } from './icons';
 import { ART_RES, paintTexture, roundRect, vGradient } from '../view/paint';
 import { card, outlined } from './style';
 import { saveSettings, settings } from '../settings';
@@ -55,7 +60,8 @@ const BUTTON_WIDTH = 270;
 const AMOUNT_WIDTH = 150;
 const PROGRESS_BAR = { width: 360, height: 18 };
 
-export type Tab = 'restaurant' | 'menu' | 'lab';
+export type Tab = 'restaurant' | 'menu' | 'lab' | 'expand';
+const TABS: Tab[] = ['restaurant', 'menu', 'lab', 'expand'];
 
 const ROW_CARDS = {
   normal: { top: 0xffffff, bottom: 0xfff0d6, border: 0xe6c49a, radius: 24 },
@@ -314,6 +320,13 @@ function milestoneText(level: number, bonus: number): string {
   return next === null ? '' : `  ·  ${t('row.nextMilestone', { bonus, level: next })}`;
 }
 
+// The entrance's rate counts the drivers too, so its row says how many of them came by car.
+function sectionDetail(state: EconomyState, id: SectionId, rate: number): string {
+  const parking = id === 'entrance' ? arrivals(state).parking : 0;
+  if (parking <= 0) return t('row.sectionRate', { rate: formatNumber(rate, 2) });
+  return t('row.entranceRate', { rate: formatNumber(rate, 2), cars: formatNumber(parking, 2) });
+}
+
 export class UpgradePanel extends Phaser.GameObjects.Container {
   private tab: Tab = 'restaurant';
   onTabChange: ((tab: Tab) => void) | null = null;
@@ -323,6 +336,8 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
   private readonly sectionRows: UpgradeRow[];
   private readonly safeRow: UpgradeRow;
   private readonly deliveryRow: UpgradeRow;
+  private readonly parkingRow: UpgradeRow;
+  private readonly valetRow: UpgradeRow;
   private readonly dishRows: UpgradeRow[];
   private readonly labRows: LabRow[];
   private readonly labInfo: Phaser.GameObjects.Text;
@@ -337,6 +352,8 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     onResearch: (id: ResearchId) => void,
     onBuySafe: () => void,
     onBuyDelivery: () => void,
+    onBuyParking: () => void,
+    onBuyValet: () => void,
     // The staff help ad on the bottleneck section's row.
     onStaffHelp: () => void,
   ) {
@@ -345,19 +362,18 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     const bg = scene.add.image(0, -8, paintPanelBackground(scene)).setOrigin(0).setScale(1 / ART_RES);
     this.add(bg);
 
-    // Three tabs, then a button that cycles how many levels a buy tap gets.
+    // Four tabs, then a button that cycles how many levels a buy tap gets.
     const gap = MARGIN / 2;
-    const tabWidth = (GAME_WIDTH - MARGIN * 3 - gap * 2 - AMOUNT_WIDTH) / 3;
+    const tabWidth = (GAME_WIDTH - MARGIN * 3 - gap * (TABS.length - 1) - AMOUNT_WIDTH) / TABS.length;
     const tabY = 20 + TAB_HEIGHT / 2;
     const tabX = (i: number) => MARGIN + tabWidth / 2 + i * (tabWidth + gap);
     this.tabButtons = {
       restaurant: new Button(scene, tabX(0), tabY, tabWidth, TAB_HEIGHT, () => this.showTab('restaurant')),
       menu: new Button(scene, tabX(1), tabY, tabWidth, TAB_HEIGHT, () => this.showTab('menu')),
       lab: new Button(scene, tabX(2), tabY, tabWidth, TAB_HEIGHT, () => this.showTab('lab')),
+      expand: new Button(scene, tabX(3), tabY, tabWidth, TAB_HEIGHT, () => this.showTab('expand')),
     };
-    this.tabButtons.restaurant.setLabel(t('tab.restaurant'));
-    this.tabButtons.menu.setLabel(t('tab.menu'));
-    this.tabButtons.lab.setLabel(t('tab.lab'));
+    for (const tab of TABS) this.tabButtons[tab].setLabel(t(`tab.${tab}`));
     this.amountButton = new Button(scene, GAME_WIDTH - MARGIN - AMOUNT_WIDTH / 2, tabY, AMOUNT_WIDTH, TAB_HEIGHT, () => this.cycleAmount());
     this.amountButton.setButtonStyle(BUTTON_STYLES.toggle);
     this.showAmount();
@@ -366,7 +382,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     const mark = scene.add.text(0, -2, '!', outlined(30)).setOrigin(0.5);
     this.labBadge = scene.add.container(tabX(2) + tabWidth / 2 - 14, tabY - TAB_HEIGHT / 2 + 8, [dot, mark]).setVisible(false);
     scene.tweens.add({ targets: this.labBadge, scale: 1.18, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-    this.add([this.tabButtons.restaurant, this.tabButtons.menu, this.tabButtons.lab, this.amountButton, this.labBadge]);
+    this.add([...TABS.map((tab) => this.tabButtons[tab]), this.amountButton, this.labBadge]);
 
     const rowY = (i: number) => 20 + TAB_HEIGHT + 18 + ROW_HEIGHT / 2 + i * (ROW_HEIGHT + ROW_GAP);
     this.sectionRows = SECTION_IDS.map(
@@ -374,6 +390,8 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     );
     this.deliveryRow = new UpgradeRow(scene, rowY(SECTION_IDS.length), onBuyDelivery);
     this.safeRow = new UpgradeRow(scene, rowY(SECTION_IDS.length + 1), onBuySafe);
+    this.parkingRow = new UpgradeRow(scene, rowY(0), onBuyParking);
+    this.valetRow = new UpgradeRow(scene, rowY(1), onBuyValet);
     this.dishRows = DISH_TIERS.map((_, i) => new UpgradeRow(scene, rowY(i), () => onBuyDish(i)));
     this.labRows = RESEARCH_IDS.map((id, i) => new LabRow(scene, rowY(i), id, () => onResearch(id)));
     this.labInfo = scene.add
@@ -385,7 +403,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
         lineSpacing: 6,
       })
       .setOrigin(0.5);
-    this.add([...this.sectionRows, this.deliveryRow, this.safeRow, ...this.dishRows, ...this.labRows, this.labInfo]);
+    this.add([...this.sectionRows, this.deliveryRow, this.safeRow, this.parkingRow, this.valetRow, ...this.dishRows, ...this.labRows, this.labInfo]);
 
     this.showTab('restaurant');
     scene.add.existing(this);
@@ -426,6 +444,14 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     this.deliveryRow.pulse();
   }
 
+  pulseParking(): void {
+    this.parkingRow.pulse();
+  }
+
+  pulseValet(): void {
+    this.valetRow.pulse();
+  }
+
   pulseSafe(): void {
     this.safeRow.pulse();
   }
@@ -452,8 +478,10 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     this.dishRows.forEach((row) => row.setVisible(tab === 'menu'));
     this.labRows.forEach((row) => row.setVisible(tab === 'lab'));
     this.labInfo.setVisible(tab === 'lab');
+    this.parkingRow.setVisible(tab === 'expand');
+    this.valetRow.setVisible(tab === 'expand');
     this.amountButton.setVisible(tab !== 'lab');
-    for (const id of ['restaurant', 'menu', 'lab'] as Tab[]) {
+    for (const id of TABS) {
       this.tabButtons[id].setButtonStyle(tab === id ? BUTTON_STYLES.primary : BUTTON_STYLES.disabled);
     }
     this.onTabChange?.(tab);
@@ -466,6 +494,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     this.labBadge.setVisible(labNeedsAttention(state));
     if (this.tab === 'restaurant') this.refreshSections(state);
     else if (this.tab === 'menu') this.refreshDishes(state);
+    else if (this.tab === 'expand') this.refreshExpand(state);
     else this.refreshLab(state);
   }
 
@@ -519,7 +548,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
       this.sectionRows[i].render({
         title: t(`section.${id}` as TranslationKey),
         level: levelText(level, levels),
-        detail: t('row.sectionRate', { rate: formatNumber(rates[id], 2) }) + milestoneText(level, MILESTONE_BONUS.section),
+        detail: sectionDetail(state, id, rates[id]) + milestoneText(level, MILESTONE_BONUS.section),
         buttonLabel: formatNumber(cost),
         buttonIcon: true,
         affordable: state.money >= cost,
@@ -573,6 +602,49 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
       icon: deliveryIcon(this.scene),
       locked: false,
       tag: kitchenFull ? { text: t('row.kitchenFull'), color: 0xd9822b } : null,
+    });
+  }
+
+  // Ways in: the parking lot (one tap opens it, then levels follow the buy amount) and valet
+  // service (bought once, offered when the lot is big enough).
+  private refreshExpand(state: EconomyState): void {
+    const { levels, cost } = parkingBuyPlan(state, settings.buyAmount);
+    const level = state.parkingLevel;
+    const a = arrivals(state);
+    this.parkingRow.render({
+      title: t('row.parking'),
+      level: level > 0 ? levelText(level, levels) : '',
+      detail:
+        level === 0
+          ? t('row.parkingClosed')
+          : t('row.parkingRate', { rate: formatNumber(a.parking, 2), bonus: Math.round((a.billMultiplier - 1) * 100) }) +
+            milestoneText(level, MILESTONE_BONUS.section),
+      buttonLabel: formatNumber(cost),
+      buttonIcon: true,
+      affordable: state.money >= cost,
+      buyable: true,
+      highlight: false,
+      icon: parkingIcon(this.scene),
+      locked: false,
+    });
+    const rate = Math.round((VALET.rateMultiplier - 1) * 100);
+    const valetPrice = valetCost(state);
+    const open = canBuyValet(state);
+    this.valetRow.render({
+      title: t('row.valet'),
+      level: '',
+      detail: state.valet
+        ? t('row.valetOwned', { rate })
+        : open
+          ? t('row.valetOffer', { rate })
+          : t('row.valetLocked', { level: VALET.minParkingLevel }),
+      buttonLabel: state.valet ? t('row.owned') : formatNumber(valetPrice),
+      buttonIcon: !state.valet,
+      affordable: open && state.money >= valetPrice,
+      buyable: open,
+      highlight: false,
+      icon: valetIcon(this.scene),
+      locked: !state.valet && !open,
     });
   }
 

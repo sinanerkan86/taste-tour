@@ -149,6 +149,28 @@ export const BUS_STOP = {
   billFraction: 0.6,
 };
 
+// The restaurant's day while the game is open (GDD 6g): morning, a lunch rush, afternoon, a dinner
+// rush, night. Phases are fractions of the day (each ends at `end`); the rushes and the night change
+// only how many customers arrive at the entrance, so they matter most when the entrance is what
+// holds the restaurant back and otherwise make the busiest section show (queues, waits). The day
+// does not run offline.
+export type DayPhaseId = 'morning' | 'lunch' | 'afternoon' | 'dinner' | 'night';
+export const DAY = {
+  lengthSeconds: 600,
+  phases: [
+    { id: 'morning', end: 0.18 },
+    { id: 'lunch', end: 0.34 },
+    { id: 'afternoon', end: 0.58 },
+    { id: 'dinner', end: 0.78 },
+    { id: 'night', end: 1 },
+  ] as { id: DayPhaseId; end: number }[],
+  // Arrivals at the entrance (walk-ins and drivers) are multiplied by this in a rush and at night.
+  rushArrivals: 2.5,
+  nightArrivals: 0.9,
+  // A new phase's factor is reached over this fraction of the day, so rates never jump.
+  rampFraction: 0.02,
+};
+
 // Unlock costs are calibrated so each new dish arrives as growth from the previous one stalls.
 export const DISH_TIERS: DishTier[] = [
   { basePrice: 2, unlockCost: 0, baseUpgradeCost: 15, costGrowth: 1.25 },

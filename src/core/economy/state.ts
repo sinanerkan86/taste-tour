@@ -49,6 +49,8 @@ export interface EconomyState {
   roofBar: boolean;
   // Bus stop level (0 = no stop yet); starts over with a franchise.
   busStopLevel: number;
+  // Seconds into the restaurant's day (see day.ts); it only runs while the game is open and survives franchises.
+  dayTime: number;
 }
 
 export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomyState {
@@ -79,6 +81,7 @@ export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomySt
     terraceLevel: 0,
     roofBar: false,
     busStopLevel: 0,
+    dayTime: 0,
   };
 }
 
@@ -96,12 +99,13 @@ export function dishPrice(state: EconomyState, index: number): number {
 }
 
 // Customers per second each section can handle.
-export function sectionRates(state: EconomyState): Record<SectionId, number> {
+// `entranceFactor` scales the entrance's arrivals (the time of day, see day.ts); 1 is the plain rate.
+export function sectionRates(state: EconomyState, entranceFactor = 1): Record<SectionId, number> {
   const rates = {} as Record<SectionId, number>;
   for (const id of SECTION_IDS) {
     rates[id] = scaledValue(SECTIONS[id].baseRate, state.sectionLevels[id], MILESTONE_BONUS.section) * sectionRateMultiplier(state, id);
   }
-  rates.entrance += parkingRate(state);
+  rates.entrance = (rates.entrance + parkingRate(state)) * entranceFactor;
   rates.seating += terraceRate(state);
   return rates;
 }
@@ -169,8 +173,8 @@ export function softFlow(rates: Record<SectionId, number>): number {
 }
 
 // The flow of customers per second, and the busiest section (the weakest one: highest load).
-export function throughput(state: EconomyState): Throughput {
-  const rates = sectionRates(state);
+export function throughput(state: EconomyState, entranceFactor = 1): Throughput {
+  const rates = sectionRates(state, entranceFactor);
   let bottleneck: SectionId = SECTION_IDS[0];
   for (const id of SECTION_IDS) {
     if (rates[id] < rates[bottleneck]) bottleneck = id;
@@ -180,8 +184,8 @@ export function throughput(state: EconomyState): Throughput {
 
 // Per section: flow / rate. Above 1 the section is under pressure (the weakest ones), below 1 it has
 // spare capacity.
-export function sectionLoad(state: EconomyState): Record<SectionId, number> {
-  const rates = sectionRates(state);
+export function sectionLoad(state: EconomyState, entranceFactor = 1): Record<SectionId, number> {
+  const rates = sectionRates(state, entranceFactor);
   const flow = softFlow(rates);
   const load = {} as Record<SectionId, number>;
   for (const id of SECTION_IDS) load[id] = rates[id] > 0 ? flow / rates[id] : Infinity;
@@ -197,8 +201,8 @@ export interface Specialty {
 }
 
 // What each section's spare capacity earns: weight * log2(surplus), capped, zero without a surplus.
-export function specialties(state: EconomyState): Record<SectionId, Specialty> {
-  const rates = sectionRates(state);
+export function specialties(state: EconomyState, entranceFactor = 1): Record<SectionId, Specialty> {
+  const rates = sectionRates(state, entranceFactor);
   const flow = softFlow(rates);
   const result = {} as Record<SectionId, Specialty>;
   for (const id of SECTION_IDS) {
@@ -211,8 +215,8 @@ export function specialties(state: EconomyState): Record<SectionId, Specialty> {
 }
 
 // Income multiplier of the dine-in line from all specialties together.
-export function specialtyMultiplier(state: EconomyState): number {
-  const all = specialties(state);
+export function specialtyMultiplier(state: EconomyState, entranceFactor = 1): number {
+  const all = specialties(state, entranceFactor);
   let multiplier = 1;
   for (const id of SECTION_IDS) multiplier *= 1 + all[id].bonus;
   return multiplier;
@@ -244,9 +248,9 @@ export interface DeliveryFlow {
 }
 
 // The kitchen cooks for dine-in customers first; delivery gets what it has left.
-export function deliveryFlow(state: EconomyState): DeliveryFlow {
+export function deliveryFlow(state: EconomyState, entranceFactor = 1): DeliveryFlow {
   const couriers = courierRate(state);
-  const kitchenSpare = Math.max(0, sectionRates(state).kitchen - throughput(state).customersPerSecond);
+  const kitchenSpare = Math.max(0, sectionRates(state, entranceFactor).kitchen - throughput(state, entranceFactor).customersPerSecond);
   return {
     ordersPerSecond: Math.min(couriers, kitchenSpare),
     courierRate: couriers,
@@ -256,12 +260,12 @@ export function deliveryFlow(state: EconomyState): DeliveryFlow {
 }
 
 // Income without the timed boosts, split into the dining room and delivery.
-export function incomeBreakdown(state: EconomyState): { dineIn: number; delivery: number } {
+export function incomeBreakdown(state: EconomyState, entranceFactor = 1): { dineIn: number; delivery: number } {
   const perBill = billPerCustomer(state) * incomeMultiplier(state);
-  const quality = 1 + specialties(state).kitchen.bonus;
+  const quality = 1 + specialties(state, entranceFactor).kitchen.bonus;
   return {
-    dineIn: throughput(state).customersPerSecond * perBill * arrivals(state).billMultiplier * seatingSplit(state).billMultiplier * specialtyMultiplier(state),
-    delivery: deliveryFlow(state).ordersPerSecond * DELIVERY.billFraction * perBill * quality,
+    dineIn: throughput(state, entranceFactor).customersPerSecond * perBill * arrivals(state).billMultiplier * seatingSplit(state).billMultiplier * specialtyMultiplier(state, entranceFactor),
+    delivery: deliveryFlow(state, entranceFactor).ordersPerSecond * DELIVERY.billFraction * perBill * quality,
   };
 }
 

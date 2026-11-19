@@ -46,6 +46,8 @@ import type { CityTheme } from './themes';
 const LANDMARK_SCALE = 2.5;
 const LANDMARK_X = 640;
 const FADE_MS = 700;
+// Above the day's dark layers (DayLight).
+const GLOW_DEPTH = 6100;
 
 export interface TerraceHooks {
   addPerson: (person: Person) => Person;
@@ -66,6 +68,9 @@ export class Terrace {
   private readonly open: Phaser.GameObjects.Image[] = [];
   private readonly stairDoor: Phaser.GameObjects.Image;
   private readonly glow: Phaser.GameObjects.Image;
+  // How much the string lights shine (0 by day) and their slow pulse.
+  private night = 0;
+  private readonly pulse = { value: 1 };
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -104,8 +109,21 @@ export class Terrace {
       addArt(scene, 0, ROOF.deckBottom - RAIL.h, glassRailTexture(scene), 0, 0).setDepth(ROOF.deckBottom),
       addArt(scene, 0, LIGHTS.top, stringLightsTexture(scene, false), 0, 0).setDepth(-100),
     );
-    this.glow = addArt(scene, 0, LIGHTS.top, stringLightsTexture(scene, true), 0, 0).setDepth(-99).setVisible(false);
-    scene.tweens.add({ targets: this.glow, alpha: { from: 0.7, to: 1 }, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    // The bulbs glow after dusk, above the dark layers of the day (see DayLight).
+    this.glow = addArt(scene, 0, LIGHTS.top, stringLightsTexture(scene, true), 0, 0)
+      .setDepth(GLOW_DEPTH)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setAlpha(0)
+      .setVisible(false);
+    scene.tweens.add({
+      targets: this.pulse,
+      value: { from: 0.7, to: 1 },
+      duration: 1400,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+      onUpdate: () => this.applyGlow(),
+    });
     const planter = terracePlanterTexture(scene, theme);
     TERRACE_PLANTERS.forEach((p) => {
       this.open.push(addArt(scene, p.x, p.y, planter, 60, 100).setDepth(p.y).setScale(depthScale(p.y) / ART_RES));
@@ -125,6 +143,16 @@ export class Terrace {
 
   private get seatObjects(): Phaser.GameObjects.Image[] {
     return [...this.seats.chairs, ...this.seats.tables, ...this.seats.parasols];
+  }
+
+  // The string lights shine with the lamps of the night (0 to 1).
+  setNight(level: number): void {
+    this.night = level;
+    this.applyGlow();
+  }
+
+  private applyGlow(): void {
+    this.glow.setAlpha(this.night * this.pulse.value);
   }
 
   // Shows what the terrace level and the roof bar change. animate: just bought.

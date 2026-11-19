@@ -50,6 +50,8 @@ export class StreetLife {
   // People waiting at the curb for the cars to stop, and people on the zebra.
   private readonly waiting: (() => void)[] = [];
   private crossers = 0;
+  // How busy the street is (1 normal, more in a rush): vehicles and passers-by come that much more often.
+  busyness = 1;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -69,8 +71,9 @@ export class StreetLife {
 
   update(time: number, delta: number): void {
     const dt = Math.min(delta / 1000, 0.1);
+    const pace = dt * this.busyness;
     LANE_SPEEDS.forEach((_, lane) => {
-      this.laneTimers[lane] -= dt;
+      this.laneTimers[lane] -= pace;
       if (this.laneTimers[lane] > 0) return;
       // A blocked lane end waits for the next frame.
       if (!this.spawnVehicle(lane)) return;
@@ -78,7 +81,7 @@ export class StreetLife {
     });
     this.drive(dt);
     this.letPeopleCross();
-    this.walkerTimer -= dt;
+    this.walkerTimer -= pace;
     if (this.walkerTimer <= 0) {
       this.walkerTimer = Phaser.Math.FloatBetween(WALKER_GAP.min, WALKER_GAP.max);
       void this.spawnWalker();

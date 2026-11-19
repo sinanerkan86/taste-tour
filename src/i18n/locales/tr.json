@@ -378,5 +378,16 @@
   "row.roofBarOffer": "Teras misafirleri +%{rate}, daha da çok harcarlar",
   "row.roofBarOwned": "Barmen içki servis eder: teras misafirleri +%{rate}",
   "banner.terraceOpen": "Çatı terası açıldı! Misafirler manzara için yukarı çıkıyor",
-  "banner.roofBar": "Çatı barı! Manzaralı kokteyller"
+  "banner.roofBar": "Çatı barı! Manzaralı kokteyller",
+  "day.morning": "Sabah",
+  "day.lunch": "Öğle yoğunluğu",
+  "day.afternoon": "Öğleden sonra",
+  "day.dinner": "Akşam yoğunluğu",
+  "day.night": "Gece",
+  "day.nextLunch": "Öğle yoğunluğuna {time}",
+  "day.nextDinner": "Akşam yoğunluğuna {time}",
+  "day.endsIn": "{time} sonra biter",
+  "banner.lunchRush": "Öğle yoğunluğu! Misafirler akın ediyor",
+  "banner.dinnerRush": "Akşam yoğunluğu! Misafirler akın ediyor",
+  "hint.day": "Restoranın bir günü var: sabah, öğle yoğunluğu, öğleden sonra, akşam yoğunluğu ve gece. Yoğunlukta kapıya daha çok misafir gelir; en yoğun bölüm iyice belli olur (kuyruklar, beklemeler) ve restoran daha çok kazanır. Gece daha sakindir. Gün yalnızca oyun açıkken ilerler."
 }

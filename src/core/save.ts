@@ -13,6 +13,7 @@ import {
   RESEARCH_IDS,
   SECTION_IDS,
   cityCostScale,
+  dayLength,
   earningsOver,
   labSlotCount,
   offlineCapSeconds,
@@ -93,6 +94,8 @@ export function parseSave(json: string): SaveData | null {
     // Valet service needs a lot.
     valet: saved.valet === true && finiteOr(saved.parkingLevel, 0) >= 1,
     busStopLevel: Math.max(0, Math.floor(finiteOr(saved.busStopLevel, 0))),
+    // Where the restaurant's day stands (older saves start in the morning).
+    dayTime: Math.max(0, finiteOr(saved.dayTime, 0)) % dayLength(),
     terraceLevel: Math.max(0, Math.floor(finiteOr(saved.terraceLevel, 0))),
     // A roof bar needs a terrace.
     roofBar: saved.roofBar === true && finiteOr(saved.terraceLevel, 0) >= 1,

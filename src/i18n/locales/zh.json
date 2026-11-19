@@ -378,5 +378,16 @@
   "row.roofBarOffer": "露台顾客 +{rate}%，消费更多",
   "row.roofBarOwned": "调酒师为客人调酒：露台顾客 +{rate}%",
   "banner.terraceOpen": "屋顶露台开放了！客人上楼欣赏风景",
-  "banner.roofBar": "屋顶酒吧！在美景中小酌"
+  "banner.roofBar": "屋顶酒吧！在美景中小酌",
+  "day.morning": "早晨",
+  "day.lunch": "午餐高峰",
+  "day.afternoon": "下午",
+  "day.dinner": "晚餐高峰",
+  "day.night": "夜晚",
+  "day.nextLunch": "{time}后午餐高峰",
+  "day.nextDinner": "{time}后晚餐高峰",
+  "day.endsIn": "{time}后结束",
+  "banner.lunchRush": "午餐高峰！客人蜂拥而至",
+  "banner.dinnerRush": "晚餐高峰！客人蜂拥而至",
+  "hint.day": "餐厅有自己的一天：早晨、午餐高峰、下午、晚餐高峰和夜晚。高峰时更多客人涌向门口，最忙的区域会明显暴露出来（排队、等待），餐厅也赚得更多。夜晚比较安静。这一天只在游戏打开时才会前进。"
 }

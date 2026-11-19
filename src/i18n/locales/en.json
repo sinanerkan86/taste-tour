@@ -378,5 +378,16 @@
   "row.roofBarOffer": "Terrace guests +{rate}% and they spend more",
   "row.roofBarOwned": "A bartender serves drinks: terrace guests +{rate}%",
   "banner.terraceOpen": "The roof terrace is open! Guests climb up for the view",
-  "banner.roofBar": "Roof bar! Cocktails with a view"
+  "banner.roofBar": "Roof bar! Cocktails with a view",
+  "day.morning": "Morning",
+  "day.lunch": "Lunch rush",
+  "day.afternoon": "Afternoon",
+  "day.dinner": "Dinner rush",
+  "day.night": "Night",
+  "day.nextLunch": "Lunch rush in {time}",
+  "day.nextDinner": "Dinner rush in {time}",
+  "day.endsIn": "Ends in {time}",
+  "banner.lunchRush": "Lunch rush! Guests are pouring in",
+  "banner.dinnerRush": "Dinner rush! Guests are pouring in",
+  "hint.day": "The restaurant has a day: morning, a lunch rush, afternoon, a dinner rush and night. In a rush more guests arrive at the door, so the busiest section really shows (queues, waits) and the restaurant earns more. The night is quieter. The day only runs while the game is open."
 }

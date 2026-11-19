@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { styleTier, type SectionId } from '../../core/economy';
 import { SectionLooks } from './sectionLooks';
+import { DayLight } from './DayLight';
 import { DISH_COLORS } from '../colors';
 import { PALETTE } from '../config';
 import { ROOM_FX_DEPTH, sparkle } from '../fx';
@@ -93,6 +94,8 @@ export interface ViewState {
   levels: Record<SectionId, number>;
   customersPerSecond: number;
   incomePerSecond: number;
+  // How much faster customers show up at the door than the economy's steady flow (a rush, the night).
+  arrivalSurge: number;
   bottleneck: SectionId;
   // Indices of dishes on the menu.
   menu: number[];
@@ -251,7 +254,7 @@ function computeFlow(state: ViewState): Flow {
     rideSeconds,
     deliveryRate: Math.min(state.delivery.ordersPerSecond * scale, MAX_VISUAL_DELIVERY_RATE),
     visualRate,
-    arrivalRate: state.bottleneck === 'entrance' ? visualRate : Math.min(rate('entrance'), visualRate * ARRIVAL_SURPLUS),
+    arrivalRate: (state.bottleneck === 'entrance' ? visualRate : Math.min(rate('entrance'), visualRate * ARRIVAL_SURPLUS)) * state.arrivalSurge,
     seatsOpen,
     terraceSeatsOpen,
     cookSeconds,
@@ -308,6 +311,8 @@ export class RestaurantView {
   private readonly streetLife: StreetLife;
   private readonly lot: ParkingLot;
   private readonly busStop: BusStop;
+  private readonly daylight: DayLight;
+  private lamps = 0;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -331,6 +336,7 @@ export class RestaurantView {
       addPerson: (person) => this.addPerson(person),
       onRider: (person) => void this.runCustomer(person),
     });
+    this.daylight = new DayLight(scene, theme.wall);
     this.tables = art.tables;
     this.looks = new SectionLooks(scene, theme, art);
     this.seats = [
@@ -374,6 +380,23 @@ export class RestaurantView {
     this.animateSteam(time);
     this.people.forEach((p) => p.animate(time));
     this.streetLife.update(time, delta);
+    this.flickerLamps(time);
+  }
+
+  // The light of the day (fraction of the day 0 to 1): tints, lamps, sky. Cheap, so the scene calls it often.
+  setDay(fraction: number): void {
+    this.lamps = this.daylight.update(fraction).lamps;
+    this.terrace.setNight(this.lamps);
+  }
+
+  // The glows breathe a little (called every frame).
+  private flickerLamps(time: number): void {
+    this.daylight.flicker(time, this.lamps);
+  }
+
+  // How busy the street is: 1 normal, more in a rush (more passers-by and traffic).
+  setStreetBusyness(busyness: number): void {
+    this.streetLife.busyness = busyness;
   }
 
   // The next-bus board: seconds to go, or null while the bus is here.

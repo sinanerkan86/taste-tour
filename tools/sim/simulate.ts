@@ -31,6 +31,7 @@ import {
   incomeBreakdown,
   earn,
   activeIncomePerSecond,
+  dayAverageBonusPerSecond,
   busFlow,
   busIncomePerSecond,
   busStopCost,
@@ -301,8 +302,8 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
     };
   }
 
-  // The bot plays actively, so the buses count on average.
-  const income = (s: EconomyState) => activeIncomePerSecond(s) * options.incomeBoost;
+  // The bot plays actively, so the buses and the day's rushes and nights count on average.
+  const income = (s: EconomyState) => (activeIncomePerSecond(s) + dayAverageBonusPerSecond(s)) * options.incomeBoost;
 
   // Collects finished research and keeps every lab slot busy.
   function tendLab(): void {

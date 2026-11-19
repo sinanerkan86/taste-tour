@@ -257,6 +257,14 @@ Added 2026-11-07 (retention, third step) so a session has surprises and short go
 - **Tour bus (25 s):** five tourists with cameras gather by the door. Every tap pays a tip of 1 s of income times the combo; six quick taps raise the combo by one (up to x5), a pause over 1.2 s resets it. If the tips reach at least 20 s of income, the player may watch an ad to get them again (2x, placement `busDouble`).
 - **Food festival (3 min):** a random unlocked dish of the city sells at 3x its price; the extra income shows in the HUD.
 
+## 6g. The restaurant's day (lunch and dinner rush)
+
+Added 2026-11-20. While the game is open the restaurant lives through a short day of 600 s: morning (0-18%), **lunch rush** (18-34%), afternoon (34-58%), **dinner rush** (58-78%), night (78-100%). Numbers in `DAY` in config, logic in `src/core/economy/day.ts`, `dayTime` is saved (it survives sessions and franchises, does not advance offline).
+
+- **Economy:** a rush multiplies the entrance's arrivals (walk-ins and drivers) by 2.5, the night by 0.9, with 2% of the day of ramp between phases (`sectionRates(state, entranceFactor)` and everything built on it take the factor). With the soft bottleneck this raises the flow a little, lowers the entrance's relative load and raises its specialty, so a rush pays about +10-15% while it lasts and the night costs about -1-2%: about +3-5% on average while playing. The scene earns the difference live (`dayBonusPerSecond`); offline earnings and `baseIncomePerSecond` do not see the day. The sim adds the day's average (`dayAverageBonusPerSecond`); city times moved by under 7%.
+- **Scene:** the light follows the day (`DayLight.ts`): multiply layers tint the roof, room and street, the sky gets a sunset glow and at night a navy layer with stars, the room's window follows, and the street lamps, the name board's lamps, the open door, the terrace's string lights and the nearby buildings' windows glow after dusk. In a rush customers arrive faster on screen (half of the extra arrivals, so queues and waits show the busiest section), the street gets busier, and a calm banner announces it. A chip left of the goal card shows the phase and the time to the next rush; tapping it explains the day (first rush shows it once, `seenHints` id `day`).
+- **Dev:** `/?day=morning|lunch|afternoon|dinner|night`, `/?daylen=60`.
+
 ## 6f. Chef collection
 
 Added 2026-11-11 (long-term goal next to the Lab, and the first content tied to IAP). Every city of the tour has one famous chef (original characters, not real people). Chef cards go into one shared pool and the player chooses which chef to spend them on (changed on 2026-11-11 from cards tied to one chef, so the collection has a real choice): a chef the tour has reached joins for 1 card and then levels up for 2, 3, 5 and 8 cards (levels 2-5). Levels are permanent: they survive franchises like the Lab. The chefs button sits above the daily button in the bottom left corner of the room; a red "!" (and a hop) shows when a chef can be recruited or leveled up. The collection dialog shows the pool ("Chef cards: 9") and all ten chefs, each reached chef with a button naming the price of their next level (green when the pool covers it); the ones the tour has not reached yet are dark silhouettes with "Joins in <city>".
@@ -427,7 +435,7 @@ A bigger scene with a street in front of the restaurant, where customers visibly
 - *Valet:* bought once parking reaches some level. Cars are handed over at the door, so spaces turn over faster and car customers tip. A rewarded "valet shift" (more capacity for 15 minutes) is a possible ad placement.
 - *Bus timetable:* a sign at the stop counts down to the next bus (every 3-5 minutes), which gives the player a reason to get seats ready. Upgrades: more frequent buses, group tables.
 - *Tour bus event:* the existing event (section 6e) can arrive on the real street instead of appearing at the door.
-- *Lunch and dinner waves:* a timed wave of walkers and cars, which also covers the planned "rush hour" event.
+- *Lunch and dinner waves:* built, see section 6g.
 - *Delivery:* the couriers of section 3b already walk out on the right; with a street they could leave on mopeds.
 
 **How it fits the economy.** Income is `min(section rates) × bill` and offline earnings depend on that being a steady rate, so:

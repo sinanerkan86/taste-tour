@@ -6,8 +6,15 @@ import {
   EVENTS,
   MILESTONE_BONUS,
   activateRush,
+  advanceDay,
   advanceTime,
   baseIncomePerSecond,
+  dayArrivalMultiplier,
+  dayBonusPerSecond,
+  dayInfo,
+  isRushPhase,
+  setDayLength,
+  setDayPhase,
   boostMultiplier,
   busCombo,
   buyDishLevels,
@@ -83,6 +90,7 @@ import {
   levelUpChef,
   reviewDuration,
   type ChefId,
+  type DayPhaseId,
   type EconomyState,
   type EventKind,
   type ProductId,
@@ -108,6 +116,7 @@ import { saves } from '../persistence';
 import { AdOfferModal } from '../ui/AdOfferModal';
 import { BUTTON_STYLES, Button } from '../ui/Button';
 import { DailyModal, taskLabel } from '../ui/DailyModal';
+import { DayChip } from '../ui/DayChip';
 import { EventBar, type EventView } from '../ui/EventBar';
 import { FranchiseModal } from '../ui/FranchiseModal';
 import { PerkModal, PerksModal } from '../ui/PerkModal';
@@ -165,6 +174,13 @@ const BOTTLENECK_HINT = 'bottleneck';
 const HINT_OFFSET_Y = 85;
 const FRANCHISE_FADE_MS = 600;
 const LAB_HINT = 'lab';
+const DAY_HINT = 'day';
+// The day's chip sits left of the goal card, on the same row.
+const DAY_CHIP = { x: 20 + 100, width: 200 };
+// The day's light and chip are refreshed this often.
+const DAY_REFRESH_SECONDS = 0.2;
+// A rush makes customers show up this much faster on screen: half of the economy's extra arrivals.
+const RUSH_SURGE_SHARE = 0.5;
 // The lab tip appears once this many dishes are on the menu.
 const LAB_HINT_MENU_SIZE = 2;
 
@@ -239,6 +255,9 @@ export class RestaurantScene extends Phaser.Scene {
   private lastEvent: EventKind | null = null;
   private forcedEvent: EventKind | null = null;
   private eventBar!: EventBar;
+  private dayChip!: DayChip;
+  private lastPhase: DayPhaseId = 'morning';
+  private daySince = Infinity;
 
   constructor() {
     super('Restaurant');
@@ -262,9 +281,11 @@ export class RestaurantScene extends Phaser.Scene {
     this.eventCountdown = EVENTS.firstGapSeconds;
     this.lastEvent = null;
     this.forcedEvent = null;
+    this.daySince = Infinity;
     // Dev-only shortcuts for testing: /?money=1e6, /?city=2 (look and prices of another city), /?vip=1 (VIP right away),
     // /?event=critic|tourBus|festival (that event in a few seconds), /?parking=30&valet=1 (a lot of that level),
-    // /?bus=20 (a bus stop of that level, the first bus in a few seconds), /?terrace=30&bar=1 (a roof terrace of that level)
+    // /?bus=20 (a bus stop of that level, the first bus in a few seconds), /?terrace=30&bar=1 (a roof terrace of that level),
+    // /?day=morning|lunch|afternoon|dinner|night (that time of day), /?daylen=60 (a day of 60 seconds)
     if (import.meta.env.DEV) {
       const params = new URLSearchParams(location.search);
       const money = Number(params.get('money'));
@@ -283,6 +304,10 @@ export class RestaurantScene extends Phaser.Scene {
         this.economy.busStopLevel = bus;
         this.busCountdown = 3;
       }
+      const daylen = Number(params.get('daylen'));
+      if (daylen > 0) setDayLength(daylen);
+      const day = params.get('day') as DayPhaseId | null;
+      if (day) setDayPhase(this.economy, day);
       const event = params.get('event') as EventKind | null;
       if (event === 'critic' || event === 'tourBus' || event === 'festival') {
         this.forcedEvent = event;
@@ -327,6 +352,8 @@ export class RestaurantScene extends Phaser.Scene {
     this.panel.setDepth(UI_DEPTH);
     this.goalBar = new GoalBar(this, GAME_WIDTH / 2, ROOM.top + GOAL_BAR_Y, () => this.followGoal()).setDepth(FX_DEPTH - 3);
     this.eventBar = new EventBar(this, GAME_WIDTH / 2, ROOM.top + EVENT_BAR_Y).setDepth(FX_DEPTH - 3);
+    this.dayChip = new DayChip(this, DAY_CHIP.x, ROOM.top + GOAL_BAR_Y, () => this.showDayHint()).setDepth(FX_DEPTH - 3);
+    this.lastPhase = dayInfo(this.economy).phase;
     this.layout();
     this.refreshUi();
 
@@ -1166,21 +1193,69 @@ export class RestaurantScene extends Phaser.Scene {
     }
   }
 
+  // The light of the day, the street's pace and the chip; a banner when a rush starts.
+  private updateDay(seconds: number, factor: number): void {
+    this.daySince += seconds;
+    if (this.daySince < DAY_REFRESH_SECONDS) return;
+    this.daySince = 0;
+    const info = dayInfo(this.economy);
+    this.view.setDay(info.fraction);
+    this.view.setStreetBusyness(Math.max(0.8, 1 + (factor - 1) * 0.8));
+    const rush = isRushPhase(info.phase);
+    const clock = (s: number) => `${Math.floor(Math.ceil(s) / 60)}:${String(Math.ceil(s) % 60).padStart(2, '0')}`;
+    this.dayChip.render({
+      icon: info.phase === 'night' ? 'moon' : info.phase === 'dinner' ? 'sunset' : 'sun',
+      title: t(`day.${info.phase}` as TranslationKey),
+      subtitle: rush
+        ? t('day.endsIn', { time: clock(info.secondsLeft) })
+        : t(info.nextRush === 'lunch' ? 'day.nextLunch' : 'day.nextDinner', { time: clock(info.secondsToRush) }),
+      rush,
+    });
+    if (info.phase === this.lastPhase) return;
+    this.lastPhase = info.phase;
+    if (!rush) return;
+    audio.play('look', 0.7);
+    banner(this, BANNER_Y, t(info.phase === 'lunch' ? 'banner.lunchRush' : 'banner.dinnerRush'), info.phase === 'lunch' ? PALETTE.saffronDark : PALETTE.tileBlue);
+    // The first rush explains the day, once the first tip is out of the way.
+    if (!this.seenHints.includes(DAY_HINT) && this.seenHints.includes(BOTTLENECK_HINT)) this.time.delayedCall(1800, () => this.showDayHint());
+  }
+
+  // Tip about the day, from tapping the chip or (once) at the first rush.
+  private showDayHint(): void {
+    if (this.hint) return;
+    this.hintId = DAY_HINT;
+    this.hint = new HintBubble(this, { x: this.dayChip.x, y: this.dayChip.y + 56 }, t('hint.day'), FX_DEPTH - 1, () => {
+      this.hint = null;
+      this.hintId = null;
+      if (!this.seenHints.includes(DAY_HINT)) {
+        this.seenHints.push(DAY_HINT);
+        void this.saveGame();
+      }
+    });
+  }
+
   // Called every frame; delta is milliseconds since the previous frame.
   update(time: number, delta: number): void {
     advanceTime(this.economy, delta / 1000);
+    // The day goes on while the game is open; a rush or the night changes the entrance's arrivals and
+    // with them the income (offline earnings do not see it).
+    advanceDay(this.economy, delta / 1000);
+    const dayFactor = dayArrivalMultiplier(this.economy);
+    earn(this.economy, dayBonusPerSecond(this.economy, dayFactor) * (delta / 1000));
+    this.updateDay(delta / 1000, dayFactor);
     this.track('playTime', delta / 1000);
     this.room.update(delta);
     this.updateVip(delta / 1000);
     this.updateEvent(delta / 1000);
     this.updateBus(delta / 1000);
-    const flow = throughput(this.economy);
-    const delivery = deliveryFlow(this.economy);
-    const income = incomeBreakdown(this.economy);
+    const flow = throughput(this.economy, dayFactor);
+    const delivery = deliveryFlow(this.economy, dayFactor);
+    const income = incomeBreakdown(this.economy, dayFactor);
     const boost = boostMultiplier(this.economy);
     this.view.update(
       {
-        rates: sectionRates(this.economy),
+        rates: sectionRates(this.economy, dayFactor),
+        arrivalSurge: dayFactor > 1 ? 1 + (dayFactor - 1) * RUSH_SURGE_SHARE : dayFactor,
         levels: this.economy.sectionLevels,
         customersPerSecond: flow.customersPerSecond,
         // Diners pay the dining room's share at the cashier, couriers the delivery share.
@@ -1475,7 +1550,7 @@ export class RestaurantScene extends Phaser.Scene {
     // Like the daily dialog, the staff help ad waits until the first bottleneck tip is seen.
     this.panel.staffHelpAllowed = this.seenHints.includes(BOTTLENECK_HINT);
     this.moneyText.setText(formatNumber(this.economy.money, 0));
-    const income = formatNumber(incomePerSecond(this.economy) + this.festivalBonus());
+    const income = formatNumber(incomePerSecond(this.economy) + dayBonusPerSecond(this.economy) + this.festivalBonus());
     const boost = boostMultiplier(this.economy);
     this.incomeText.setText(
       boost > 1

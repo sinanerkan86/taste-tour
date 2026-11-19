@@ -378,5 +378,16 @@
   "row.roofBarOffer": "Clients de la terrasse +{rate} % et ils dépensent plus",
   "row.roofBarOwned": "Un barman sert les boissons : clients de la terrasse +{rate} %",
   "banner.terraceOpen": "Le toit-terrasse est ouvert ! Les clients montent pour la vue",
-  "banner.roofBar": "Bar sur le toit ! Des cocktails avec vue"
+  "banner.roofBar": "Bar sur le toit ! Des cocktails avec vue",
+  "day.morning": "Matin",
+  "day.lunch": "Rush du déjeuner",
+  "day.afternoon": "Après-midi",
+  "day.dinner": "Rush du dîner",
+  "day.night": "Nuit",
+  "day.nextLunch": "Rush déjeuner dans {time}",
+  "day.nextDinner": "Rush dîner dans {time}",
+  "day.endsIn": "Fin dans {time}",
+  "banner.lunchRush": "Rush du déjeuner ! Les clients affluent",
+  "banner.dinnerRush": "Rush du dîner ! Les clients affluent",
+  "hint.day": "Le restaurant a sa journée : le matin, un rush du déjeuner, l'après-midi, un rush du dîner et la nuit. Pendant un rush, plus de clients arrivent à la porte : la section la plus chargée se voit vraiment (files, attentes) et le restaurant gagne plus. La nuit est plus calme. La journée n'avance que lorsque le jeu est ouvert."
 }

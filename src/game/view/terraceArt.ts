@@ -9,7 +9,7 @@ import type { CityTheme } from './themes';
 // Everything is painted in world coordinates or around an origin named in each comment.
 
 const W = GAME_WIDTH;
-const BACKDROP_BOTTOM = ROOF.parapetTop + 50;
+export const BACKDROP_BOTTOM = ROOF.parapetTop + 50;
 export const BASE_TOP = ROOF.parapetTop - 180;
 const BASE_BOTTOM = ROOF.edgeBottom + 44;
 const WARM = 0xffd99a;
@@ -92,6 +92,16 @@ export function roofHazeTexture(scene: Phaser.Scene, theme: CityTheme): string {
 
 // --- The roof ----------------------------------------------------------------------------
 
+// The nearby buildings that frame the roof: x, width, height above the back parapet.
+export const NEAR_BUILDINGS: [number, number, number][] = [
+  [-10, 92, 150],
+  [78, 70, 96],
+  [140, 84, 60],
+  [880, 80, 70],
+  [956, 70, 124],
+  [1020, 84, 168],
+];
+
 function building(ctx: Ctx, theme: CityTheme, x: number, w: number, top: number, bottom: number, random: () => number): void {
   ctx.fillStyle = hGradient(ctx, x, x + w, [
     [0, css(theme.tileA, -0.18)],
@@ -119,12 +129,7 @@ export function roofBaseTexture(scene: Phaser.Scene, theme: CityTheme): string {
     const random = seeded(theme.tileA + 7);
     // Near buildings on both sides, so the skyline is framed.
     [
-      [-10, 92, 150],
-      [78, 70, 96],
-      [140, 84, 60],
-      [880, 80, 70],
-      [956, 70, 124],
-      [1020, 84, 168],
+      ...NEAR_BUILDINGS,
     ].forEach(([x, w, h]) => building(ctx, theme, x, w, ROOF.parapetTop - h, ROOF.parapetTop + 30, random));
 
     // Back parapet: coping, wall face with pilasters, and its shadow on the deck.

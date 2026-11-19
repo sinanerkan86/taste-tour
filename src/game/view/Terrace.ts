@@ -115,7 +115,7 @@ export class Terrace {
     const parasol = parasolTexture(scene, theme);
     TERRACE_TABLES.forEach((t) => {
       const scale = depthScale(t.y) / ART_RES;
-      [-1, 1].forEach((side) => this.seats.chairs.push(addArt(scene, t.x + side * 78, t.y, chair, 32, 80).setDepth(t.y - 30).setScale(scale)));
+      [-1, 1].forEach((side) => this.seats.chairs.push(addArt(scene, t.x + side * 78, t.y, chair, 32, 80).setDepth(t.y - 30).setScale(scale).setFlipX(side > 0)));
       this.seats.tables.push(addArt(scene, t.x, t.y, table, 80, 46).setDepth(t.y + 1).setScale(scale));
       this.seats.parasols.push(addArt(scene, t.x, t.y, parasol, PARASOL.ox, PARASOL.oy).setDepth(t.y + 2).setScale(scale));
     });

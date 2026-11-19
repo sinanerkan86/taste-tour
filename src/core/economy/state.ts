@@ -1,4 +1,4 @@
-import { ADS, DELIVERY, DISH_TIERS, EVENTS, MILESTONE_BONUS, PARKING, ROOF_BAR, SECTION_IDS, SECTIONS, TAP, TERRACE, VALET, type SectionId } from './config';
+import { ADS, DELIVERY, DISH_TIERS, EVENTS, FLOW, MILESTONE_BONUS, PARKING, ROOF_BAR, SECTION_IDS, SECTIONS, SPECIALTIES, SPECIALTY_EFFECTS, TAP, TERRACE, VALET, type SectionId } from './config';
 import { cityCostScale, cityPriceScale, scaledValue } from './formulas';
 import { incomeMultiplier, newLab, newPerks, sectionRateMultiplier, type LabState, type PerkLevels } from './bonuses';
 import { newChefs, type ChefState } from './chefs';
@@ -157,14 +157,75 @@ export interface Throughput {
   bottleneck: SectionId;
 }
 
-// The slowest section limits the whole restaurant.
+// Soft minimum of the six section rates: ( mean(rate ^ -p) ) ^ (-1/p). Equal rates give that
+// rate; the weakest section pulls the result down hardest, but every section counts.
+export function softFlow(rates: Record<SectionId, number>): number {
+  let sum = 0;
+  for (const id of SECTION_IDS) {
+    if (!(rates[id] > 0)) return 0;
+    sum += rates[id] ** -FLOW.softness;
+  }
+  return (sum / SECTION_IDS.length) ** (-1 / FLOW.softness);
+}
+
+// The flow of customers per second, and the busiest section (the weakest one: highest load).
 export function throughput(state: EconomyState): Throughput {
   const rates = sectionRates(state);
   let bottleneck: SectionId = SECTION_IDS[0];
   for (const id of SECTION_IDS) {
     if (rates[id] < rates[bottleneck]) bottleneck = id;
   }
-  return { customersPerSecond: rates[bottleneck], bottleneck };
+  return { customersPerSecond: softFlow(rates), bottleneck };
+}
+
+// Per section: flow / rate. Above 1 the section is under pressure (the weakest ones), below 1 it has
+// spare capacity.
+export function sectionLoad(state: EconomyState): Record<SectionId, number> {
+  const rates = sectionRates(state);
+  const flow = softFlow(rates);
+  const load = {} as Record<SectionId, number>;
+  for (const id of SECTION_IDS) load[id] = rates[id] > 0 ? flow / rates[id] : Infinity;
+  return load;
+}
+
+export interface Specialty {
+  // Rate divided by flow (below 1 = the section is under pressure, no bonus).
+  surplus: number;
+  // The bonus now (0 to cap) and its cap.
+  bonus: number;
+  cap: number;
+}
+
+// What each section's spare capacity earns: weight * log2(surplus), capped, zero without a surplus.
+export function specialties(state: EconomyState): Record<SectionId, Specialty> {
+  const rates = sectionRates(state);
+  const flow = softFlow(rates);
+  const result = {} as Record<SectionId, Specialty>;
+  for (const id of SECTION_IDS) {
+    const cfg = SPECIALTIES[id];
+    const surplus = flow > 0 ? rates[id] / flow : 0;
+    const bonus = surplus > 1 ? Math.min(cfg.cap, cfg.weight * Math.log2(surplus)) : 0;
+    result[id] = { surplus, bonus, cap: cfg.cap };
+  }
+  return result;
+}
+
+// Income multiplier of the dine-in line from all specialties together.
+export function specialtyMultiplier(state: EconomyState): number {
+  const all = specialties(state);
+  let multiplier = 1;
+  for (const id of SECTION_IDS) multiplier *= 1 + all[id].bonus;
+  return multiplier;
+}
+
+// Buzz: VIP visits and events come this many times sooner (divide their gaps by it).
+export function buzzGapFactor(state: EconomyState): number {
+  return 1 + specialties(state).entrance.bonus * SPECIALTY_EFFECTS.buzzGapShare;
+}
+
+// Spotless: a critic's good review lasts this many times longer.
+export function reviewLengthFactor(state: EconomyState): number {
+  return 1 + specialties(state).dishwashing.bonus * SPECIALTY_EFFECTS.spotlessReviewShare;
 }
 
 // Delivery orders per second the couriers could take out (0 while delivery is closed).
@@ -197,9 +258,10 @@ export function deliveryFlow(state: EconomyState): DeliveryFlow {
 // Income without the timed boosts, split into the dining room and delivery.
 export function incomeBreakdown(state: EconomyState): { dineIn: number; delivery: number } {
   const perBill = billPerCustomer(state) * incomeMultiplier(state);
+  const quality = 1 + specialties(state).kitchen.bonus;
   return {
-    dineIn: throughput(state).customersPerSecond * perBill * arrivals(state).billMultiplier * seatingSplit(state).billMultiplier,
-    delivery: deliveryFlow(state).ordersPerSecond * DELIVERY.billFraction * perBill,
+    dineIn: throughput(state).customersPerSecond * perBill * arrivals(state).billMultiplier * seatingSplit(state).billMultiplier * specialtyMultiplier(state),
+    delivery: deliveryFlow(state).ordersPerSecond * DELIVERY.billFraction * perBill * quality,
   };
 }
 

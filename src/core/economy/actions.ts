@@ -11,7 +11,7 @@ import {
   vipGapMultiplier,
   vipTipMultiplier,
 } from './bonuses';
-import { baseIncomePerSecond, earn, earningsOver, newEconomy, throughput, type EconomyState } from './state';
+import { baseIncomePerSecond, earn, earningsOver, buzzGapFactor, newEconomy, throughput, type EconomyState } from './state';
 
 // What every upgrade and unlock in this restaurant is multiplied by: the city's scale, minus the
 // Local Suppliers discount.
@@ -288,7 +288,7 @@ export function useTimeSkip(state: EconomyState): number {
   return amount;
 }
 
-// Free levels the staff help ad would hire for the bottleneck section right now: as many as
+// Free levels the staff help ad would hire for the busiest section right now: as many as
 // ADS.staffHelpSeconds of income would buy. 0 while it cools down or when not even one level fits.
 export function staffHelpLevels(state: EconomyState): number {
   if (state.staffCooldown > 0) return 0;
@@ -325,5 +325,5 @@ export function vipTip(state: EconomyState): number {
 // With a state, the Tour Guide research brings them sooner.
 export function nextVipGap(random: number, state?: EconomyState): number {
   const gap = ADS.vipMinGapSeconds + random * (ADS.vipMaxGapSeconds - ADS.vipMinGapSeconds);
-  return state ? gap * vipGapMultiplier(state) : gap;
+  return state ? (gap * vipGapMultiplier(state)) / buzzGapFactor(state) : gap;
 }

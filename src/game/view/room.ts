@@ -34,6 +34,12 @@ const BASEBOARD = 16;
 const WINDOW = { left: 40, right: 230, top: 222, bottom: 306 } as const;
 const SCONCES = [268, 542];
 const WARM_LIGHT = 0xffd99a;
+// The side walls: narrow strips at both edges of the frame. Their floor lines run toward VANISH,
+// so the strip is SIDE_WIDTH wide at the back wall and shrinks to nothing as the line leaves the frame.
+const SIDE_WIDTH = 92;
+// Warm light from the ceiling falls in pools over each column of tables (the lamps themselves
+// are above the frame).
+const PENDANTS = [{ x: 440 }, { x: 660 }, { x: 880 }];
 
 // The room is painted once per city: a background texture behind everyone, and furniture as
 // separate images whose depth is their floor position, so people walk in front of or behind them.
@@ -52,23 +58,34 @@ export function drawRoom(scene: Phaser.Scene, theme: CityTheme): RoomArt {
 
   const kitchen = paintTexture(scene, 'kitchen-counter', KITCHEN.right - KITCHEN.left + 24, 96, paintKitchenCounter);
   addArt(scene, KITCHEN.left - 12, KITCHEN.counterY - 80, kitchen, 0, 0).setDepth(KITCHEN.counterY);
-  const dishpit = paintTexture(scene, 'dishpit-counter', DISHPIT.right - DISHPIT.left + 12, 90, paintDishpitCounter);
-  addArt(scene, DISHPIT.left - 6, DISHPIT.counterY - 82, dishpit, 0, 0).setDepth(DISHPIT.counterY);
+  const dishpit = paintTexture(scene, 'dishpit-counter', DISHPIT.right - DISHPIT.left + 12, 102, paintDishpitCounter);
+  addArt(scene, DISHPIT.left - 6, DISHPIT.counterY - 94, dishpit, 0, 0).setDepth(DISHPIT.counterY);
   const desk = paintTexture(scene, `${key}-desk`, 200, 124, (ctx) => paintCashierDesk(ctx, theme));
   addArt(scene, CASHIER_DESK.x, CASHIER_DESK.y, desk, 100, 64).setDepth(CASHIER_DESK.y + 40);
 
-  const tableKey = paintTexture(scene, `${key}-table`, 180, 100, (ctx) => paintTable(ctx, theme));
   const chairKey = paintTexture(scene, 'chair', 64, 92, paintChair);
   const art: RoomArt = { chairs: [], tables: [] };
   TABLES.forEach((t) => {
     // Chairs sit behind the table top; the table itself is above seated customers' legs.
     const scale = depthScale(t.y) / ART_RES;
+    // Chairs face the table: the left one looks right, the right one is the same picture flipped.
     [-1, 1].forEach((side) =>
-      art.chairs.push(addArt(scene, t.x + side * SEAT_OFFSET_X, t.y, chairKey, 32, 80).setDepth(t.y - 30).setScale(scale)),
+      art.chairs.push(addArt(scene, t.x + side * SEAT_OFFSET_X, t.y, chairKey, 32, 80).setDepth(t.y - 30).setScale(scale).setFlipX(side > 0)),
     );
-    art.tables.push(addArt(scene, t.x, t.y, tableKey, 90, 46).setDepth(t.y + 1).setScale(scale));
+    art.tables.push(addArt(scene, t.x, t.y, tableTexture(scene, theme, t.y, false), TABLE_ART.ox, TABLE_ART.oy).setDepth(t.y + 1).setScale(scale));
   });
   return art;
+}
+
+// One table texture per row: farther rows are flatter. The fancy look (section tier 1) paints
+// its own pieces over the same top.
+export function tableTexture(scene: Phaser.Scene, theme: CityTheme, y: number, fancy: boolean, decorate?: (ctx: Ctx) => void): string {
+  const tilt = tableTilt(y);
+  const key = `${themeKey(theme)}-table-${fancy ? 'fancy-' : ''}${Math.round(tilt * 100)}`;
+  return paintTexture(scene, key, TABLE_ART.w, TABLE_ART.h, (ctx) => {
+    paintTable(ctx, fancy ? { ...theme, accent: 0xd4a437 } : theme, tilt);
+    decorate?.(ctx);
+  });
 }
 
 function themeKey(theme: CityTheme): string {
@@ -86,8 +103,11 @@ function paintBackground(ctx: Ctx, theme: CityTheme): void {
   paintFaucet(ctx);
   SCONCES.forEach((x) => paintSconce(ctx, x, POSTER.y - 6));
   paintFloor(ctx, theme);
+  paintSideWalls(ctx, theme);
   paintDoor(ctx);
   paintFurnitureShadows(ctx);
+  paintAtmosphere(ctx);
+  PENDANTS.forEach((lamp) => paintLightPool(ctx, lamp));
 }
 
 function paintWall(ctx: Ctx, theme: CityTheme): void {
@@ -493,19 +513,167 @@ function paintDoor(ctx: Ctx): void {
 }
 
 function paintFurnitureShadows(ctx: Ctx): void {
-  TABLES.forEach((t) => floorShadow(ctx, t.x + 6, t.y + 46 * depthScale(t.y), 100 * depthScale(t.y), 24 * depthScale(t.y), 0.38));
-  floorShadow(ctx, CASHIER_DESK.x + 8, CASHIER_DESK.y + 54, 118, 20, 0.35);
+  // Light comes from the front left, so shadows fall a little to the right and back.
+  TABLES.forEach((t) => {
+    const k = depthScale(t.y);
+    floorShadow(ctx, t.x + 16 * k, t.y + 46 * k, 104 * k, 24 * k, 0.4);
+    floorShadow(ctx, t.x + 6 * k, t.y + 48 * k, 44 * k, 9 * k, 0.5);
+  });
+  floorShadow(ctx, CASHIER_DESK.x + 16, CASHIER_DESK.y + 54, 124, 20, 0.4);
   // Contact shadows in front of the counters.
   [
     [KITCHEN.left - 10, KITCHEN.right + 10],
     [DISHPIT.left - 6, DISHPIT.right + 6],
   ].forEach(([x0, x1]) => {
-    ctx.fillStyle = vGradient(ctx, KITCHEN.counterY, KITCHEN.counterY + 34, [
-      [0, 'rgba(20,10,0,0.4)'],
+    ctx.fillStyle = vGradient(ctx, KITCHEN.counterY, KITCHEN.counterY + 44, [
+      [0, 'rgba(20,10,0,0.5)'],
+      [0.4, 'rgba(20,10,0,0.2)'],
       [1, 'rgba(20,10,0,0)'],
     ]);
-    ctx.fillRect(x0, KITCHEN.counterY, x1 - x0, 34);
+    ctx.fillRect(x0, KITCHEN.counterY, x1 - x0, 44);
   });
+}
+
+// The two side walls as slanted strips with the same rails and panels as the back wall, so the
+// room has corners. The left one is on the shadow side and is darker.
+function paintSideWalls(ctx: Ctx, theme: CityTheme): void {
+  const vx = VANISH.x;
+  const vy = VANISH.y;
+  // Maps a point on the back wall's edge (x = SIDE_WIDTH, height y) to where it lies at x on the side wall.
+  const at = (x: number, y: number): [number, number] => [x, vy + (y - vy) * ((vx - x) / (vx - SIDE_WIDTH))];
+  const band = (y0: number, y1: number, fill: string | CanvasGradient) => {
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.moveTo(...at(SIDE_WIDTH, y0));
+    ctx.lineTo(...at(0, y0));
+    ctx.lineTo(...at(0, y1));
+    ctx.lineTo(...at(SIDE_WIDTH, y1));
+    ctx.closePath();
+    ctx.fill();
+  };
+  const panelTop = TILE_TOP + TILE + 8;
+  const panelBottom = ROOM.wallBottom - BASEBOARD;
+  const top = ROOM.top + 10;
+  [false, true].forEach((right) => {
+    ctx.save();
+    if (right) {
+      ctx.translate(GAME_WIDTH, 0);
+      ctx.scale(-1, 1);
+    }
+    const lit = right ? 0.06 : -0.2;
+    const across = (a: string, b: string) =>
+      hGradient(ctx, 0, SIDE_WIDTH, [
+        [0, a],
+        [1, b],
+      ]);
+    // Plain wall above the tiles, rails, tiles and wainscot below.
+    band(top, TILE_TOP - 8, across(css(theme.wall, lit - 0.14), css(theme.wall, lit)));
+    band(TILE_TOP - 8, TILE_TOP, css(theme.floorDark, lit));
+    band(TILE_TOP, TILE_TOP + TILE, across(css(theme.tileA, lit - 0.12), css(theme.tileA, lit)));
+    band(TILE_TOP + TILE, TILE_TOP + TILE + 10, css(theme.floorDark, lit));
+    band(panelTop, panelBottom, across(css(theme.wall, lit - 0.3), css(theme.wall, lit - 0.14)));
+    band(panelBottom, ROOM.wallBottom, across(css(theme.floorDark, lit - 0.2), css(theme.floorDark, lit)));
+    // Tile joints and panel lines converge on the vanishing point.
+    ctx.strokeStyle = 'rgba(0,0,0,0.14)';
+    ctx.lineWidth = 1.5;
+    for (let i = 1; i < 3; i++) {
+      const x = i * 30;
+      ctx.beginPath();
+      ctx.moveTo(...at(x, TILE_TOP));
+      ctx.lineTo(...at(x, TILE_TOP + TILE));
+      ctx.moveTo(...at(x, panelTop + 12));
+      ctx.lineTo(...at(x, panelBottom - 10));
+      ctx.stroke();
+    }
+    // The cut end of the building's side wall above it (concrete).
+    const t0 = at(SIDE_WIDTH, top);
+    const t1 = at(0, top);
+    ctx.fillStyle = across('#6f6a62', '#8a847a');
+    ctx.beginPath();
+    ctx.moveTo(0, ROOM.top - 20);
+    ctx.lineTo(SIDE_WIDTH, ROOM.top - 20);
+    ctx.lineTo(...t0);
+    ctx.lineTo(...t1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(...t0);
+    ctx.lineTo(...t1);
+    ctx.stroke();
+    // Ambient occlusion where the walls meet each other and the floor.
+    ctx.fillStyle = hGradient(ctx, SIDE_WIDTH - 4, SIDE_WIDTH + 34, [
+      [0, 'rgba(20,10,0,0.3)'],
+      [1, 'rgba(20,10,0,0)'],
+    ]);
+    ctx.fillRect(SIDE_WIDTH - 4, top, 38, ROOM.wallBottom - top);
+    const foot = at(0, ROOM.wallBottom);
+    [
+      [18, 0.1],
+      [9, 0.16],
+      [3, 0.3],
+    ].forEach(([w, a]) => {
+      ctx.strokeStyle = `rgba(20,10,0,${a})`;
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      ctx.moveTo(SIDE_WIDTH + w / 2, ROOM.wallBottom + 1);
+      ctx.lineTo(foot[0] + w / 2, foot[1] + 1);
+      ctx.stroke();
+    });
+    ctx.strokeStyle = 'rgba(255,235,210,0.25)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(...at(SIDE_WIDTH, panelBottom));
+    ctx.lineTo(...at(0, panelBottom));
+    ctx.stroke();
+    ctx.restore();
+  });
+}
+
+// Light and mood over the whole room: far things a little hazy and grey, and a warm vignette.
+function paintAtmosphere(ctx: Ctx): void {
+  ctx.fillStyle = vGradient(ctx, ROOM.wallBottom, ROOM.wallBottom + 260, [
+    [0, 'rgba(110,100,115,0.18)'],
+    [1, 'rgba(110,100,115,0)'],
+  ]);
+  ctx.fillRect(0, ROOM.wallBottom, GAME_WIDTH, 260);
+  ctx.fillStyle = radial(ctx, GAME_WIDTH / 2, (ROOM.wallBottom + ROOM.bottom) / 2, 380, 780, [
+    [0, 'rgba(40,15,0,0)'],
+    [1, 'rgba(40,15,0,0.3)'],
+  ]);
+  ctx.fillRect(0, ROOM.top, GAME_WIDTH, BG_BOTTOM - ROOM.top);
+  // The low front wall darkens the floor right behind it, except where the door lets light in.
+  ctx.fillStyle = vGradient(ctx, FRONT.floorEnd - 46, FRONT.floorEnd, [
+    [0, 'rgba(20,10,0,0)'],
+    [1, 'rgba(20,10,0,0.4)'],
+  ]);
+  ctx.fillRect(0, FRONT.floorEnd - 46, DOOR_X - DOOR_WIDTH / 2 - 6, 46);
+  ctx.fillRect(DOOR_X + DOOR_WIDTH / 2 + 6, FRONT.floorEnd - 46, GAME_WIDTH - DOOR_X - DOOR_WIDTH / 2 - 6, 46);
+}
+
+// Warm pool of light on the floor and the tables under a pendant lamp, plus a faint reflection
+// in the glossy floor.
+function paintLightPool(ctx: Ctx, lamp: { x: number }): void {
+  [650, 870].forEach((cy, i) => {
+    ctx.save();
+    ctx.translate(lamp.x, cy + 10);
+    ctx.scale(1, 0.55);
+    ctx.fillStyle = radial(ctx, 0, 0, 0, 150, [
+      [0, rgba(WARM_LIGHT, i === 0 ? 0.22 : 0.18)],
+      [1, rgba(WARM_LIGHT, 0)],
+    ]);
+    ctx.fillRect(-150, -150, 300, 300);
+    ctx.restore();
+  });
+  ctx.fillStyle = vGradient(ctx, 700, 960, [
+    [0, 'rgba(255,240,210,0)'],
+    [0.5, 'rgba(255,240,210,0.07)'],
+    [1, 'rgba(255,240,210,0)'],
+  ]);
+  ctx.beginPath();
+  ctx.ellipse(lamp.x - 20, 830, 16, 130, 0, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 // --- Furniture -------------------------------------------------------------------------
@@ -547,18 +715,22 @@ function paintKitchenCounter(ctx: Ctx): void {
       ctx.fill();
     }),
   );
-  // Worktop with a bright front edge.
-  ctx.fillStyle = vGradient(ctx, y - 72, y - 56, [
-    [0, '#dfe3e7'],
-    [0.7, '#c4c9ce'],
+  // Worktop seen from above (24 deep), brighter than the front, with a bright front edge.
+  ctx.fillStyle = vGradient(ctx, y - 70, y - 56, [
+    [0, '#aeb4ba'],
+    [0.5, '#d4d9de'],
     [1, '#f7f9fb'],
   ]);
-  ctx.fillRect(left, y - 72, width, 16);
+  ctx.fillRect(left, y - 70, width, 14);
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.fillRect(left, y - 70, width, 3);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(left, y - 58, width, 2);
   // Burners: cast iron rings on the worktop.
   STOVES.forEach((s) =>
     [-34, 34].forEach((dx) => {
       const bx = s.x + dx;
-      const by = s.y + 6;
+      const by = s.y + 8;
       ctx.fillStyle = '#2a2a2a';
       ellipse(ctx, bx, by, 27, 8);
       ctx.fill();
@@ -574,82 +746,97 @@ function paintKitchenCounter(ctx: Ctx): void {
   // Marble pass shelf in front, where plates wait.
   ctx.fillStyle = 'rgba(0,0,0,0.25)';
   ctx.fillRect(left - 10, y + 8, width + 20, 4);
-  ctx.fillStyle = vGradient(ctx, y - 8, y + 8, [
-    [0, '#ffffff'],
-    [0.5, '#ece6da'],
-    [1, '#cfc7b8'],
+  // The shelf's top is light, its front face darker.
+  ctx.fillStyle = vGradient(ctx, y - 8, y + 2, [
+    [0, '#fbf8f1'],
+    [1, '#ffffff'],
   ]);
-  roundRect(ctx, left - 10, y - 8, width + 20, 16, 4);
+  roundRect(ctx, left - 10, y - 8, width + 20, 10, [4, 4, 0, 0]);
   ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.8)';
-  ctx.fillRect(left - 6, y - 7, width + 12, 2);
+  ctx.fillStyle = vGradient(ctx, y + 2, y + 9, [
+    [0, '#d8d0c0'],
+    [1, '#a89f8e'],
+  ]);
+  roundRect(ctx, left - 10, y + 2, width + 20, 7, [0, 0, 4, 4]);
+  ctx.fill();
 }
 
-// Texture origin is (DISHPIT.left - 6, counterY - 82).
+// Texture origin is (DISHPIT.left - 6, counterY - 94). The top surface is seen from above (y-88
+// to y-64), props stand on it around y-74.
 function paintDishpitCounter(ctx: Ctx): void {
-  ctx.translate(-(DISHPIT.left - 6), -(DISHPIT.counterY - 82));
+  ctx.translate(-(DISHPIT.left - 6), -(DISHPIT.counterY - 94));
   const left = DISHPIT.left;
   const width = DISHPIT.right - left;
   const y = DISHPIT.counterY;
   const body = 0x7f98a6;
+  // Front face, darker than the top.
   ctx.fillStyle = vGradient(ctx, y - 64, y, [
-    [0, css(body, 0.1)],
-    [1, css(body, -0.25)],
+    [0, css(body, 0.0)],
+    [1, css(body, -0.35)],
   ]);
   ctx.fillRect(left, y - 64, width, 64);
-  ctx.strokeStyle = css(body, -0.35);
+  ctx.strokeStyle = css(body, -0.4);
   ctx.lineWidth = 2;
   ctx.strokeRect(left + 12, y - 54, width / 2 - 18, 44);
   ctx.strokeRect(left + width / 2 + 6, y - 54, width / 2 - 18, 44);
   ctx.fillStyle = css(body, 0.35);
   ctx.fillRect(left + width / 2 - 20, y - 36, 12, 4);
   ctx.fillRect(left + width / 2 + 10, y - 36, 12, 4);
-  ctx.fillStyle = vGradient(ctx, y - 78, y - 64, [
-    [0, css(body, 0.5)],
-    [1, css(body, 0.15)],
+  // Top surface: lighter, with the back edge in shade and a bright front lip.
+  ctx.fillStyle = vGradient(ctx, y - 74, y - 64, [
+    [0, css(body, 0.25)],
+    [1, css(body, 0.55)],
   ]);
-  ctx.fillRect(left, y - 78, width, 14);
-  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.fillRect(left, y - 74, width, 10);
+  ctx.fillStyle = 'rgba(0,0,0,0.16)';
+  ctx.fillRect(left, y - 74, width, 3);
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
   ctx.fillRect(left, y - 65, width, 2);
-  // Sink basin with water.
-  ctx.fillStyle = vGradient(ctx, y - 76, y - 62, [
-    [0, css(body, -0.45)],
-    [1, css(body, -0.15)],
+  // Sink basin sunk into the top, with water.
+  ctx.fillStyle = vGradient(ctx, y - 74, y - 64, [
+    [0, css(body, -0.5)],
+    [1, css(body, -0.2)],
   ]);
-  roundRect(ctx, left + 66, y - 77, 90, 15, 6);
+  roundRect(ctx, left + 66, y - 74, 90, 10, 5);
   ctx.fill();
   ctx.fillStyle = 'rgba(190,230,245,0.7)';
-  roundRect(ctx, left + 72, y - 72, 78, 8, 4);
+  roundRect(ctx, left + 72, y - 72, 78, 5, 2);
   ctx.fill();
 }
 
-// Texture origin is the desk's anchor point (100, 64).
+// Texture origin is the desk's anchor point (100, 64). The top is a surface seen from above
+// (y-26 to y-2) and the register stands on it.
 function paintCashierDesk(ctx: Ctx, theme: CityTheme): void {
   ctx.translate(100, 64);
   const wood = theme.floorDark;
-  // Front panel.
-  ctx.fillStyle = vGradient(ctx, -4, 52, [
-    [0, css(wood, 0.05)],
-    [1, css(wood, -0.3)],
+  // Front panel, darker than the top.
+  ctx.fillStyle = vGradient(ctx, -2, 52, [
+    [0, css(wood, -0.05)],
+    [1, css(wood, -0.4)],
   ]);
-  roundRect(ctx, -90, -4, 180, 56, [0, 0, 10, 10]);
+  roundRect(ctx, -90, -2, 180, 54, [0, 0, 10, 10]);
   ctx.fill();
-  ctx.fillStyle = css(wood, -0.15);
-  roundRect(ctx, -76, 6, 152, 36, 6);
+  ctx.fillStyle = css(wood, -0.22);
+  roundRect(ctx, -76, 8, 152, 34, 6);
   ctx.fill();
-  ctx.fillStyle = css(wood, 0.15, 0.6);
+  ctx.fillStyle = css(wood, 0.1, 0.6);
   ctx.fillRect(-74, 40, 150, 2);
-  // Top with a rounded front edge.
-  ctx.fillStyle = vGradient(ctx, -18, -2, [
-    [0, css(0x7a4a2a, 0.25)],
-    [0.6, css(0x6b3f22, 0)],
-    [1, css(0x4a2a14, 0)],
+  // Top: a lit wooden surface with a rounded front edge.
+  ctx.fillStyle = vGradient(ctx, -28, -2, [
+    [0, css(0x7a4a2a, 0.05)],
+    [1, css(0x7a4a2a, 0.35)],
   ]);
-  roundRect(ctx, -96, -18, 192, 16, 6);
+  roundRect(ctx, -96, -28, 192, 28, 8);
   ctx.fill();
-  // Register with a glowing display.
-  ctx.fillStyle = 'rgba(0,0,0,0.25)';
-  ellipse(ctx, 2, -16, 36, 5);
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.fillRect(-92, -28, 184, 3);
+  ctx.fillStyle = 'rgba(255,230,190,0.55)';
+  ctx.fillRect(-92, -3, 184, 2);
+  // Register standing on the top (its base at y-10) with a glowing display.
+  ctx.save();
+  ctx.translate(0, 6);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ellipse(ctx, 4, -16, 38, 6);
   ctx.fill();
   ctx.fillStyle = vGradient(ctx, -62, -16, [
     [0, '#55595e'],
@@ -665,116 +852,254 @@ function paintCashierDesk(ctx: Ctx, theme: CityTheme): void {
   ctx.fill();
   ctx.fillStyle = '#8a8f94';
   for (let r = 0; r < 2; r++) for (let c = 0; c < 4; c++) ctx.fillRect(-20 + c * 11, -35 + r * 8, 8, 5);
+  ctx.restore();
 }
 
-// Texture origin is the table center (90, 46).
-export function paintTable(ctx: Ctx, theme: CityTheme): void {
-  ctx.translate(90, 46);
+// How flat a table top looks: tables farther back are seen more edge-on, so their tops are flatter.
+export function tableTilt(y: number): number {
+  const t = Math.min(1, Math.max(0, (y - ROOM.wallBottom) / (ROOM.bottom - ROOM.wallBottom)));
+  return 0.33 + 0.15 * t;
+}
+
+// Table textures are 180x124 with the origin at the table's middle; the top surface's center sits
+// `topY` above it.
+export const TABLE_ART = { w: 180, h: 124, ox: 90, oy: 64, rx: 72, topY: -12 } as const;
+
+// The camera looks down at the table: the top is an ellipse, the cloth hangs over its front edge
+// and the pedestal shrinks away below. Light comes from the front left, so the right side of the
+// cloth is darker.
+export function paintTable(ctx: Ctx, theme: CityTheme, tilt = 0.42): void {
+  ctx.translate(TABLE_ART.ox, TABLE_ART.oy);
+  const { rx, topY: cy } = TABLE_ART;
+  const ry = rx * tilt;
+  const hem = 22;
   // Pedestal and foot.
-  ctx.fillStyle = radial(ctx, 0, 44, 0, 34, [
+  ctx.fillStyle = radial(ctx, 0, 48, 0, 34, [
     [0, '#6b4024'],
     [1, '#3d2210'],
   ]);
-  ellipse(ctx, 0, 44, 32, 7);
+  ellipse(ctx, 0, 48, 32, 32 * tilt * 0.7);
   ctx.fill();
   ctx.fillStyle = hGradient(ctx, -9, 9, [
-    [0, '#4a2a14'],
-    [0.4, '#9a6038'],
+    [0, '#6a4020'],
+    [0.35, '#a46a40'],
     [1, '#3d2210'],
   ]);
-  ctx.fillRect(-8, 10, 16, 34);
-  // Table cloth: the top surface and the drape hanging over the front edge.
-  ctx.fillStyle = vGradient(ctx, 4, 24, [
-    [0, css(PALETTE.cream, -0.08)],
-    [1, css(PALETTE.cream, -0.22)],
-  ]);
+  ctx.fillRect(-8, cy + hem, 16, 48 - cy - hem);
+  // Cloth drape: hangs from the top's rim down to a hem that follows the same ellipse.
+  const rim = (a: number): [number, number] => [rx * Math.cos(a), cy + ry * Math.sin(a)];
+  const hemAt = (a: number): [number, number] => [rx * Math.cos(a), cy + hem + ry * Math.sin(a) + Math.sin(a * 11) * 1.8];
   ctx.beginPath();
-  ctx.moveTo(-76, 2);
-  ctx.lineTo(76, 2);
-  ctx.lineTo(78, 18);
-  for (let i = 0; i <= 8; i++) ctx.quadraticCurveTo(78 - i * 19.5 + 9.75, 26, 78 - (i + 1) * 19.5, 19);
+  ctx.moveTo(...rim(Math.PI));
+  for (let i = 0; i <= 40; i++) ctx.lineTo(...hemAt(Math.PI - (i / 40) * Math.PI));
+  for (let i = 0; i <= 40; i++) ctx.lineTo(...rim((i / 40) * Math.PI));
   ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = vGradient(ctx, 6, 16, [
-    [0, css(theme.accent, 0.1)],
-    [1, css(theme.accent, -0.2)],
+  ctx.fillStyle = hGradient(ctx, -rx, rx, [
+    [0, css(PALETTE.cream, -0.02)],
+    [0.45, css(PALETTE.cream, -0.12)],
+    [1, css(PALETTE.cream, -0.4)],
   ]);
-  ctx.fillRect(-77, 7, 154, 8);
-  ctx.fillStyle = vGradient(ctx, -18, 4, [
-    [0, '#ffffff'],
-    [1, css(PALETTE.cream, -0.04)],
+  ctx.fill();
+  ctx.save();
+  ctx.clip();
+  // Folds: soft vertical creases, darker on the shadow side.
+  for (let i = 1; i < 12; i++) {
+    const a = (i / 12) * Math.PI;
+    const [x0, y0] = rim(a);
+    const [x1, y1] = hemAt(a);
+    ctx.strokeStyle = `rgba(60,30,10,${0.06 + (0.1 * (1 - Math.cos(a))) / 2})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1 + Math.cos(a) * 3, y1);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x0 - 3, y0);
+    ctx.lineTo(x1 - 3 + Math.cos(a) * 3, y1);
+    ctx.stroke();
+  }
+  // Shadow under the tabletop's edge.
+  ctx.fillStyle = vGradient(ctx, cy, cy + hem, [
+    [0, 'rgba(40,15,0,0.28)'],
+    [0.4, 'rgba(40,15,0,0)'],
   ]);
-  roundRect(ctx, -76, -18, 152, 22, 10);
+  ctx.fillRect(-rx - 4, cy, rx * 2 + 8, hem + ry + 6);
+  // Colored band near the hem.
+  ctx.strokeStyle = css(theme.accent, 0, 0.92);
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  for (let i = 0; i <= 40; i++) {
+    const [x, y] = hemAt(Math.PI - (i / 40) * Math.PI);
+    if (i === 0) ctx.moveTo(x, y - 6);
+    else ctx.lineTo(x, y - 6);
+  }
+  ctx.stroke();
+  ctx.restore();
+  // The top surface, with a visible edge thickness.
+  ctx.fillStyle = hGradient(ctx, -rx, rx, [
+    [0, css(PALETTE.cream, -0.12)],
+    [1, css(PALETTE.cream, -0.36)],
+  ]);
+  ellipse(ctx, 0, cy + 3, rx + 1, ry + 1);
   ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  roundRect(ctx, -62, -15, 60, 4, 2);
+  ctx.save();
+  ctx.translate(0, cy);
+  ctx.scale(1, tilt);
+  ctx.fillStyle = radial(
+    ctx,
+    0,
+    0,
+    0,
+    rx,
+    [
+      [0, '#ffffff'],
+      [0.7, css(PALETTE.cream, 0.02)],
+      [1, css(PALETTE.cream, -0.14)],
+    ],
+    -rx * 0.35,
+    -rx * 0.1,
+  );
+  ctx.beginPath();
+  ctx.arc(0, 0, rx, 0, Math.PI * 2);
   ctx.fill();
-  // Small vase with a flower in the middle.
-  ctx.fillStyle = 'rgba(0,0,0,0.15)';
-  ellipse(ctx, 2, -6, 9, 3);
+  ctx.strokeStyle = css(theme.accent, 0, 0.85);
+  ctx.lineWidth = 3.5;
+  ctx.beginPath();
+  ctx.arc(0, 0, rx - 8, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+  // Highlight on the lit side.
+  ctx.fillStyle = 'rgba(255,255,255,0.65)';
+  ellipse(ctx, -30, cy - ry * 0.45, 22, 2.5);
+  ctx.fill();
+  // Small vase with a flower at the back of the top.
+  const vy = cy - ry * 0.25;
+  ctx.fillStyle = 'rgba(40,20,5,0.22)';
+  ellipse(ctx, 4, vy + 1, 10, 3);
   ctx.fill();
   ctx.strokeStyle = '#4a8c3a';
   ctx.lineWidth = 2.5;
   ctx.beginPath();
-  ctx.moveTo(0, -18);
-  ctx.quadraticCurveTo(3, -30, 1, -38);
+  ctx.moveTo(0, vy - 10);
+  ctx.quadraticCurveTo(3, vy - 22, 1, vy - 30);
   ctx.stroke();
   ctx.fillStyle = css(theme.accent, 0.1);
   [0, 1, 2, 3, 4].forEach((i) => {
     const a = (i / 5) * Math.PI * 2;
     ctx.beginPath();
-    ctx.arc(1 + Math.cos(a) * 5, -40 + Math.sin(a) * 5, 4.5, 0, Math.PI * 2);
+    ctx.arc(1 + Math.cos(a) * 5, vy - 32 + Math.sin(a) * 5, 4.5, 0, Math.PI * 2);
     ctx.fill();
   });
   ctx.fillStyle = '#ffd34d';
   ctx.beginPath();
-  ctx.arc(1, -40, 3, 0, Math.PI * 2);
+  ctx.arc(1, vy - 32, 3, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = hGradient(ctx, -7, 7, [
-    [0, 'rgba(160,210,230,0.7)'],
-    [0.4, 'rgba(240,250,255,0.9)'],
-    [1, 'rgba(120,170,190,0.7)'],
+    [0, 'rgba(160,210,230,0.75)'],
+    [0.4, 'rgba(240,250,255,0.92)'],
+    [1, 'rgba(120,170,190,0.75)'],
   ]);
-  roundRect(ctx, -6, -22, 12, 16, 4);
+  roundRect(ctx, -6, vy - 14, 12, 15, 4);
   ctx.fill();
 }
 
-// Texture origin is the floor point under the middle of the seat (32, 80).
-function paintChair(ctx: Ctx): void {
+// The chair is seen from above and turned a little toward the viewer: the seat is a skewed
+// quad, the back rises from its far-left edge and the front legs are the longest. It faces
+// right; the chair on the other side of the table is the same picture flipped.
+// Origin (32, 80): the floor under the middle of the seat. Points are in that frame.
+export const CHAIR_SEAT: [number, number][] = [
+  [-24, -24],
+  [-2, -31],
+  [24, -22],
+  [2, -13],
+];
+export const CHAIR_BACK: [number, number][] = [
+  [-24, -24],
+  [-2, -31],
+  [-2, -76],
+  [-24, -69],
+];
+
+// Shrinks a polygon toward its center.
+export function insetPoly(poly: [number, number][], f: number): [number, number][] {
+  const cx = poly.reduce((s, p) => s + p[0], 0) / poly.length;
+  const cy = poly.reduce((s, p) => s + p[1], 0) / poly.length;
+  return poly.map(([x, y]) => [cx + (x - cx) * f, cy + (y - cy) * f]);
+}
+
+export function polyPath(ctx: Ctx, poly: [number, number][], dy = 0): void {
+  ctx.beginPath();
+  poly.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y + dy) : ctx.lineTo(x, y + dy)));
+  ctx.closePath();
+}
+
+export function paintChair(ctx: Ctx): void {
   ctx.translate(32, 80);
-  const wood = (x0: number, x1: number) =>
-    hGradient(ctx, x0, x1, [
-      [0, '#4a2a14'],
-      [0.45, '#8a5530'],
+  floorShadow(ctx, 4, 0, 30, 8, 0.32);
+  const [p1, p2, p3, p4] = CHAIR_SEAT;
+  // Legs, back ones first and shorter (they are farther away).
+  const leg = (x: number, y: number, len: number) => {
+    ctx.fillStyle = hGradient(ctx, x - 3, x + 3, [
+      [0, '#6a4020'],
+      [0.4, '#9a6038'],
       [1, '#3d2210'],
     ]);
-  // Back legs and posts.
-  ctx.fillStyle = wood(-24, -14);
-  roundRect(ctx, -24, -74, 10, 74, 4);
-  ctx.fill();
-  ctx.fillStyle = wood(14, 24);
-  roundRect(ctx, 14, -74, 10, 74, 4);
-  ctx.fill();
-  // Slats and top rail.
-  ctx.fillStyle = wood(-18, 18);
-  ctx.fillRect(-16, -50, 32, 7);
-  ctx.fillRect(-16, -36, 32, 7);
-  ctx.fillStyle = vGradient(ctx, -78, -60, [
-    [0, '#a0673d'],
-    [1, '#5a3218'],
+    ctx.fillRect(x - 3, y, 6, len);
+  };
+  leg(p2[0], p2[1] + 4, 16);
+  leg(p1[0] + 3, p1[1] + 5, 18);
+  leg(p3[0] - 3, p3[1] + 5, 18);
+  leg(p4[0], p4[1] + 5, 20);
+  // Backrest: a panel with two slats, lit from the left.
+  polyPath(ctx, CHAIR_BACK);
+  ctx.fillStyle = hGradient(ctx, -24, -2, [
+    [0, '#b07848'],
+    [1, '#7a4a28'],
   ]);
-  roundRect(ctx, -27, -78, 54, 18, 7);
   ctx.fill();
-  ctx.fillStyle = 'rgba(255,230,200,0.35)';
-  roundRect(ctx, -22, -76, 30, 4, 2);
+  polyPath(ctx, insetPoly(CHAIR_BACK, 0.72));
+  ctx.fillStyle = 'rgba(30,15,5,0.55)';
   ctx.fill();
-  // Seat edge peeking out under the table.
-  ctx.fillStyle = vGradient(ctx, -22, -10, [
-    [0, '#9a6038'],
-    [1, '#4a2a14'],
+  [0.4, 0.62].forEach((f) => {
+    ctx.strokeStyle = '#a06a3a';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(-24, -69 + f * 45);
+    ctx.lineTo(-2, -76 + f * 45);
+    ctx.stroke();
+  });
+  // Top rail with a lit edge.
+  ctx.strokeStyle = '#d29a62';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-24, -69);
+  ctx.lineTo(-2, -76);
+  ctx.stroke();
+  // Seat edge (thickness) and top.
+  ctx.fillStyle = hGradient(ctx, -24, 24, [
+    [0, '#7a4a28'],
+    [1, '#3d2210'],
   ]);
-  roundRect(ctx, -28, -22, 56, 12, 5);
+  ctx.beginPath();
+  ctx.moveTo(p1[0], p1[1]);
+  ctx.lineTo(p4[0], p4[1]);
+  ctx.lineTo(p3[0], p3[1]);
+  ctx.lineTo(p3[0], p3[1] + 5);
+  ctx.lineTo(p4[0], p4[1] + 5);
+  ctx.lineTo(p1[0], p1[1] + 5);
+  ctx.closePath();
   ctx.fill();
+  polyPath(ctx, CHAIR_SEAT);
+  ctx.fillStyle = vGradient(ctx, -31, -13, [
+    [0, '#c58a56'],
+    [1, '#a06a3a'],
+  ]);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,230,200,0.3)';
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
 }
 
 // Texture origin is the bottom middle of the pot (55, 146).

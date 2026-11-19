@@ -11,7 +11,7 @@ import type { CityTheme } from './themes';
 const W = GAME_WIDTH;
 const BACKDROP_BOTTOM = ROOF.parapetTop + 50;
 export const BASE_TOP = ROOF.parapetTop - 180;
-const BASE_BOTTOM = ROOF.edgeBottom + 28;
+const BASE_BOTTOM = ROOF.edgeBottom + 44;
 const WARM = 0xffd99a;
 
 const themeKey = (theme: CityTheme) => `${theme.sky.toString(16)}-${theme.wall.toString(16)}-${theme.tileA.toString(16)}-${theme.accent.toString(16)}`;
@@ -192,27 +192,69 @@ export function roofBaseTexture(scene: Phaser.Scene, theme: CityTheme): string {
     ]);
     ctx.fillRect(0, ROOF.deckTop, W, 40);
 
-    // The building's front edge: coping on top, a concrete band with blocks, and its shadow on the wall below.
+    // The floor slab, cut open: the roof's top face and coping, then the slab's front face as a
+    // section (screed, insulation, concrete with formwork joints), a darker underside, and beam
+    // ends sticking out below it. The room's ceiling hangs under this.
     const copingTop = ROOF.deckBottom - 4;
-    ctx.fillStyle = vGradient(ctx, copingTop, copingTop + 14, [
-      [0, '#e9e4da'],
-      [1, '#b9b3a6'],
+    const faceTop2 = copingTop + 12;
+    const slabBottom = ROOF.edgeBottom + 6;
+    ctx.fillStyle = vGradient(ctx, copingTop, copingTop + 7, [
+      [0, '#f4efe6'],
+      [1, '#d8d2c6'],
     ]);
-    ctx.fillRect(0, copingTop, W, 14);
-    ctx.fillStyle = vGradient(ctx, copingTop + 14, ROOF.edgeBottom, [
-      [0, css(theme.wall, -0.18)],
-      [1, css(theme.wall, -0.4)],
+    ctx.fillRect(0, copingTop, W, 7);
+    ctx.fillStyle = vGradient(ctx, copingTop + 7, faceTop2, [
+      [0, '#b9b3a6'],
+      [1, '#8f8a7e'],
     ]);
-    ctx.fillRect(0, copingTop + 14, W, ROOF.edgeBottom - copingTop - 14);
-    ctx.fillStyle = 'rgba(0,0,0,0.16)';
-    for (let x = 12; x < W; x += 30) ctx.fillRect(x, copingTop + 22, 14, 10);
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.fillRect(0, copingTop, W, 2);
-    ctx.fillStyle = vGradient(ctx, ROOF.edgeBottom, BASE_BOTTOM, [
-      [0, 'rgba(20,10,0,0.4)'],
+    ctx.fillRect(0, copingTop + 7, W, faceTop2 - copingTop - 7);
+    // Screed, insulation (hatched) and the concrete body.
+    ctx.fillStyle = '#c9c3b6';
+    ctx.fillRect(0, faceTop2, W, 7);
+    ctx.fillStyle = '#d9c98a';
+    ctx.fillRect(0, faceTop2 + 7, W, 7);
+    ctx.strokeStyle = 'rgba(120,100,40,0.5)';
+    ctx.lineWidth = 1;
+    for (let x = -10; x < W; x += 9) {
+      ctx.beginPath();
+      ctx.moveTo(x, faceTop2 + 14);
+      ctx.lineTo(x + 7, faceTop2 + 7);
+      ctx.stroke();
+    }
+    const concrete = faceTop2 + 14;
+    ctx.fillStyle = vGradient(ctx, concrete, slabBottom, [
+      [0, css(theme.wall, -0.05)],
+      [0.6, '#8d887e'],
+      [1, '#5f5a52'],
+    ]);
+    ctx.fillRect(0, concrete, W, slabBottom - concrete);
+    for (let i = 0; i < 700; i++) {
+      ctx.fillStyle = random() < 0.5 ? 'rgba(255,255,255,0.12)' : 'rgba(40,30,20,0.14)';
+      ctx.fillRect(random() * W, concrete + random() * (slabBottom - concrete), 2.5, 1.5);
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    for (let x = 90; x < W; x += 180) ctx.fillRect(x, concrete, 2, slabBottom - concrete);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fillRect(0, copingTop, W, 1.5);
+    // Beam ends under the slab: lit on the left, dark on the right.
+    for (let x = 135; x < W; x += 270) {
+      ctx.fillStyle = hGradient(ctx, x - 26, x + 26, [
+        [0, '#9b968b'],
+        [0.5, '#7f7a70'],
+        [1, '#4f4a43'],
+      ]);
+      ctx.fillRect(x - 26, slabBottom - 2, 52, 13);
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.fillRect(x - 26, slabBottom - 2, 52, 2);
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(0, slabBottom - 3, W, 3);
+    // The slab's shadow on the room's back wall.
+    ctx.fillStyle = vGradient(ctx, slabBottom, BASE_BOTTOM, [
+      [0, 'rgba(20,10,0,0.55)'],
       [1, 'rgba(20,10,0,0)'],
     ]);
-    ctx.fillRect(0, ROOF.edgeBottom, W, BASE_BOTTOM - ROOF.edgeBottom);
+    ctx.fillRect(0, slabBottom, W, BASE_BOTTOM - slabBottom);
   });
 }
 
@@ -701,45 +743,55 @@ export function terraceTableTexture(scene: Phaser.Scene, theme: CityTheme): stri
   });
 }
 
-// Bistro chair with a rounded wrought-iron back. Origin: the floor under the middle of the seat (32, 80).
+// Bistro chair seen from above and turned toward the table (it faces right; the other side of the
+// table uses the flipped picture): a round cushioned seat, a wrought-iron back rising from its far
+// edge, and legs. Origin: the floor under the middle of the seat (32, 80).
 export function terraceChairTexture(scene: Phaser.Scene, theme: CityTheme): string {
   return paintTexture(scene, `terrace-chair-${theme.accent.toString(16)}`, 64, 92, (ctx) => {
     ctx.translate(32, 80);
+    floorShadow(ctx, 4, 0, 28, 7, 0.32);
     const iron = (x0: number, x1: number) =>
       hGradient(ctx, x0, x1, [
-        [0, '#1c1f23'],
-        [0.45, '#586068'],
+        [0, '#586068'],
+        [0.5, '#2f343a'],
         [1, '#1c1f23'],
       ]);
-    // Legs.
-    ctx.fillStyle = iron(-22, -16);
-    ctx.fillRect(-22, -26, 5, 26);
-    ctx.fillRect(17, -26, 5, 26);
-    // Curved back.
+    // Legs: the far ones shorter.
+    ctx.fillStyle = iron(-20, -14);
+    ctx.fillRect(-18, -22, 4, 20);
+    ctx.fillRect(10, -26, 4, 22);
+    ctx.fillStyle = iron(-4, 2);
+    ctx.fillRect(-6, -17, 4, 18);
+    ctx.fillRect(18, -19, 4, 20);
+    // Iron back: a loop leaning over the seat's far-left edge.
     ctx.strokeStyle = '#2f343a';
-    ctx.lineWidth = 5;
+    ctx.lineWidth = 4.5;
+    ctx.lineJoin = 'round';
     ctx.beginPath();
-    ctx.moveTo(-23, -24);
-    ctx.lineTo(-23, -62);
-    ctx.quadraticCurveTo(0, -84, 23, -62);
-    ctx.lineTo(23, -24);
+    ctx.moveTo(-24, -24);
+    ctx.lineTo(-27, -62);
+    ctx.quadraticCurveTo(-24, -80, -8, -76);
+    ctx.quadraticCurveTo(-2, -60, -4, -28);
     ctx.stroke();
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 2;
     ctx.strokeStyle = '#586068';
     ctx.beginPath();
-    ctx.moveTo(-14, -34);
-    ctx.quadraticCurveTo(-8, -52, 0, -36);
-    ctx.quadraticCurveTo(8, -52, 14, -34);
+    ctx.moveTo(-22, -34);
+    ctx.quadraticCurveTo(-20, -56, -14, -44);
+    ctx.quadraticCurveTo(-10, -58, -8, -36);
     ctx.stroke();
-    // Cushioned seat in the accent color.
-    ctx.fillStyle = vGradient(ctx, -28, -12, [
-      [0, css(theme.accent, 0.2)],
-      [1, css(theme.accent, -0.15)],
+    // Cushioned round seat in the accent color, with a lit edge on the left.
+    ctx.fillStyle = css(theme.accent, -0.35);
+    ellipse(ctx, 0, -17, 27, 10);
+    ctx.fill();
+    ctx.fillStyle = hGradient(ctx, -26, 26, [
+      [0, css(theme.accent, 0.3)],
+      [1, css(theme.accent, -0.12)],
     ]);
-    ellipse(ctx, 0, -20, 28, 9);
+    ellipse(ctx, 0, -21, 26, 9.5);
     ctx.fill();
     ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.2;
     ctx.stroke();
   });
 }

@@ -1,9 +1,8 @@
 import Phaser from 'phaser';
 import { styleTier, type SectionId } from '../../core/economy';
 import { SectionLooks } from './sectionLooks';
-import { t, type TranslationKey } from '../../i18n';
 import { DISH_COLORS } from '../colors';
-import { FONT, PALETTE, toCss } from '../config';
+import { PALETTE } from '../config';
 import { ROOM_FX_DEPTH, sparkle } from '../fx';
 import {
   CASHIER_LINE,
@@ -29,13 +28,13 @@ import {
   STAIR_HEAD,
   STAIR_TOP_OUT,
   TERRACE_TABLES,
-  SECTION_ANCHORS,
   STOVES,
   STREET_ENDS,
   TABLES,
   TOURIST_SPOTS,
   VIP_SPOT,
-  WAITER_HOME,
+  WAITER_HOMES,
+  CHEF_Y,
   WALK_LANES,
   type Point,
 } from './layout';
@@ -87,7 +86,7 @@ const STAIR_FADE_MS = 260;
 const CLIMB_SECONDS = 6;
 
 // Small icons over people that explain why they are not working.
-type Status = 'sleep' | 'noPlates' | 'passFull' | 'bill' | 'kitchenBusy';
+type Status = 'sleep' | 'noPlates' | 'passFull' | 'bill' | 'kitchenBusy' | 'busy';
 
 export interface ViewState {
   rates: Record<SectionId, number>;
@@ -120,7 +119,7 @@ export interface ViewState {
 }
 
 // How fast each section works on screen. Every section's real rate is scaled by the same
-// factor, so only the real bottleneck runs at the visible customer rate and the others have
+// factor, so the busiest section runs at about the visible customer rate and the others have
 // slack, exactly like in the economy.
 interface Flow {
   visualRate: number;
@@ -294,9 +293,6 @@ export class RestaurantView {
   private readonly dishwasher: Person;
   private readonly stacks: Phaser.GameObjects.Graphics;
   private readonly steam: Phaser.GameObjects.Ellipse[] = [];
-  private readonly marker: Phaser.GameObjects.Container;
-  private readonly markerLabel: Phaser.GameObjects.Text;
-  private markerSection: SectionId | null = null;
   private cleanPlates = PLATE_POOL;
   private dirtyPlates = 0;
   private cashierBusy = false;
@@ -352,16 +348,6 @@ export class RestaurantView {
     this.dishwasher = this.addPerson(new Person(scene, DISHWASHER.x, DISHWASHER.y, 'dishwasher'));
     this.stacks = scene.add.graphics().setDepth(DISHPIT.counterY + 1);
     this.drawStacks();
-    this.marker = this.createMarker();
-    this.markerLabel = this.marker.getAt(2) as Phaser.GameObjects.Text;
-  }
-
-  // Called when the player taps the bottleneck marker.
-  onMarkerTap: (section: SectionId) => void = () => {};
-
-  // Where the bottleneck marker currently points, or null before the first frame.
-  get markerAnchor(): Point | null {
-    return this.markerSection === null ? null : SECTION_ANCHORS[this.markerSection];
   }
 
   update(state: ViewState, time: number, delta: number): void {
@@ -376,7 +362,6 @@ export class RestaurantView {
     this.deliveryCredit = Math.min(this.deliveryCredit + (this.flow.deliveryRate * delta) / 1000, 1.5);
     this.applyLooks(state.levels, wasStarted);
     this.syncSeats(this.flow.seatsOpen, this.flow.terraceSeatsOpen);
-    this.updateMarker(state.bottleneck);
 
     this.spawnCustomers(this.flow, delta);
     this.admitFromDoor();
@@ -1038,13 +1023,13 @@ export class RestaurantView {
   // Staff counts follow the section levels.
   private syncStaff(flow: Flow): void {
     while (this.waiters.length < flow.waiters) {
-      const home = { x: WAITER_HOME.x + this.waiters.length * 40, y: WAITER_HOME.y + (this.waiters.length % 2) * 20 };
+      const home = WAITER_HOMES[this.waiters.length % WAITER_HOMES.length];
       const person = this.addPerson(new Person(this.scene, home.x, home.y, 'waiter'));
       this.waiters.push({ person, home, busy: false });
     }
     while (this.chefs.length < flow.chefs) {
       const stove = this.chefs.length;
-      const person = this.addPerson(new Person(this.scene, STOVES[stove].x, KITCHEN.counterY - 20, 'chef'));
+      const person = this.addPerson(new Person(this.scene, STOVES[stove].x, CHEF_Y, 'chef'));
       this.chefs.push({ person, stove, cooking: false });
     }
   }
@@ -1081,6 +1066,10 @@ export class RestaurantView {
       this.idleSeconds.set(person, seconds);
       return seconds >= IDLE_BUBBLE_SECONDS ? 'sleep' : null;
     };
+    // The busiest section's staff show a sweat drop while they work: the player's hint at where
+    // the line backs up. It never hides a more specific status (no plates, pass full...).
+    const busiest = this.state?.bottleneck ?? null;
+    const sweaty = (section: SectionId, status: Status | null): Status | null => (status === null && section === busiest ? 'busy' : status);
     const passFull = !this.passTaken.includes(false);
     for (const chef of this.chefs) {
       let status: Status | null = null;
@@ -1090,16 +1079,16 @@ export class RestaurantView {
         else if (passFull) status = 'passFull';
       }
       const sleepy = idle(chef.person, chef.cooking || status !== null);
-      this.setStatus(chef.person, status ?? sleepy, 215);
+      this.setStatus(chef.person, sweaty('kitchen', status ?? sleepy), 215);
     }
-    for (const waiter of this.waiters) this.setStatus(waiter.person, idle(waiter.person, waiter.busy));
+    for (const waiter of this.waiters) this.setStatus(waiter.person, sweaty('waiters', idle(waiter.person, waiter.busy)));
     // A courier kept waiting shows a busy pot: the kitchen has no time for delivery.
     for (const courier of this.couriers) {
       const waited = idle(courier.person, !courier.waiting);
       this.setStatus(courier.person, waited ? 'kitchenBusy' : null, 200);
     }
-    this.setStatus(this.cashier, idle(this.cashier, this.cashierBusy || this.cashierLine.length > 0));
-    this.setStatus(this.dishwasher, idle(this.dishwasher, this.washing));
+    this.setStatus(this.cashier, sweaty('cashier', idle(this.cashier, this.cashierBusy || this.cashierLine.length > 0)));
+    this.setStatus(this.dishwasher, sweaty('dishwashing', idle(this.dishwasher, this.washing)));
     for (const checkout of this.checkoutWaiting) this.setStatus(checkout.person, 'bill', 175);
 
     // Bubbles follow walking staff.
@@ -1151,6 +1140,12 @@ export class RestaurantView {
         g.lineStyle(3, 0xb8c4cc, 1);
         [-8, 2, 12].forEach((x) => g.beginPath().arc(x, -18, 4, Math.PI * 0.5, Math.PI * 1.5).strokePath());
         break;
+      case 'busy':
+        // A sweat drop and two small beads.
+        g.fillStyle(0x6fb6e8, 1).fillCircle(0, 6, 11).fillTriangle(-9, 2, 9, 2, 0, -18);
+        g.fillStyle(0xffffff, 0.7).fillCircle(-4, 6, 3);
+        g.fillStyle(0x6fb6e8, 1).fillCircle(-20, -6, 4).fillCircle(20, 0, 3);
+        break;
       case 'bill':
         g.fillStyle(PALETTE.saffron, 1).fillCircle(0, -4, 17);
         g.fillStyle(PALETTE.saffronDark, 1).fillCircle(0, -4, 11);
@@ -1159,7 +1154,7 @@ export class RestaurantView {
     }
   }
 
-  // --- Bubbles and marker ----------------------------------------------------------------
+  // --- Bubbles ----------------------------------------------------------------
 
   private showBubble(person: Person, drawContent: (g: Phaser.GameObjects.Graphics) => void, scale = 1): Bubble {
     const back = this.scene.add.graphics();
@@ -1195,44 +1190,6 @@ export class RestaurantView {
       this.scene.tweens.add({ targets: bubble.container, angle: { from: -7, to: 7 }, duration: 120, yoyo: true, repeat: -1 });
     });
     return bubble;
-  }
-
-  private createMarker(): Phaser.GameObjects.Container {
-    const circle = this.scene.add.circle(0, 0, 30, PALETTE.pomegranate).setStrokeStyle(5, 0xffffff);
-    const mark = this.scene.add
-      .text(0, 0, '!', { fontFamily: FONT, fontSize: '44px', fontStyle: 'bold', color: '#ffffff' })
-      .setOrigin(0.5);
-    const label = this.scene.add
-      .text(0, 50, '', {
-        fontFamily: FONT,
-        fontSize: '24px',
-        fontStyle: 'bold',
-        color: toCss(PALETTE.cream),
-        backgroundColor: toCss(PALETTE.pomegranate),
-        padding: { x: 10, y: 4 },
-      })
-      .setOrigin(0.5);
-    const marker = this.scene.add.container(0, 0, [circle, mark, label]).setDepth(6000).setVisible(false);
-    // Generous hit area so the marker is easy to tap on a phone.
-    marker.setSize(140, 150).setInteractive({ useHandCursor: true });
-    marker.on('pointerdown', (_: Phaser.Input.Pointer, __: number, ___: number, event: Phaser.Types.Input.EventData) => {
-      event.stopPropagation();
-      if (this.markerSection) this.onMarkerTap(this.markerSection);
-    });
-    this.scene.tweens.add({ targets: circle, scale: 1.15, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-    return marker;
-  }
-
-  private updateMarker(section: SectionId): void {
-    if (section === this.markerSection) return;
-    const anchor = SECTION_ANCHORS[section];
-    this.markerLabel.setText(t(`section.${section}` as TranslationKey));
-    if (this.markerSection === null) {
-      this.marker.setPosition(anchor.x, anchor.y).setVisible(true);
-    } else {
-      this.scene.tweens.add({ targets: this.marker, x: anchor.x, y: anchor.y, duration: 400, ease: 'Cubic.easeInOut' });
-    }
-    this.markerSection = section;
   }
 
   private addPerson(person: Person): Person {

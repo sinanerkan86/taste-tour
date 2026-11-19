@@ -1,12 +1,15 @@
-// Usage: npm run sim [-- --boost 2 --hours 12 --cycles 5 --stay 1.5 --lab 4 --perks 1]
+// Usage: npm run sim [-- --boost 2 --hours 12 --cycles 5 --stay 1.5 --lab 4 --perks 1 --policy greedy|even|specialist|all]
 import { DISH_TIERS, RESEARCH_IDS, SECTION_IDS } from '../../src/core/economy';
 import { formatDuration, formatNumber } from '../../src/core/format';
-import { dishLabel, simulate, type SimOptions } from './simulate';
+import { BOT_POLICIES, dishLabel, simulate, type BotPolicy, type SimOptions } from './simulate';
+
+let policyArg = 'greedy';
 
 function parseArgs(argv: string[]): Partial<SimOptions> {
   const options: Partial<SimOptions> = {};
   for (let i = 0; i < argv.length; i += 2) {
     const value = Number(argv[i + 1]);
+    if (argv[i] === '--policy') policyArg = argv[i + 1];
     if (argv[i] === '--boost') options.incomeBoost = value;
     if (argv[i] === '--hours') options.maxSeconds = value * 3600;
     if (argv[i] === '--cycles') options.maxCycles = value;
@@ -17,7 +20,39 @@ function parseArgs(argv: string[]): Partial<SimOptions> {
   return options;
 }
 
-const result = simulate(parseArgs(process.argv.slice(2)));
+const baseOptions = parseArgs(process.argv.slice(2));
+
+// Compare the bot policies: city times and stars side by side.
+if (policyArg === 'all') {
+  const runs = BOT_POLICIES.map((policy) => ({ policy, result: simulate({ ...baseOptions, policy }) }));
+  console.log('\nCity time by bot policy (the best and worst should be within ~15% of each other)');
+  const count = Math.max(...runs.map((r) => r.result.cycles.length));
+  const rows = [];
+  for (let i = 0; i < count; i++) {
+    const row: Record<string, string | number> = { cycle: i + 1, city: runs[0].result.cycles[i]?.city ?? '-' };
+    for (const { policy, result } of runs) {
+      const c = result.cycles[i];
+      row[policy] = c ? `${formatDuration(c.duration)} / ${c.starsGained}* (menu ${c.menuCompleteAt === null ? '-' : formatDuration(c.menuCompleteAt)})` : '-';
+    }
+    rows.push(row);
+  }
+  console.table(rows);
+  console.log('Total time (s), stars and stars per hour');
+  const totals = runs.map(({ policy, result }) => {
+    const total = Math.round(result.cycles.reduce((sum, c) => sum + c.duration, 0));
+    const stars = result.cycles.reduce((sum, c) => sum + c.starsGained, 0);
+    return { policy, total, stars, 'stars/h': Math.round((stars / total) * 3600 * 10) / 10 };
+  });
+  console.table(totals);
+  const best = Math.max(...totals.map((t) => t['stars/h']));
+  const worst = Math.min(...totals.map((t) => t['stars/h']));
+  console.log(`Slowest policy earns ${Math.round((1 - worst / best) * 100)}% fewer stars per hour than the fastest`);
+  for (const { policy, result } of runs) printSpread(policy, result);
+  process.exit(0);
+}
+
+const result = simulate({ ...baseOptions, policy: policyArg as BotPolicy });
+printSpread(policyArg, result);
 
 console.log('\nCycles');
 console.table(
@@ -25,6 +60,7 @@ console.table(
     cycle: c.index + 1,
     city: c.city,
     duration: formatDuration(c.duration),
+    'menu complete': c.menuCompleteAt === null ? '-' : formatDuration(c.menuCompleteAt),
     'stars before': c.starsBefore,
     'stars gained': c.starsGained,
     'final income/s': formatNumber(c.finalIncome),
@@ -127,3 +163,17 @@ console.table(
     ]),
   ),
 );
+
+function printSpread(policy: string, result: ReturnType<typeof simulate>): void {
+  console.log(`
+Upgrade spread, policy ${policy}: share of section upgrades (%) and specialty bonus at the end (%)`);
+  console.table(
+    result.cycles.map((c) => {
+      const total = SECTION_IDS.reduce((sum, id) => sum + (c.purchasesByTarget[id] ?? 0), 0);
+      return Object.fromEntries([
+        ['cycle', c.index + 1],
+        ...SECTION_IDS.map((id) => [id, `${Math.round(((c.purchasesByTarget[id] ?? 0) / Math.max(total, 1)) * 100)} / +${Math.round(c.finalSpecialties[id] * 100)}`]),
+      ]);
+    }),
+  );
+}

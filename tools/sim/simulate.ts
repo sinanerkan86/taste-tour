@@ -38,7 +38,8 @@ import {
   nextLockedDish,
   pendingStars,
   prestige,
-  sectionRates,
+  sectionLoad,
+  specialties,
   sectionUpgradeCost,
   throughput,
   type EconomyState,
@@ -60,7 +61,17 @@ export interface SimOptions {
   labTimeFactor: number;
   // Whether the bot picks franchise perks.
   perks: boolean;
+  // How the bot spends on the six sections: 'greedy' buys whatever pays back soonest, 'even' always
+  // upgrades the busiest section, 'specialist' runs kitchen, seating and waiters ahead while their
+  // specialty bonus is below its cap (the rest only under pressure).
+  policy: BotPolicy;
 }
+
+export type BotPolicy = 'greedy' | 'even' | 'specialist';
+export const BOT_POLICIES: BotPolicy[] = ['greedy', 'even', 'specialist'];
+// The specialist's sections, and the load above which it also upgrades one of the others.
+const SPECIALIST_SECTIONS: SectionId[] = ['kitchen', 'seating', 'waiters'];
+const SPECIALIST_PRESSURE = 1.4;
 
 // The bot researches whatever of these finishes soonest (the others do not change active play),
 // and picks perks in this order (first one offered wins).
@@ -75,6 +86,7 @@ export const DEFAULT_OPTIONS: SimOptions = {
   stopAfterWait: Infinity,
   labTimeFactor: 4,
   perks: true,
+  policy: 'greedy',
 };
 
 export interface Sample {
@@ -99,7 +111,12 @@ export interface CycleResult {
   bottleneckSeconds: Record<SectionId, number>;
   // Seconds into the cycle at which each dish (menu position) was unlocked.
   dishUnlocks: { dish: number; time: number }[];
+  // Seconds into the cycle at which the menu was complete (the first franchise point), or null.
+  menuCompleteAt: number | null;
   finalSectionLevels: Record<SectionId, number>;
+  // Specialty bonuses (0 to cap) and section loads at the end of the cycle.
+  finalSpecialties: Record<SectionId, number>;
+  finalLoads: Record<SectionId, number>;
   finalDishLevels: number[];
   // Delivery: when it opened (seconds into the cycle), courier level and its share of income at
   // the end, and the share of time the kitchen held it back.
@@ -146,27 +163,27 @@ interface Option {
   apply: (state: EconomyState) => void;
 }
 
-function candidates(state: EconomyState): Option[] {
-  const options: Option[] = SECTION_IDS.map((id) => ({
+function candidates(state: EconomyState, policy: BotPolicy): Option[] {
+  // The even bot only ever upgrades the busiest section (the weakest one).
+  const busiest = throughput(state).bottleneck;
+  let sections: readonly SectionId[] = SECTION_IDS;
+  if (policy === 'even') sections = SECTION_IDS.filter((id) => id === busiest);
+  if (policy === 'specialist') {
+    // Fine dining: kitchen, seating and waiters run ahead; the other three only get upgraded when
+    // one of them is under real pressure, or when the specialties are at their caps.
+    const spec = specialties(state);
+    const load = sectionLoad(state);
+    const wanted = SPECIALIST_SECTIONS.filter((id) => spec[id].bonus < spec[id].cap);
+    const others = SECTION_IDS.filter((id) => !SPECIALIST_SECTIONS.includes(id));
+    const pressed = others.filter((id) => load[id] > SPECIALIST_PRESSURE);
+    sections = wanted.length > 0 ? [...wanted, ...pressed] : SECTION_IDS;
+  }
+  const options: Option[] = sections.map((id) => ({
     label: id,
     targets: [id],
     cost: sectionUpgradeCost(state, id),
     apply: (s) => s.sectionLevels[id]++,
   }));
-
-  // When several sections tie for the bottleneck, upgrading one alone gains nothing,
-  // so also offer upgrading all tied sections together.
-  const rates = sectionRates(state);
-  const min = Math.min(...SECTION_IDS.map((id) => rates[id]));
-  const tied = SECTION_IDS.filter((id) => rates[id] <= min * (1 + 1e-9));
-  if (tied.length > 1) {
-    options.push({
-      label: tied.join('+'),
-      targets: tied,
-      cost: tied.reduce((sum, id) => sum + sectionUpgradeCost(state, id), 0),
-      apply: (s) => tied.forEach((id) => s.sectionLevels[id]++),
-    });
-  }
 
   options.push({ label: 'delivery', targets: ['delivery'], cost: deliveryCost(state), apply: (s) => s.deliveryLevel++ });
   options.push({ label: 'bus', targets: ['bus'], cost: busStopCost(state), apply: (s) => s.busStopLevel++ });
@@ -223,6 +240,11 @@ function clone(state: EconomyState): EconomyState {
   };
 }
 
+function bonusesOf(state: EconomyState): Record<SectionId, number> {
+  const all = specialties(state);
+  return Object.fromEntries(SECTION_IDS.map((id) => [id, all[id].bonus])) as Record<SectionId, number>;
+}
+
 function emptyBottleneckTimes(): Record<SectionId, number> {
   return Object.fromEntries(SECTION_IDS.map((id) => [id, 0])) as Record<SectionId, number>;
 }
@@ -253,7 +275,10 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
       purchasesByTarget: {},
       bottleneckSeconds: emptyBottleneckTimes(),
       dishUnlocks: [{ dish: 0, time: 0 }],
+      menuCompleteAt: null,
       finalSectionLevels: { ...state.sectionLevels },
+      finalSpecialties: bonusesOf(state),
+      finalLoads: sectionLoad(state),
       finalDishLevels: [...state.dishLevels],
       deliveryOpened: null,
       finalDeliveryLevel: 0,
@@ -314,6 +339,8 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
     cycle.duration = time - cycle.startTime;
     cycle.finalIncome = income(state);
     cycle.finalSectionLevels = { ...state.sectionLevels };
+    cycle.finalSpecialties = bonusesOf(state);
+    cycle.finalLoads = sectionLoad(state);
     cycle.finalDishLevels = [...state.dishLevels];
     cycle.finalDeliveryLevel = state.deliveryLevel;
     cycle.finalParkingLevel = state.parkingLevel;
@@ -339,7 +366,7 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
     let bestScore = Infinity;
     let bestWait = 0;
     let shortestWait = Infinity;
-    for (const option of candidates(state)) {
+    for (const option of candidates(state, options.policy)) {
       const after = clone(state);
       option.apply(after);
       const gain = income(after) - inc;
@@ -404,6 +431,7 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
     if (lockedBefore >= 0 && state.dishLevels[lockedBefore] > 0) {
       cycle.dishUnlocks.push({ dish: lockedBefore, time: time - cycle.startTime });
     }
+    if (cycle.menuCompleteAt === null && nextLockedDish(state) < 0) cycle.menuCompleteAt = time - cycle.startTime;
     cycle.purchases++;
     for (const target of best.targets) {
       cycle.purchasesByTarget[target] = (cycle.purchasesByTarget[target] ?? 0) + 1;

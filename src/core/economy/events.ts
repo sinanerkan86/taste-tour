@@ -1,8 +1,8 @@
-import { CHEF, EVENTS, type SectionId } from './config';
+import { CHEF, EVENTS, SECTION_IDS, type SectionId } from './config';
 import { eventRewardMultiplier, incomeMultiplier } from './bonuses';
 import { giveChefCards } from './chefs';
 import { sectionUpgradeCost } from './actions';
-import { baseIncomePerSecond, boostMultiplier, dishPrice, earn, throughput, type EconomyState } from './state';
+import { baseIncomePerSecond, boostMultiplier, buzzGapFactor, dishPrice, earn, reviewLengthFactor, specialtyMultiplier, throughput, type EconomyState } from './state';
 
 // Scene events: every few minutes of play something happens in the restaurant (GDD 6e).
 //  - critic: a food critic watches for a minute; raise customers/s to the target (fix the
@@ -14,13 +14,15 @@ export const EVENT_KINDS = ['critic', 'tourBus', 'festival'] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 
 // Seconds of play until the next event; `random` is in [0, 1).
-export function nextEventGap(random: number): number {
-  return EVENTS.minGapSeconds + random * (EVENTS.maxGapSeconds - EVENTS.minGapSeconds);
+// With a state, a buzzing entrance brings events sooner.
+export function nextEventGap(random: number, state?: EconomyState): number {
+  const gap = EVENTS.minGapSeconds + random * (EVENTS.maxGapSeconds - EVENTS.minGapSeconds);
+  return state ? gap / buzzGapFactor(state) : gap;
 }
 
 // The customers/s the critic asks for: what the player could reach by spending part of their
-// money (plus a little income) on the bottleneck, one level at a time. Null when that would not
-// be a real step up (the critic then does not come).
+// money (plus a little income) on the best-value section upgrades, one level at a time. Null when
+// that would not be a real step up (the critic then does not come).
 export function criticTarget(state: EconomyState): number | null {
   const now = throughput(state).customersPerSecond;
   let budget = state.money * EVENTS.critic.moneyShare + baseIncomePerSecond(state) * EVENTS.critic.incomeSeconds;
@@ -28,11 +30,25 @@ export function criticTarget(state: EconomyState): number | null {
   const trial: EconomyState = { ...state, sectionLevels: levels };
   const cap = now * EVENTS.critic.maxGain;
   for (let i = 0; i < 1000 && throughput(trial).customersPerSecond < cap; i++) {
-    const id: SectionId = throughput(trial).bottleneck;
-    const cost = sectionUpgradeCost(trial, id);
-    if (cost > budget) break;
-    budget -= cost;
-    levels[id]++;
+    const before = throughput(trial).customersPerSecond;
+    let best: SectionId | null = null;
+    let bestValue = 0;
+    let bestCost = 0;
+    for (const id of SECTION_IDS) {
+      const cost = sectionUpgradeCost(trial, id);
+      if (cost > budget) continue;
+      levels[id]++;
+      const value = (throughput(trial).customersPerSecond - before) / cost;
+      levels[id]--;
+      if (value > bestValue) {
+        best = id;
+        bestValue = value;
+        bestCost = cost;
+      }
+    }
+    if (best === null) break;
+    budget -= bestCost;
+    levels[best]++;
   }
   const target = Math.min(cap, throughput(trial).customersPerSecond);
   return target >= now * EVENTS.critic.minGain ? target : null;
@@ -44,9 +60,9 @@ export function criticProgress(state: EconomyState, start: number, target: numbe
   return Math.min(1, Math.max(0, (throughput(state).customersPerSecond - start) / (target - start)));
 }
 
-// How long a good review boosts income (Malee makes it last longer).
+// How long a good review boosts income (Malee and a spotless dish pit make it last longer).
 export function reviewDuration(state: EconomyState): number {
-  return EVENTS.critic.reviewSeconds * eventRewardMultiplier(state);
+  return EVENTS.critic.reviewSeconds * eventRewardMultiplier(state) * reviewLengthFactor(state);
 }
 
 // The good review: a timed income boost (a new review restarts the clock) and a chef card.
@@ -70,7 +86,7 @@ export function busTip(state: EconomyState, combo: number): number {
 export function festivalBonusPerSecond(state: EconomyState, dish: number): number {
   if (!(state.dishLevels[dish] > 0)) return 0;
   const extra = dishPrice(state, dish) * (EVENTS.festival.priceMultiplier - 1);
-  return throughput(state).customersPerSecond * extra * incomeMultiplier(state) * boostMultiplier(state);
+  return throughput(state).customersPerSecond * extra * incomeMultiplier(state) * specialtyMultiplier(state) * boostMultiplier(state);
 }
 
 // The dish a festival celebrates: one on the menu, picked at random.

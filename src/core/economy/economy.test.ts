@@ -84,28 +84,32 @@ describe('economy state', () => {
     expect(incomePerSecond(state)).toBeGreaterThan(0);
   });
 
-  it('is limited by the slowest section', () => {
+  it('is held back most by the slowest section, which is the busiest', () => {
     const state = newEconomy();
     const rates = sectionRates(state);
     const slowest = Math.min(...SECTION_IDS.map((id) => rates[id]));
-    expect(throughput(state).customersPerSecond).toBe(slowest);
+    const flow = throughput(state).customersPerSecond;
+    // A soft minimum: above the slowest rate, below the average.
+    expect(flow).toBeGreaterThan(slowest);
+    expect(flow).toBeLessThan(SECTION_IDS.reduce((sum, id) => sum + rates[id], 0) / SECTION_IDS.length);
     expect(rates[throughput(state).bottleneck]).toBe(slowest);
   });
 
-  it('only raises income when the bottleneck is upgraded', () => {
-    const state = newEconomy();
-    state.money = 1e9;
-    const before = incomePerSecond(state);
-    const notBottleneck = SECTION_IDS.find((id) => id !== throughput(state).bottleneck)!;
-    buySectionLevel(state, notBottleneck);
-    expect(incomePerSecond(state)).toBe(before);
-    buySectionLevel(state, throughput(state).bottleneck);
-    expect(incomePerSecond(state)).toBeGreaterThan(before);
+  it('raises income with every section upgrade', () => {
+    const base = newEconomy();
+    base.money = 1e9;
+    const before = incomePerSecond(base);
+    const gains = SECTION_IDS.map((id) => {
+      const state = { ...base, sectionLevels: { ...base.sectionLevels } };
+      buySectionLevel(state, id);
+      return { id, gain: incomePerSecond(state) - before };
+    });
+    for (const { gain } of gains) expect(gain).toBeGreaterThan(0);
   });
 });
 
 describe('tap', () => {
-  it('tips a fifth of a second of income, but at least a quarter of a bill at the start', () => {
+  it('tips a fifth of a second of income, but at least a third of a bill at the start', () => {
     const state = newEconomy();
     const tip = tap(state);
     expect(state.money).toBe(tip);

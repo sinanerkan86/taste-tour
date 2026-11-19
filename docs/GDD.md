@@ -8,7 +8,7 @@
 - **Platform:** Android (Google Play), iOS possible later
 - **Target market:** Global (priority: US/Europe); languages: English, Turkish, French and Simplified Chinese (the device language by default, changeable in the settings)
 - **Monetization:** Rewarded ads (main revenue) + in-app purchases ("Remove ads", permanent 2x). **No** forced (interstitial) ads at launch.
-- **One-liner:** Grow a single restaurant from a street stall into a huge venue, unlock dishes from world cuisines, break bottlenecks, and open franchises in cities around the world.
+- **One-liner:** Grow a single restaurant from a street stall into a huge venue, unlock dishes from world cuisines, balance the sections, and open franchises in cities around the world.
 
 ## 2. Core loop
 
@@ -37,20 +37,33 @@ The panel has an x1 / x10 / Max toggle: one tap buys that many levels (Max: as m
 
 All six dine-in sections are there from the start; delivery opens later with a one-time purchase.
 
-### Bottleneck mechanic (the heart of the game)
+### Soft bottleneck and section specialties (the heart of the game)
 
-The restaurant's actual throughput = the throughput of the **slowest link** in the chain.
-`throughput = min(arrivals, seating, kitchen, waiters, cashier, dishwashing)`
+Changed 2026-11-20 after playtest feedback: the old hard `min()` told the player exactly where to upgrade, like solving a formula. Now customers per second is a **soft minimum** of the six section rates (entrance, seating, kitchen, waiters, cashier, dishwashing; parking and terrace already added):
 
-Delivery (section 3b) sits outside this chain: it only uses what the kitchen has left after the dining room.
+`flow = ( Σ rate_i^-p / 6 )^(-1/p)`, with `p = FLOW.softness = 3`.
 
-- The player decides "what should I invest in now?" → strategy.
-- The bottleneck is visible: growing queue, piling dishes, angry customer faces, plates waiting to be served.
-- The UI subtly highlights the bottleneck section (a hint for new players).
+Equal rates give that rate; the weakest section still pulls the flow down the most, but every section upgrade raises income a little, so the player can choose where to invest. `throughput()` returns the flow and the **busiest** section (highest load `flow / rate`, in practice the weakest). `sectionLoad()` gives each section's load: above 1 it is under pressure, below 1 it has spare capacity.
 
-How the scene shows it: every section's real rate is scaled by the same factor so that the bottleneck runs at the visible customer rate (at most 1.2 customers/s on screen) and every other section keeps its slack. Customers arrive about 30% faster than the restaurant can serve, so work piles up right in front of the bottleneck:
+Delivery (section 3b) and the bus stop (13) sit outside this chain: they use only what the kitchen / dining room have left over (`rate - flow`, never below 0).
 
-| Bottleneck | What the player sees |
+**Specialties.** A section with capacity beyond the flow is not wasted: its surplus `s = rate / flow` (only above 1) earns a bonus `weight × log2(s)`, capped (`SPECIALTIES` in config):
+
+| Section | Specialty | Effect | Weight / cap |
+|---|---|---|---|
+| Kitchen | Quality | bill up (dine-in and delivery) | 0.19 / 0.60 |
+| Dining room | Comfort | guests order more, bill up | 0.15 / 0.50 |
+| Waiters | Service | tips, income up | 0.11 / 0.35 |
+| Entrance | Buzz | income up; VIP guests and events come sooner (gap / (1 + bonus)) | 0.06 / 0.20 |
+| Cashier | Express | income up | 0.06 / 0.20 |
+| Dishwashing | Spotless | income up; a critic's good review lasts longer (x(1 + bonus)) | 0.06 / 0.20 |
+
+The bonuses multiply dine-in income (`incomeBreakdown`, so offline earnings, taps and events follow). The weakest sections have no surplus and no specialty, so the flow and the bonuses pull the player in two directions: fix the weak link, or push a favourite section ahead for its bonus. Two styles are both viable (checked in the sim, see section 7): even growth ("volume") and fine dining (kitchen, dining room and waiters ahead).
+
+- The panel shows it: every section row has a slim load gauge (green below 0.75, amber 0.75 to 1, red above 1), a specialty line ("Quality +14% (max +60%)") and a soft "BUSIEST" tag on the highest-load row. No red marker in the scene.
+- The scene shows it physically: each section's real rate is scaled by the same factor so the flow runs at the visible customer rate (at most 1.2 customers/s on screen); sections under pressure fall a little behind, so work piles up in front of them in proportion to their load:
+
+| Under pressure | What the player sees |
 |---|---|
 | Entrance | A calm, half-empty room; staff idle |
 | Dining room | Few open tables (closed ones are dimmed), a line at the door, customers turned away |
@@ -59,7 +72,7 @@ How the scene shows it: every section's real rate is scaled by the same factor s
 | Cashier | A long line at the register; diners stay seated waiting for it |
 | Dishwashing | A growing dirty plate pile, no clean plates, chefs stand idle |
 
-Guidance: tapping the "!" marker switches to the Restaurant tab and flashes that section's row. Status bubbles explain stalls: "zzz" over staff idle for 4+ s, "no plates" or "pass full" over chefs who have orders but cannot cook, a coin over diners waiting for room in the cashier line. A one-time tip in the first session explains the bottleneck and points at the marker.
+Status bubbles explain stalls: "zzz" over staff idle for 4+ s, "no plates" or "pass full" over chefs who have orders but cannot cook, a coin over diners waiting for room in the cashier line, and a sweat drop over the working staff of the busiest section. A one-time tip in the first session explains it (the busiest section slows everyone most, every upgrade helps, spare capacity earns a specialty) and then opens that section's rows with the gauges.
 
 Staff on screen: chefs and waiters grow by one every 25 section levels (waiters also when they would otherwise have to run), plus one cashier and one dishwasher.
 
@@ -279,15 +292,19 @@ Later ideas: the head chef of the city cooking in the kitchen; more chefs per ci
 
 All numbers live in `src/core/economy/config.ts`. Balance is checked with the simulation (`npm run sim`, or `/sim.html` on the dev server for charts).
 
-- **Income/s** = `(min(section rates) + 0.5 × delivery orders/s) × bill per customer × (1 + 0.1 × stars) × (1 + 0.25 × Secret Spices) × (1 + 0.5 × Famous Chain) × (1 + chef income bonus) × (2 with the Golden Kitchen)`
+- **Income/s** = `(soft flow × dine-in specialty bonuses + 0.5 × delivery orders/s × (1 + Quality)) × bill per customer × (1 + 0.1 × stars) × (1 + 0.25 × Secret Spices) × (1 + 0.5 × Famous Chain) × (1 + chef income bonus) × (2 with the Golden Kitchen)`
 - **Section rate** = `baseRate × level × 1.5^milestones`. **Dish price** = `basePrice × level × 2^milestones`. Milestones: 10, 25, 50, 75, 100, 150, 200, …
-- **Upgrade cost:** `cost(level) = baseCost × r^(level-1)`. Sections have r = 1.20–1.22 and dishes r = 1.25. Each section has its own curve, so the bottleneck moves around as the restaurant grows (entrance and waiters early, kitchen and seating later).
+- **Upgrade cost:** `cost(level) = baseCost × r^(level-1)`. Sections have r = 1.20–1.22 and dishes r = 1.25. Each section has its own curve, so the busiest section moves around as the restaurant grows (entrance and waiters early, kitchen and seating later).
 - **Dish unlock costs** are calibrated so that each new dish arrives just as growth from the previous one starts to stall.
-- **Cities:** every dish tier (`DISH_TIERS`) is reused in each city. In the n-th city prices are ×1000ⁿ (bigger numbers feel like progress) and all costs are ×1000ⁿ × (1 + 0.1 × 10n) × (1 + 0.6n), i.e. also scaled by the star bonus and part of the lab/perk bonus a player is expected to bring. Players get ahead of that scale in the first cities (they feel stronger), then cities settle at about 35-40 minutes. Local Suppliers lowers costs on top.
+- **Cities:** every dish tier (`DISH_TIERS`) is reused in each city. In the n-th city prices are ×1000ⁿ (bigger numbers feel like progress) and all costs are ×1000ⁿ × (1 + 0.1 × 10n) × (1 + 0.8n), i.e. also scaled by the star bonus and part of the lab/perk bonus a player is expected to bring. Players get ahead of that scale in the first cities (they feel stronger), then cities settle at about 35-40 minutes. Local Suppliers lowers costs on top.
 - **Prestige reward:** see section 6; +10% income per star.
 - **Offline earnings:** income/s × time away, capped at 2 hours at first. The cap grows with Night Shift research (+1 h per level), Karim (+30 min per level) and the **Night Safe**, the last row of the Restaurant tab: 4 levels of +1 h each, bought with money (costs 2e4, 1e8, 3e10, 5e11 in the city's cost scale, i.e. around dish 2, 3, 5 and 6, so each level competes with the next dish). The Night Safe belongs to the restaurant and starts over with a franchise (`SAFE` in config). Applies both when the game was closed and when it was in the background; absences over 1 minute show a "Welcome back" dialog.
 - **Saving:** every 10 s, after each purchase and when the game goes to the background. Saves are repaired on load (missing sections/dishes get starting values), so adding content later does not break old saves.
 - **Big numbers:** plain JS numbers for now; they reach ~1e308, which covers the whole planned content. Switch to `break_infinity.js` only if later cities exceed that. Display: 1.5K, 3.2M, 7.8B, T, then aa, ab, …
+
+### Bot policies and strategy (2026-11-20)
+
+`npm run sim -- --policy all` runs three bots and prints city time, time to a complete menu and stars: **greedy** (best payback per cost), **even** (only ever upgrades the busiest section, like the old game) and **specialist** (kitchen, dining room and waiters run ahead until their specialty caps; the rest only under pressure). Targets: greedy and specialist within ~10% of each other in stars per hour, the even bot may be up to ~25-30% behind (ignoring specialties should cost something), and greedy stays within ~10% of the pre-flow baseline for cities 2-5 (time to a complete menu 16-19 min). The specialist ends with clearly bigger bonuses (about +26% Comfort, +29% Quality, +13% Service against +20 / +13 / 0 for greedy). The first city's star stop is noisy; compare its time to a complete menu (about 29 min against 33 min before).
 
 ### Simulated pacing (greedy bot, active play, no ads)
 
@@ -310,7 +327,7 @@ The bot also opens delivery and buys couriers (section 3b); before delivery the 
 | Time skip | Instant 1 hour of earnings |
 | Offline earnings | Collect 2x/3x on return |
 | Wandering customer / VIP tourist | Randomly appearing customer, big tip for watching an ad |
-| Staff help (was "staff discount") | Free levels for the bottleneck section (15 min cooldown) |
+| Staff help (was "staff discount") | Free levels for the busiest section (15 min cooldown) |
 
 Implemented (7a): Rush gives 2x income for 4 hours per ad and stacks up to 12 hours; its time keeps running while the player is away, so offline earnings use the boosted rate only for the Rush part. Time skip ("Extra cash") pays one hour of current income at once and then has a 30 minute cooldown; it is offered from a green "+" at the right end of the money counter, which turns grey while cooling down (tapping it then shows the time left). The welcome-back dialog offers "Collect 2x". Every ad starts from a dialog that shows the reward, and a skipped ad gives nothing. Rush time and the cooldown carry over through a franchise. Numbers live in `ADS` in the economy config.
 

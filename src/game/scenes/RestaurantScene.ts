@@ -66,24 +66,14 @@ import {
   buyDeliveryLevels,
   buyParkingLevels,
   arrivals,
-  canBuyValet,
-  SECTION_IDS,
-  deliveryCost,
-  parkingCost,
-  safeUpgradeCost,
-  sectionUpgradeCost,
-  valetCost,
+  upgradeHints,
   buyValet,
   BUS_STOP,
   busGroupSize,
   busPayout,
-  busStopCost,
   buyBusStopLevels,
   buyRoofBar,
   buyTerraceLevels,
-  canBuyRoofBar,
-  roofBarCost,
-  terraceCost,
   terraceRate,
   deliveryFlow,
   incomeBreakdown,
@@ -127,7 +117,7 @@ import { GoalBar } from '../ui/GoalBar';
 import { HintBubble } from '../ui/HintBubble';
 import { PANEL_STRIP, UpgradePanel } from '../ui/UpgradePanel';
 import { WelcomeBackModal } from '../ui/WelcomeBackModal';
-import { BUS_STOP_ANCHOR, BUS_STOP_SPOT, DELIVERY_SIGN, PARKING_ANCHOR, ROOM, SECTION_ANCHORS, SPOT_ANCHORS, TERRACE_ANCHOR, WORLD, spotAt, type Point, type SpotId } from '../view/layout';
+import { BUS_STOP_ANCHOR, BUS_STOP_SPOT, DELIVERY_SIGN, PARKING_ANCHOR, ROOM, SECTION_ANCHORS, SPOT_ANCHORS, TERRACE_ANCHOR, WORLD, spotAt, type Point } from '../view/layout';
 import { SpotMarkers } from '../view/SpotMarkers';
 import { RestaurantView } from '../view/RestaurantView';
 import { Decor } from '../view/decor';
@@ -159,10 +149,6 @@ const PLUS_SIZE = 66;
 const DAILY_BUTTON = 92;
 // The chefs button sits above the daily button, the shop button above Rush.
 const CORNER_STACK_GAP = 150;
-// Shown at the edge of the room view when the bottleneck marker is scrolled out of sight.
-const MARKER_ARROW = { inset: 62, radius: 34 };
-// World pixels the marker must be inside the view to count as visible.
-const MARKER_VISIBLE_MARGIN = 50;
 const PAN_MS = 450;
 // The goal card sits this far below the top of the restaurant view.
 const GOAL_BAR_Y = 50;
@@ -233,8 +219,6 @@ export class RestaurantScene extends Phaser.Scene {
   private room!: RoomCamera;
   private uiCamera!: Phaser.Cameras.Scene2D.Camera;
   private goalBar!: GoalBar;
-  private markerArrow!: Phaser.GameObjects.Container;
-  private markerArrowTip!: Phaser.GameObjects.Triangle;
   // Lab projects already announced as done, so each one is announced once.
   private announcedResearch = new Set<ResearchId>();
   private dailyButton!: Phaser.GameObjects.Container;
@@ -312,7 +296,6 @@ export class RestaurantScene extends Phaser.Scene {
     this.view = new RestaurantView(this, theme, cityConfig(this.economy.city).dishes);
     this.decor = new Decor(this, theme);
     this.view.onPayment = (amount, at) => this.showPayment(amount, at);
-    this.view.onMarkerTap = (section) => this.focusBottleneck(section);
     this.view.onVipTap = (at) => this.offerVip(at);
     this.drawHud();
     this.createTapArea();
@@ -342,7 +325,6 @@ export class RestaurantScene extends Phaser.Scene {
     };
     this.spotMarkers = new SpotMarkers(this);
     this.panel.setDepth(UI_DEPTH);
-    this.createMarkerArrow();
     this.goalBar = new GoalBar(this, GAME_WIDTH / 2, ROOM.top + GOAL_BAR_Y, () => this.followGoal()).setDepth(FX_DEPTH - 3);
     this.eventBar = new EventBar(this, GAME_WIDTH / 2, ROOM.top + EVENT_BAR_Y).setDepth(FX_DEPTH - 3);
     this.layout();
@@ -424,7 +406,7 @@ export class RestaurantScene extends Phaser.Scene {
     return saves.save(this.economy, this.seenHints);
   }
 
-  // Tapping the "!" marker points at the section to upgrade.
+  // Opens the drawer on a section's rows (the goal bar and the first tip use it).
   private focusBottleneck(section: SectionId): void {
     this.hint?.close();
     this.panel.focusSection(section);
@@ -437,25 +419,20 @@ export class RestaurantScene extends Phaser.Scene {
     return true;
   }
 
-  // Green arrows over the parts of the restaurant with an upgrade the player can pay for now.
+  // Gold dots on the panel tabs (and a shimmer on the rows) for upgrades worth a look, see
+  // upgradeHints. The scene itself only outlines the part whose drawer is open.
   private refreshSpotMarkers(): void {
-    const e = this.economy;
-    const affordable = new Set<SpotId>();
-    const can = (cost: number) => Number.isFinite(cost) && cost <= e.money;
-    for (const id of SECTION_IDS) if (can(sectionUpgradeCost(e, id))) affordable.add(id);
-    if (can(deliveryCost(e))) affordable.add('kitchen');
-    if (can(safeUpgradeCost(e))) affordable.add('cashier');
-    if (can(parkingCost(e)) || (canBuyValet(e) && can(valetCost(e)))) affordable.add('parking');
-    if (can(busStopCost(e))) affordable.add('busStop');
-    if (can(terraceCost(e)) || (canBuyRoofBar(e) && can(roofBarCost(e)))) affordable.add('terrace');
-    this.spotMarkers.update(affordable, this.panel.openSpot);
+    this.panel.setHints(upgradeHints(this.economy));
+    this.spotMarkers.update(this.panel.openSpot);
   }
 
-  // First-session tip that explains the bottleneck and teaches the marker tap. The room first
-  // scrolls so the marker is in view; the card itself is screen UI so it is not zoomed.
+  // First-session tip about the busiest section: every upgrade helps, spare capacity earns a
+  // specialty. The room first scrolls to that section; closing the tip opens its rows, with the
+  // load gauges. The card itself is screen UI so it is not zoomed.
   private showBottleneckHint(): void {
-    const anchor = this.view.markerAnchor;
-    if (!anchor || this.hint) return;
+    const busiest = throughput(this.economy).bottleneck;
+    const anchor = SECTION_ANCHORS[busiest];
+    if (this.hint) return;
     this.room.panTo(anchor);
     this.time.delayedCall(PAN_MS + 50, () => {
       if (this.hint) return;
@@ -467,6 +444,7 @@ export class RestaurantScene extends Phaser.Scene {
         this.hintId = null;
         this.seenHints.push(BOTTLENECK_HINT);
         void this.saveGame();
+        this.focusBottleneck(busiest);
       });
     });
   }
@@ -513,42 +491,6 @@ export class RestaurantScene extends Phaser.Scene {
     this.chefsCaption.setY(this.dailyCaption.y - CORNER_STACK_GAP);
     this.shopButton.setY(this.dailyButton.y - CORNER_STACK_GAP);
     this.shopCaption.setY(this.dailyCaption.y - CORNER_STACK_GAP);
-  }
-
-  // A pulsing "!" with an arrow at the side of the room view, pointing to an off-screen
-  // bottleneck marker. Tapping it scrolls the room there.
-  private createMarkerArrow(): void {
-    const { radius } = MARKER_ARROW;
-    this.markerArrowTip = this.add.triangle(0, 0, 0, -16, 0, 16, 22, 0, PALETTE.pomegranate).setOrigin(0, 0.5);
-    const circle = this.add.circle(0, 0, radius, PALETTE.pomegranate).setStrokeStyle(5, 0xffffff);
-    const mark = this.add
-      .text(0, 0, '!', { fontFamily: FONT, fontSize: '44px', fontStyle: 'bold', color: '#ffffff' })
-      .setOrigin(0.5);
-    this.markerArrow = this.add.container(0, 0, [this.markerArrowTip, circle, mark]).setDepth(FX_DEPTH - 2).setVisible(false);
-    this.markerArrow.setSize(radius * 3, radius * 3).setInteractive({ useHandCursor: true });
-    this.markerArrow.on('pointerdown', () => {
-      const anchor = this.view.markerAnchor;
-      if (anchor) this.room.panTo(anchor);
-    });
-    this.tweens.add({ targets: circle, scale: 1.12, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-  }
-
-  // The arrow sits at the edge of the room band nearest to the hidden marker, its tip turned
-  // toward it.
-  private updateMarkerArrow(): void {
-    const anchor = this.view.markerAnchor;
-    const hidden = anchor !== null && !this.room.shows(anchor, MARKER_VISIBLE_MARGIN);
-    this.markerArrow.setVisible(hidden);
-    if (!anchor || !hidden) return;
-    const { inset, radius } = MARKER_ARROW;
-    const band = this.room.screenRect;
-    const target = this.room.toScreen(anchor);
-    const x = Phaser.Math.Clamp(target.x, band.x + inset, band.right - inset);
-    // Keep clear of the ad buttons at the bottom of the band.
-    const y = Phaser.Math.Clamp(target.y, band.y + inset, band.bottom - inset * 2.5);
-    this.markerArrow.setPosition(x, y);
-    const angle = Math.atan2(target.y - y, target.x - x);
-    this.markerArrowTip.setPosition(Math.cos(angle) * (radius + 2), Math.sin(angle) * (radius + 2)).setRotation(angle);
   }
 
   // Autosave, plus a save whenever the game goes to the background. When it comes back,
@@ -931,7 +873,7 @@ export class RestaurantScene extends Phaser.Scene {
     );
   }
 
-  // Staff help: free levels for the bottleneck section (an ad, then a cooldown).
+  // Staff help: free levels for the busiest section (an ad, then a cooldown).
   private offerStaffHelp(): void {
     const levels = staffHelpLevels(this.economy);
     if (levels <= 0) return;
@@ -1056,7 +998,7 @@ export class RestaurantScene extends Phaser.Scene {
       this.event = { kind, left: EVENTS.critic.seconds, start: throughput(this.economy).customersPerSecond, target };
       void this.view.spawnCritic();
       this.celebrate(t('event.critic.banner'), PALETTE.tileBlue);
-      // Point at what to do: the bottleneck's row in the panel.
+      // Point at what to do: the busiest section's row in the panel.
       this.time.delayedCall(1200, () => this.panel.focusSection(throughput(this.economy).bottleneck));
     } else if (kind === 'tourBus') {
       this.event = { kind, left: EVENTS.tourBus.seconds, taps: 0, sinceTap: 0, tips: 0 };
@@ -1075,7 +1017,7 @@ export class RestaurantScene extends Phaser.Scene {
 
   private endEvent(): void {
     this.event = null;
-    this.eventCountdown = nextEventGap(Math.random());
+    this.eventCountdown = nextEventGap(Math.random(), this.economy);
     this.renderEventBar();
   }
 
@@ -1258,7 +1200,6 @@ export class RestaurantScene extends Phaser.Scene {
       time,
       delta,
     );
-    this.updateMarkerArrow();
 
     this.sincePanelRefresh += delta;
     if (this.sincePanelRefresh >= PANEL_REFRESH_MS) {

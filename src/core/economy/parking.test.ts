@@ -17,6 +17,8 @@ import {
   parkingRate,
   prestige,
   sectionRates,
+  specialtyMultiplier,
+  throughput,
   valetCost,
 } from '.';
 import { createSave, parseSave, serializeSave } from '../save';
@@ -54,15 +56,16 @@ describe('parking', () => {
     for (const id of SECTION_IDS) state.sectionLevels[id] = 10;
     state.sectionLevels.entrance = 20;
     const walkIn = sectionRates(state).entrance;
-    const before = incomeBreakdown(state).dineIn;
+    const perCustomer = () => incomeBreakdown(state).dineIn / (throughput(state).customersPerSecond * specialtyMultiplier(state));
+    const before = perCustomer();
     state.parkingLevel = 10;
     const a = arrivals(state);
     expect(a.walkIn).toBeCloseTo(walkIn);
     expect(sectionRates(state).entrance).toBeCloseTo(walkIn + a.parking);
     expect(a.carShare).toBeCloseTo(a.parking / (walkIn + a.parking));
     expect(a.billMultiplier).toBeCloseTo(1 + a.carShare * PARKING.carBillBonus);
-    // The entrance was not the bottleneck, so only the bill grows.
-    expect(incomeBreakdown(state).dineIn).toBeCloseTo(before * a.billMultiplier);
+    // Every customer pays more by the share of cars.
+    expect(perCustomer()).toBeCloseTo(before * a.billMultiplier);
   });
 
   it('offers valet service once the lot is big enough', () => {

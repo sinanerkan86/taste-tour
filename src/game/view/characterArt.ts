@@ -11,12 +11,16 @@ const COLUMNS = 6;
 
 export type Part =
   | 'shadow'
-  | 'legs'
-  | 'shoes'
+  | 'thigh'
+  | 'shin'
+  | 'shoe'
   | 'skirt'
   | 'torso'
-  | 'arms'
-  | 'hands'
+  | 'torsoBack'
+  | 'armLeft'
+  | 'armRight'
+  | 'handLeft'
+  | 'handRight'
   | 'head'
   | 'faceMale'
   | 'faceFemale'
@@ -24,6 +28,8 @@ export type Part =
   | 'shine'
   | 'hairShort'
   | 'hairTop'
+  | 'hairCapBack'
+  | 'hairPonytailBack'
   | 'hairLong'
   | 'hairBob'
   | 'hairPonytail'
@@ -36,6 +42,7 @@ export type Part =
   | 'sunHat'
   | 'bowTie'
   | 'tailcoat'
+  | 'tailcoatBack'
   | 'waistApron'
   | 'neckerchief'
   | 'tallToque'
@@ -43,16 +50,23 @@ export type Part =
   | 'notepad'
   | 'cap'
   | 'helmet'
+  | 'helmetStrap'
+  | 'sunGlasses'
+  | 'roundGlasses'
   | 'deliveryBag';
 
 const PAINTERS: Record<Part, (ctx: Ctx) => void> = {
   shadow: paintShadow,
-  legs: paintLegs,
-  shoes: paintShoes,
+  thigh: paintThigh,
+  shin: paintShin,
+  shoe: paintShoe,
   skirt: paintSkirt,
-  torso: paintTorso,
-  arms: paintArms,
-  hands: paintHands,
+  torso: (ctx) => paintTorso(ctx, true),
+  torsoBack: (ctx) => paintTorso(ctx, false),
+  armLeft: (ctx) => paintArm(ctx, -1),
+  armRight: (ctx) => paintArm(ctx, 1),
+  handLeft: (ctx) => paintHand(ctx, -1),
+  handRight: (ctx) => paintHand(ctx, 1),
   head: paintHead,
   faceMale: (ctx) => paintFace(ctx, false),
   faceFemale: (ctx) => paintFace(ctx, true),
@@ -60,6 +74,8 @@ const PAINTERS: Record<Part, (ctx: Ctx) => void> = {
   shine: paintShine,
   hairShort: paintHairShort,
   hairTop: paintHairTop,
+  hairCapBack: paintHairCapBack,
+  hairPonytailBack: paintPonytailBack,
   hairLong: (ctx) => paintHairBack(ctx, 62),
   hairBob: (ctx) => paintHairBack(ctx, 42),
   hairPonytail: paintPonytail,
@@ -72,6 +88,7 @@ const PAINTERS: Record<Part, (ctx: Ctx) => void> = {
   sunHat: paintSunHat,
   bowTie: paintBowTie,
   tailcoat: paintTailcoat,
+  tailcoatBack: paintTailcoatBack,
   waistApron: paintWaistApron,
   neckerchief: paintNeckerchief,
   tallToque: (ctx) => paintToque(ctx, 22),
@@ -79,6 +96,9 @@ const PAINTERS: Record<Part, (ctx: Ctx) => void> = {
   notepad: paintNotepad,
   cap: paintCap,
   helmet: paintHelmet,
+  helmetStrap: paintHelmetStrap,
+  sunGlasses: paintSunGlasses,
+  roundGlasses: paintRoundGlasses,
   deliveryBag: paintDeliveryBag,
 };
 
@@ -143,27 +163,33 @@ function paintShadow(ctx: Ctx): void {
   ctx.restore();
 }
 
-function paintLegs(ctx: Ctx): void {
-  [-18, 4].forEach((x) => {
-    ctx.fillStyle = cylinder(ctx, x, x + 14);
-    roundRect(ctx, x, -36, 14, 32, 5);
-    ctx.fill();
-    outline(ctx, 1.2);
-  });
+// A leg is three parts so it can bend: the thigh (hip at y -38), the shin (knee at y -20) and the
+// shoe. They are painted centered on x = 0 and placed at the left or right hip.
+function paintThigh(ctx: Ctx): void {
+  ctx.fillStyle = cylinder(ctx, -7, 7);
+  roundRect(ctx, -7, -41, 14, 23, 5);
+  ctx.fill();
+  outline(ctx, 1.2);
 }
 
-function paintShoes(ctx: Ctx): void {
-  [-11, 11].forEach((x) => {
-    ctx.fillStyle = vGradient(ctx, -8, 2, [
-      [0, '#5a4a40'],
-      [1, '#241a14'],
-    ]);
-    ellipse(ctx, x + (x < 0 ? -2 : 2), -3, 10, 5);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.25)';
-    ellipse(ctx, x + (x < 0 ? -4 : 0), -5, 4, 1.5);
-    ctx.fill();
-  });
+function paintShin(ctx: Ctx): void {
+  ctx.fillStyle = cylinder(ctx, -6.5, 6.5);
+  roundRect(ctx, -6.5, -23, 13, 18, [3, 3, 6, 6]);
+  ctx.fill();
+  outline(ctx, 1.2);
+}
+
+// The toe points to +x, the way the character walks.
+function paintShoe(ctx: Ctx): void {
+  ctx.fillStyle = vGradient(ctx, -8, 2, [
+    [0, '#5a4a40'],
+    [1, '#241a14'],
+  ]);
+  ellipse(ctx, 2.5, -3.5, 9.5, 5);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ellipse(ctx, 0.5, -5.5, 4, 1.5);
+  ctx.fill();
 }
 
 function paintSkirt(ctx: Ctx): void {
@@ -187,7 +213,8 @@ function paintSkirt(ctx: Ctx): void {
   });
 }
 
-function paintTorso(ctx: Ctx): void {
+// front: with the collar opening; the back view is plain with a faint seam down the spine.
+function paintTorso(ctx: Ctx, front: boolean): void {
   ctx.fillStyle = cylinder(ctx, -27, 27);
   ctx.beginPath();
   ctx.moveTo(-18, -88);
@@ -208,48 +235,55 @@ function paintTorso(ctx: Ctx): void {
     [1, 'rgba(0,0,0,0.18)'],
   ]);
   ctx.fillRect(-26, -50, 52, 24);
-  ctx.fillStyle = 'rgba(0,0,0,0.18)';
-  ctx.beginPath();
-  ctx.moveTo(-9, -89);
-  ctx.lineTo(0, -80);
-  ctx.lineTo(9, -89);
-  ctx.closePath();
-  ctx.fill();
-}
-
-function paintArms(ctx: Ctx): void {
-  [-1, 1].forEach((side) => {
-    ctx.save();
-    ctx.scale(side, 1);
-    ctx.fillStyle = hGradient(ctx, 23, 37, [
-      [0, MID],
-      [0.4, LIT],
-      [1, DARK],
-    ]);
+  if (front) {
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
     ctx.beginPath();
-    ctx.moveTo(24, -84);
-    ctx.quadraticCurveTo(36, -82, 37, -70);
-    ctx.lineTo(37, -52);
-    ctx.quadraticCurveTo(31, -48, 25, -52);
-    ctx.lineTo(24, -84);
+    ctx.moveTo(-9, -89);
+    ctx.lineTo(0, -80);
+    ctx.lineTo(9, -89);
     ctx.closePath();
     ctx.fill();
-    outline(ctx, 1.2);
-    ctx.restore();
-  });
+  } else {
+    ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, -86);
+    ctx.lineTo(0, -28);
+    ctx.stroke();
+  }
 }
 
-function paintHands(ctx: Ctx): void {
-  [-31, 31].forEach((x) => {
-    ctx.fillStyle = radial(ctx, x, -46, 0, 8, [
-      [0, LIT],
-      [1, DARK],
-    ], x - 2, -48);
-    ctx.beginPath();
-    ctx.arc(x, -46, 7, 0, Math.PI * 2);
-    ctx.fill();
-    outline(ctx, 1);
-  });
+// One sleeve, hanging from the shoulder (pivot at x = 30 * side, y -80).
+function paintArm(ctx: Ctx, side: -1 | 1): void {
+  ctx.save();
+  ctx.scale(side, 1);
+  ctx.fillStyle = hGradient(ctx, 23, 37, [
+    [0, MID],
+    [0.4, LIT],
+    [1, DARK],
+  ]);
+  ctx.beginPath();
+  ctx.moveTo(24, -84);
+  ctx.quadraticCurveTo(36, -82, 37, -70);
+  ctx.lineTo(37, -52);
+  ctx.quadraticCurveTo(31, -48, 25, -52);
+  ctx.lineTo(24, -84);
+  ctx.closePath();
+  ctx.fill();
+  outline(ctx, 1.2);
+  ctx.restore();
+}
+
+function paintHand(ctx: Ctx, side: -1 | 1): void {
+  const x = 31 * side;
+  ctx.fillStyle = radial(ctx, x, -46, 0, 8, [
+    [0, LIT],
+    [1, DARK],
+  ], x - 2, -48);
+  ctx.beginPath();
+  ctx.arc(x, -46, 7, 0, Math.PI * 2);
+  ctx.fill();
+  outline(ctx, 1);
 }
 
 function paintHead(ctx: Ctx): void {
@@ -395,6 +429,35 @@ function paintHairTop(ctx: Ctx): void {
   ctx.fill();
   outline(ctx, 1.2);
   hairShine(ctx, -137);
+}
+
+// The back of the head: hair all over, down to the nape (used for every style seen from behind).
+function paintHairCapBack(ctx: Ctx): void {
+  ctx.fillStyle = hairFill(ctx, -136, -90);
+  ctx.beginPath();
+  ctx.moveTo(-21.1, -92);
+  ctx.arc(0, -108, 26.5, 2.49, Math.PI * 2 + 0.65);
+  ctx.quadraticCurveTo(0, -88, -21.1, -92);
+  ctx.closePath();
+  ctx.fill();
+  outline(ctx, 1.2);
+  hairShine(ctx, -136);
+}
+
+// A ponytail seen from behind hangs down the middle of the back of the head.
+function paintPonytailBack(ctx: Ctx): void {
+  ctx.fillStyle = hairFill(ctx, -118, -80);
+  ctx.beginPath();
+  ctx.moveTo(-6, -118);
+  ctx.quadraticCurveTo(-15, -100, -8, -82);
+  ctx.quadraticCurveTo(0, -76, 8, -82);
+  ctx.quadraticCurveTo(15, -100, 6, -118);
+  ctx.closePath();
+  ctx.fill();
+  outline(ctx, 1.2);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  roundRect(ctx, -7, -121, 14, 6, 3);
+  ctx.fill();
 }
 
 function paintHairBack(ctx: Ctx, length: number): void {
@@ -573,8 +636,7 @@ function paintSash(ctx: Ctx): void {
   ctx.fill();
 }
 
-function paintSunHat(ctx: Ctx): void {
-  // Sunglasses.
+function paintSunGlasses(ctx: Ctx): void {
   ctx.fillStyle = '#141414';
   roundRect(ctx, -17, -114, 14, 10, 4);
   ctx.fill();
@@ -584,6 +646,9 @@ function paintSunHat(ctx: Ctx): void {
   ctx.fillStyle = 'rgba(255,255,255,0.35)';
   ctx.fillRect(-14, -112, 4, 3);
   ctx.fillRect(6, -112, 4, 3);
+}
+
+function paintSunHat(ctx: Ctx): void {
   // Wide straw hat with a gold band.
   ctx.fillStyle = radial(ctx, 0, -128, 0, 40, [
     [0, '#fbf0d8'],
@@ -663,6 +728,33 @@ function paintTailcoat(ctx: Ctx): void {
   ctx.fill();
 }
 
+// The tailcoat from behind: plain cloth with a center seam and the two tails.
+function paintTailcoatBack(ctx: Ctx): void {
+  ctx.fillStyle = hGradient(ctx, -28, 28, [
+    [0, '#14141c'],
+    [0.32, '#3a3a4a'],
+    [0.7, '#24242f'],
+    [1, '#101016'],
+  ]);
+  ctx.beginPath();
+  ctx.moveTo(-18, -89);
+  ctx.quadraticCurveTo(-29, -86, -28, -72);
+  ctx.lineTo(-27, -22);
+  ctx.lineTo(0, -34);
+  ctx.lineTo(27, -22);
+  ctx.lineTo(28, -72);
+  ctx.quadraticCurveTo(29, -86, 18, -89);
+  ctx.closePath();
+  ctx.fill();
+  outline(ctx, 1.2);
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(0, -86);
+  ctx.lineTo(0, -34);
+  ctx.stroke();
+}
+
 // A short apron tied at the waist: the simple first look of waiters and cooks.
 function paintWaistApron(ctx: Ctx): void {
   ctx.fillStyle = vGradient(ctx, -40, -6, [
@@ -704,7 +796,7 @@ function paintNeckerchief(ctx: Ctx): void {
 }
 
 // Food critic: a dark red beret, slightly tilted, and round glasses.
-function paintBeret(ctx: Ctx): void {
+function paintRoundGlasses(ctx: Ctx): void {
   ctx.strokeStyle = '#2a2a2a';
   ctx.lineWidth = 2.2;
   [-10, 10].forEach((x) => {
@@ -716,6 +808,9 @@ function paintBeret(ctx: Ctx): void {
   ctx.moveTo(-3.5, -109);
   ctx.lineTo(3.5, -109);
   ctx.stroke();
+}
+
+function paintBeret(ctx: Ctx): void {
   ctx.save();
   ctx.translate(4, -134);
   ctx.rotate(0.12);
@@ -794,6 +889,9 @@ function paintHelmet(ctx: Ctx): void {
   outline(ctx, 1);
   ctx.fillStyle = '#2a9d8f';
   ctx.fillRect(-4, -150, 8, 30);
+}
+
+function paintHelmetStrap(ctx: Ctx): void {
   ctx.strokeStyle = '#3a3a3a';
   ctx.lineWidth = 2;
   ctx.beginPath();

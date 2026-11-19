@@ -35,6 +35,45 @@ export const SECTIONS: Record<SectionId, SectionConfig> = {
   dishwashing: { id: 'dishwashing', baseRate: 0.5, baseCost: 60, costGrowth: 1.21 },
 };
 
+// Customers per second is a soft minimum of the six section rates (a power mean with a negative
+// exponent): the weakest section still matters most, but every section's upgrade raises income a
+// little, so the player can choose where to invest. Higher softness = closer to a hard minimum.
+export const FLOW = {
+  softness: 3,
+};
+
+// What a section's surplus capacity (its rate above the flow) is worth: bonus = weight * log2(rate / flow),
+// capped. `kind` says what the bonus does; the game shows it as the section's specialty.
+export type SpecialtyKind = 'bill' | 'income';
+export interface SpecialtyConfig {
+  name: string;
+  weight: number;
+  cap: number;
+  kind: SpecialtyKind;
+}
+
+export const SPECIALTIES: Record<SectionId, SpecialtyConfig> = {
+  // Quality: better dishes raise the bill (dine-in and delivery).
+  kitchen: { name: 'Quality', weight: 0.19, cap: 0.6, kind: 'bill' },
+  // Comfort: guests linger and order more (dine-in bill).
+  seating: { name: 'Comfort', weight: 0.15, cap: 0.5, kind: 'bill' },
+  // Service: tips (dine-in income).
+  waiters: { name: 'Service', weight: 0.11, cap: 0.35, kind: 'income' },
+  // Buzz: income, and VIP guests and events come sooner.
+  entrance: { name: 'Buzz', weight: 0.06, cap: 0.2, kind: 'income' },
+  // Express: income.
+  cashier: { name: 'Express', weight: 0.06, cap: 0.2, kind: 'income' },
+  // Spotless: income, and a critic's good review lasts longer.
+  dishwashing: { name: 'Spotless', weight: 0.06, cap: 0.2, kind: 'income' },
+};
+
+// How far the Buzz bonus shortens the gaps between VIP visits and events (gap divided by 1 + bonus * this),
+// and how far the Spotless bonus lengthens a good review (duration times 1 + bonus * this).
+export const SPECIALTY_EFFECTS = {
+  buzzGapShare: 1,
+  spotlessReviewShare: 1,
+};
+
 // Delivery: a second income line that opens with a one-time purchase. Couriers take orders out,
 // so they skip the dining room, the waiters, the cashier and the dish pit, but the kitchen cooks
 // for both: dine-in customers first, delivery gets the kitchen's spare capacity (GDD 3b).
@@ -152,7 +191,7 @@ export const CITY = {
   // ...and also by the lab and perk bonuses a player is expected to have gathered: costs in the
   // n-th city are multiplied by (1 + expectedBonusPerCity * n). Players ahead of that (more
   // research, better perks) get through faster.
-  expectedBonusPerCity: 0.6,
+  expectedBonusPerCity: 0.8,
 };
 
 // A dish stops leveling here ("mastered"), so growth has to come from new dishes.
@@ -183,7 +222,7 @@ export const TAP = {
   incomeFraction: 0.2,
   // In the first minutes a fifth of a second of income is a few cents, so a tap earns at least
   // this fraction of one customer's bill (about a second of income at the very start).
-  billFraction: 0.25,
+  billFraction: 0.35,
 };
 
 // Rewards for watching a rewarded ad.

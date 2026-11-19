@@ -16,6 +16,7 @@ import {
   incomePerSecond,
   newEconomy,
   nextEventGap,
+  reviewDuration,
   passTime,
   pickEvent,
   pickFestivalDish,
@@ -52,7 +53,7 @@ describe('food critic', () => {
     const base = baseIncomePerSecond(state);
     grantReview(state);
     expect(incomePerSecond(state)).toBeCloseTo(base * EVENTS.critic.reviewMultiplier);
-    const review = EVENTS.critic.reviewSeconds;
+    const review = reviewDuration(state);
     expect(earningsOver(state, 2 * review)).toBeCloseTo(base * (2 * review + review * (EVENTS.critic.reviewMultiplier - 1)));
     passTime(state, review);
     expect(incomePerSecond(state)).toBeCloseTo(base);
@@ -71,7 +72,7 @@ describe('food critic', () => {
   it('keeps the review in the save', () => {
     const state = newEconomy();
     grantReview(state);
-    expect(parseSave(serializeSave(createSave(state, 0)))!.economy.reviewSeconds).toBe(EVENTS.critic.reviewSeconds);
+    expect(parseSave(serializeSave(createSave(state, 0)))!.economy.reviewSeconds).toBe(reviewDuration(state));
   });
 });
 

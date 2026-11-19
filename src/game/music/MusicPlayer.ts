@@ -1,25 +1,41 @@
-import { DEFAULT_SONG, SONGS, type Song } from './songs';
-import { Synth } from './synth';
+// Recorded city music: five tracks per city (public/music/<cityId>-<n>.ogg, credits in docs/music-credits.md),
+// played in a shuffled order. Tracks stream through HTMLAudioElement (never decoded whole: phones have little
+// memory) into the music bus of the audio graph. Each track has a 2.5 s fade in and a 3 s fade out baked in, so
+// starting the next one when the current one has 3 s left is already a cross-fade. Only the current city's
+// tracks are loaded: the next track is preloaded shortly before the current one ends.
 
-const LOOKAHEAD = 0.25;
-const FADE = 0.6;
+export const TRACKS_PER_CITY = 5;
+export const DEFAULT_CITY = 'istanbul';
 
-// A small sequencer. A timer wakes up every 60 ms and schedules on the audio clock every bar that
-// starts within the next quarter second, so timing stays exact even when the frame rate drops.
-// Each song plays into its own gain node: switching cities fades the old one out (its ringing
-// notes included) while the new one starts from its first bar.
+const CROSSFADE = 3;
+const PRELOAD_AT = 20;
+const CITY_FADE = 0.8;
+const TICK_MS = 250;
+
+export const trackUrl = (city: string, index: number): string => `${import.meta.env.BASE_URL}music/${city}-${index + 1}.ogg`;
+
+interface Deck {
+  city: string;
+  index: number;
+  el: HTMLAudioElement;
+  gain: GainNode;
+  started: boolean;
+}
+
 export class MusicPlayer {
+  private city = DEFAULT_CITY;
+  private order: number[] = [];
+  private pos = -1;
+  private last = -1;
+  private active: Deck | null = null;
+  private preloaded: Deck | null = null;
+  private fading = new Set<Deck>();
   private timer: number | null = null;
-  private songId = DEFAULT_SONG;
-  private song: Song = SONGS[DEFAULT_SONG];
-  private synth: Synth | null = null;
-  private output: GainNode | null = null;
-  private nextBarTime = 0;
-  private bar = 0;
-  private loop = 0;
+  private paused = false;
+  onChange: (() => void) | null = null;
 
   constructor(
-    private readonly ctx: BaseAudioContext,
+    private readonly ctx: AudioContext,
     private readonly bus: AudioNode,
   ) {}
 
@@ -27,184 +43,201 @@ export class MusicPlayer {
     return this.timer !== null;
   }
 
-  get current(): string {
-    return this.songId;
+  get currentCity(): string {
+    return this.city;
+  }
+
+  // The track now playing (0-based), or -1.
+  get currentTrack(): number {
+    return this.active?.index ?? -1;
+  }
+
+  get currentTime(): number {
+    return this.active?.el.currentTime ?? 0;
+  }
+
+  get element(): HTMLAudioElement | null {
+    return this.active?.el ?? null;
   }
 
   start(): void {
     if (this.timer !== null) return;
-    this.open(this.ctx.currentTime + 0.3);
-    this.timer = window.setInterval(() => this.schedule(), 60);
+    this.timer = window.setInterval(() => this.tick(), TICK_MS);
+    if (!this.active) this.next(CITY_FADE);
+    else this.resume();
   }
 
   stop(): void {
     if (this.timer !== null) window.clearInterval(this.timer);
     this.timer = null;
-    this.close();
+    this.fadeOut(this.active, CITY_FADE);
+    this.active = null;
+    this.drop(this.preloaded);
+    this.preloaded = null;
   }
 
-  // Unknown ids fall back to the first city's song.
-  setSong(id: string): void {
-    const next = SONGS[id] ? id : DEFAULT_SONG;
-    if (next === this.songId) return;
-    this.songId = next;
-    this.song = SONGS[next];
+  // Pauses every element while the app is in the background (the audio context is suspended too).
+  pause(): void {
+    this.paused = true;
+    for (const deck of this.decks()) deck.el.pause();
+  }
+
+  resume(): void {
+    this.paused = false;
     if (this.timer === null) return;
-    this.close();
-    this.open(this.ctx.currentTime + 0.15);
+    for (const deck of this.decks()) if (deck.started) void deck.el.play().catch(() => undefined);
   }
 
-  // Schedules `bars` bars from `at` without a timer, for rendering into an OfflineAudioContext.
-  render(at: number, bars: number): void {
-    this.open(at);
-    for (let i = 0; i < bars; i++) this.scheduleBar();
+  // Each city has its own tracks; the old one fades out while the new city's first track fades in.
+  setCity(id: string): void {
+    if (id === this.city && this.order.length > 0) return;
+    this.city = id;
+    this.order = [];
+    this.pos = -1;
+    this.last = -1;
+    this.drop(this.preloaded);
+    this.preloaded = null;
+    if (this.timer === null) return;
+    this.fadeOut(this.active, CITY_FADE);
+    this.active = null;
+    this.next(CITY_FADE);
   }
 
-  private open(at: number): void {
-    const output = this.ctx.createGain();
-    output.gain.value = this.song.level;
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = this.song.cutoff;
-    output.connect(filter).connect(this.bus);
-    this.output = output;
-    this.synth = new Synth(this.ctx, output);
-    this.nextBarTime = at;
-    this.bar = 0;
-    this.loop = 0;
+  // Plays one particular track of the current city (preview page), then goes on in shuffled order.
+  playTrack(index: number): void {
+    this.drop(this.preloaded);
+    this.preloaded = null;
+    if (this.timer === null) this.timer = window.setInterval(() => this.tick(), TICK_MS);
+    this.fadeOut(this.active, CITY_FADE);
+    this.active = null;
+    if (this.order.length === 0) this.reshuffle();
+    this.begin(this.deck(index), CITY_FADE);
   }
 
-  private close(): void {
-    const output = this.output;
-    if (!output) return;
+  // Starts a fresh shuffle of the current city.
+  shuffle(): void {
+    this.order = [];
+    this.pos = -1;
+    this.last = -1;
+    this.drop(this.preloaded);
+    this.preloaded = null;
+    if (this.timer === null) this.timer = window.setInterval(() => this.tick(), TICK_MS);
+    this.fadeOut(this.active, CITY_FADE);
+    this.active = null;
+    this.next(CITY_FADE);
+  }
+
+  // Shuffled order of the five tracks; the first one never equals the last one played.
+  private reshuffle(): void {
+    const order = Array.from({ length: TRACKS_PER_CITY }, (_, i) => i);
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    if (order[0] === this.last) {
+      const j = 1 + Math.floor(Math.random() * (order.length - 1));
+      [order[0], order[j]] = [order[j], order[0]];
+    }
+    this.order = order;
+    this.pos = -1;
+  }
+
+  // Index of the track after the current one, without consuming it.
+  private peek(): number {
+    if (this.pos + 1 >= this.order.length) this.reshuffle();
+    return this.order[this.pos + 1];
+  }
+
+  private deck(index: number): Deck {
+    if (this.preloaded && this.preloaded.city === this.city && this.preloaded.index === index) {
+      const deck = this.preloaded;
+      this.preloaded = null;
+      return deck;
+    }
+    const el = new Audio(trackUrl(this.city, index));
+    el.preload = 'auto';
+    const gain = this.ctx.createGain();
+    this.ctx.createMediaElementSource(el).connect(gain).connect(this.bus);
+    return { city: this.city, index, el, gain, started: false };
+  }
+
+  private begin(deck: Deck, fadeIn: number): void {
     const now = this.ctx.currentTime;
-    output.gain.cancelScheduledValues(now);
-    output.gain.setValueAtTime(output.gain.value, now);
-    output.gain.linearRampToValueAtTime(0, now + FADE);
-    window.setTimeout(() => output.disconnect(), (FADE + 4) * 1000);
-    this.output = null;
-    this.synth = null;
+    deck.gain.gain.cancelScheduledValues(now);
+    deck.gain.gain.setValueAtTime(fadeIn > 0 ? 0 : 1, now);
+    if (fadeIn > 0) deck.gain.gain.linearRampToValueAtTime(1, now + fadeIn);
+    deck.started = true;
+    this.active = deck;
+    this.last = deck.index;
+    const pos = this.order.indexOf(deck.index);
+    if (pos >= 0) this.pos = pos;
+    if (!this.paused) void deck.el.play().catch(() => undefined);
+    this.onChange?.();
   }
 
-  private get beat(): number {
-    return 60 / this.song.bpm;
+  // Moves on to the next shuffled track. The previous track keeps playing its baked-in fade out.
+  private next(fadeIn = 0): void {
+    const index = this.peek();
+    this.pos++;
+    const previous = this.active;
+    if (previous) this.fading.add(previous);
+    this.begin(this.deck(index), fadeIn);
+    if (previous) this.retire(previous);
   }
 
-  private schedule(): void {
-    // While the context is suspended (app in background) time stands still, so nothing piles up.
-    while (this.synth && this.nextBarTime < this.ctx.currentTime + LOOKAHEAD) this.scheduleBar();
+  // The old track plays out its own baked-in fade out, then is released.
+  private retire(deck: Deck): void {
+    const left = Number.isFinite(deck.el.duration) ? Math.max(0, deck.el.duration - deck.el.currentTime) : 0;
+    this.fading.add(deck);
+    window.setTimeout(() => {
+      this.fading.delete(deck);
+      this.drop(deck);
+    }, (left + 0.5) * 1000);
   }
 
-  private scheduleBar(): void {
-    this.playBar(this.bar, this.nextBarTime);
-    this.nextBarTime += this.beat * this.song.beatsPerBar;
-    this.bar = (this.bar + 1) % this.song.chords.length;
-    if (this.bar === 0) this.loop++;
+  private fadeOut(deck: Deck | null, seconds: number): void {
+    if (!deck) return;
+    this.fading.add(deck);
+    const now = this.ctx.currentTime;
+    deck.gain.gain.cancelScheduledValues(now);
+    deck.gain.gain.setValueAtTime(deck.gain.gain.value, now);
+    deck.gain.gain.linearRampToValueAtTime(0, now + seconds);
+    window.setTimeout(() => {
+      this.fading.delete(deck);
+      this.drop(deck);
+    }, seconds * 1000 + 200);
   }
 
-  private eighth(start: number, index: number): number {
-    const beat = Math.floor(index / 2);
-    return start + beat * this.beat + (index % 2 === 1 ? this.beat * this.song.swing : 0);
-  }
-
-  private playBar(bar: number, start: number): void {
-    const synth = this.synth;
-    if (!synth) return;
-    const song = this.song;
-    const odd = bar % 2 === 1;
-    const chord = song.chords[bar];
-
-    const comp = song.comp;
-    const hits = odd && comp.oddHits ? comp.oddHits : comp.hits;
-    hits.forEach(([at, gain], i) => {
-      const t = this.eighth(start, at);
-      const length = comp.length * this.beat;
-      const notes = comp.arpeggio ? [chord.tones[i % chord.tones.length]] : chord.tones;
-      switch (comp.voice) {
-        case 'epiano':
-          synth.epiano(notes, t, length, gain);
-          break;
-        case 'accordion':
-          synth.accordion(notes, t, length, gain, 1600);
-          break;
-        case 'khong':
-          notes.forEach((note) => synth.khong(note + 12, t, gain));
-          break;
-        default:
-          synth.strum(comp.voice, notes, t, gain, comp.arpeggio ? undefined : length, i % 2 === 0);
-      }
-    });
-
-    const bass = song.bass;
-    if (bass) {
-      const nextRoot = song.chords[(bar + 1) % song.chords.length].root;
-      const bassHits = odd && bass.oddHits ? bass.oddHits : bass.hits;
-      bassHits.forEach(([at, interval]) => {
-        const note = interval === 'walk' ? (nextRoot > chord.root ? nextRoot - 1 : nextRoot + 1) : chord.root + interval;
-        const t = this.eighth(start, at);
-        if (bass.voice === 'upright') synth.upright(note, t, this.beat * 0.9);
-        else synth.pluck('bass', note, t, 0.32, this.beat * 0.9);
-      });
-    }
-
-    for (const drum of song.drums) {
-      if (drum.bars === 'even' && odd) continue;
-      if (drum.bars === 'odd' && !odd) continue;
-      drum.hits.forEach(([at, gain]) => synth.drum(drum.kind, this.eighth(start, at), gain));
-    }
-
-    // The tune joins from the second time round, so a city opens softly.
-    if (this.loop === 0) return;
-    const lead = song.lead;
-    for (const [b, at, note, beats, slide] of lead.tune) {
-      if (b !== bar) continue;
-      const t = this.eighth(start, at);
-      const length = beats * this.beat;
-      this.playLead(synth, note, t, length, slide ?? 0);
-      if (lead.harmony) this.playLead(synth, thirdBelow(note, lead.harmony), t, length, 0, 0.7);
+  private drop(deck: Deck | null): void {
+    if (!deck) return;
+    deck.el.pause();
+    deck.el.removeAttribute('src');
+    deck.el.load();
+    try {
+      deck.gain.disconnect();
+    } catch {
+      // Already disconnected.
     }
   }
 
-  private playLead(synth: Synth, note: number, at: number, length: number, slide: number, scale = 1): void {
-    const lead = this.song.lead;
-    const gain = lead.gain * scale;
-    switch (lead.voice) {
-      case 'vibes':
-        synth.vibes(note, at, length, gain);
-        break;
-      case 'accordion':
-        synth.accordion([note], at, length * 0.92, gain);
-        break;
-      case 'ney':
-        synth.flute(note, at, length * 0.95, gain, 0.035);
-        break;
-      case 'flute':
-        synth.flute(note + 12, at, length * 0.9, gain, 0.012);
-        break;
-      case 'trumpets':
-        synth.trumpet(note, at, length * 0.85, gain);
-        break;
-      case 'ranat':
-        if (lead.tremolo && length >= this.beat) {
-          for (let t = 0, i = 0; t < length; t += 0.1, i++) synth.ranat(note, at + t, gain * (i === 0 ? 1 : 0.55));
-        } else {
-          synth.ranat(note, at, gain);
-        }
-        break;
-      default:
-        if (lead.tremolo && length >= this.beat) synth.tremolo(lead.voice, note, at, length, gain);
-        else synth.pluck(lead.voice, note, at, gain, undefined, slide);
-    }
+  private decks(): Deck[] {
+    return [this.active, this.preloaded, ...this.fading].filter((d): d is Deck => d !== null);
   }
-}
 
-// The scale note two steps below (a third in the key), for a second voice in parallel thirds.
-function thirdBelow(note: number, scale: number[]): number {
-  let steps = 0;
-  let n = note;
-  while (steps < 2) {
-    n--;
-    if (scale.includes(((n % 12) + 12) % 12)) steps++;
+  private tick(): void {
+    const deck = this.active;
+    if (!deck || this.paused) return;
+    const { duration, currentTime } = deck.el;
+    if (!Number.isFinite(duration) || duration <= 0) {
+      if (deck.el.error) this.next(); // A file that cannot load is skipped.
+      return;
+    }
+    const left = duration - currentTime;
+    if (left <= PRELOAD_AT && !this.preloaded) {
+      const index = this.peek();
+      this.preloaded = this.deck(index);
+      // deck() consumed nothing: keep it as preloaded.
+    }
+    if (left <= CROSSFADE || deck.el.ended) this.next();
   }
-  return n;
 }

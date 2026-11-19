@@ -11,12 +11,12 @@
       main { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
       h1 { font-size: 24px; margin: 0 0 4px; }
       .sub { color: var(--muted); margin: 0 0 20px; }
-      .songs { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
-      button.song { text-align: left; font: inherit; color: inherit; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; cursor: pointer; }
-      button.song:hover { border-color: var(--accent); }
-      button.song.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
-      button.song b { display: block; font-size: 16px; }
-      button.song span { color: var(--muted); font-size: 12px; }
+      .tracks { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+      h2 { font-size: 16px; margin: 14px 0 6px; }
+      button.track, button.shuffle { font: inherit; color: inherit; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+      button.shuffle { color: var(--accent); }
+      button.track:hover, button.shuffle:hover { border-color: var(--accent); }
+      button.track.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
       .bar { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }
       .bar button { font: inherit; padding: 6px 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; }
       #status { color: var(--muted); }
@@ -25,9 +25,9 @@
   <body>
     <main>
       <h1>City music</h1>
-      <p class="sub">Tap a city to play its loop (the tune comes in on the second time round). Tapping another city cross-fades like a franchise does.</p>
+      <p class="sub">Five recorded tracks per city (docs/music-credits.md). Pick a track or shuffle a city; tracks crossfade and the shuffle never repeats one back to back.</p>
       <div class="bar"><button id="stop">Stop</button><span id="status">Stopped</span></div>
-      <div class="songs" id="songs"></div>
+      <div class="songs" id="cities"></div>
     </main>
     <script type="module" src="/tools/music/page.ts"></script>
   </body>

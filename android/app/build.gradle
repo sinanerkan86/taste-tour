@@ -44,10 +44,11 @@ android {
     buildTypes {
         // Debug builds use Google's sample AdMob app (test ads only), so testing never touches the real account.
         debug {
-            manifestPlaceholders = [admobAppId: 'ca-app-pub-3940256099942544~3347511713']
+            // Test builds start clean after a reinstall; store builds keep Android's auto backup (progress comes back).
+            manifestPlaceholders = [admobAppId: 'ca-app-pub-3940256099942544~3347511713', allowBackup: 'false']
         }
         release {
-            manifestPlaceholders = [admobAppId: 'ca-app-pub-6709000702163453~3727619210']
+            manifestPlaceholders = [admobAppId: 'ca-app-pub-6709000702163453~3727619210', allowBackup: 'true']
             minifyEnabled false
             if (keystoreFile.exists()) {
                 signingConfig signingConfigs.release

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import {
+  type HintRow,
   BUY_AMOUNTS,
   DISH_MAX_LEVEL,
   DISH_TIERS,
@@ -40,7 +41,9 @@ import {
   nextMilestone,
   sectionBuyPlan,
   staffHelpLevels,
+  sectionLoad,
   sectionRates,
+  specialties,
   throughput,
   type BuyAmount,
   type EconomyState,
@@ -120,11 +123,34 @@ interface RowView {
   locked: boolean;
   // Label of the staff help ad button ("+12"), or null to hide it.
   help?: string | null;
-  // A small label after the level other than the bottleneck tag (e.g. "Kitchen full").
+  // A small label after the level (e.g. "Busiest", "Kitchen full").
   tag?: { text: string; color: number } | null;
+  // Section rows: how loaded the section is (flow / rate; above 1 it is under pressure) and its
+  // specialty line. Rows without a load keep the two-line layout.
+  load?: number | null;
+  specialty?: { text: string; active: boolean } | null;
 }
 
+// The load gauge: green while the section has room, amber near its limit, red under pressure.
+const GAUGE = { height: 6, green: 0x4a8c3a, amber: 0xe0a100, red: 0xc0392b, amberFrom: 0.75, redFrom: 1 };
+
+
 const HELP_BUTTON = { width: 150, height: 80 };
+const SHIMMER_WIDTH = 54;
+
+// A slanted soft band of light, painted once.
+function shimmerTexture(scene: Phaser.Scene): string {
+  return paintTexture(scene, 'row-shimmer', SHIMMER_WIDTH, 70, (ctx) => {
+    ctx.translate(SHIMMER_WIDTH / 2, 35);
+    ctx.transform(1, 0, -0.35, 1, 0, 0);
+    const g = ctx.createLinearGradient(-SHIMMER_WIDTH / 2, 0, SHIMMER_WIDTH / 2, 0);
+    g.addColorStop(0, 'rgba(255,225,130,0)');
+    g.addColorStop(0.5, 'rgba(255,236,160,0.85)');
+    g.addColorStop(1, 'rgba(255,225,130,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(-SHIMMER_WIDTH / 2, -35, SHIMMER_WIDTH, 70);
+  });
+}
 
 class UpgradeRow extends Phaser.GameObjects.Container {
   private readonly bg: Phaser.GameObjects.Image;
@@ -132,12 +158,17 @@ class UpgradeRow extends Phaser.GameObjects.Container {
   private readonly level: Phaser.GameObjects.Text;
   private readonly detail: Phaser.GameObjects.Text;
   private readonly tag: Phaser.GameObjects.Text;
+  private readonly specialty: Phaser.GameObjects.Text;
+  private readonly gauge: Phaser.GameObjects.Graphics;
+  private lastGauge = '';
   private readonly icon: Phaser.GameObjects.Image;
   private readonly lock: Phaser.GameObjects.Image;
   private readonly glow: Phaser.GameObjects.Graphics;
   readonly button: Button;
   private readonly help: Button | null;
   private lastHighlight: boolean | null = null;
+  private readonly shimmer: Phaser.GameObjects.Image;
+  private shimmerTween: Phaser.Tweens.Tween | null = null;
 
   constructor(scene: Phaser.Scene, y: number, onBuy: () => void, onHelp?: () => void) {
     super(scene, 0, y);
@@ -152,7 +183,7 @@ class UpgradeRow extends Phaser.GameObjects.Container {
       .text(0, -18, '', { fontFamily: FONT, fontSize: '26px', color: toCss(PALETTE.muted) })
       .setOrigin(0, 0.5);
     this.tag = scene.add
-      .text(0, -18, t('row.bottleneck'), {
+      .text(0, -18, '', {
         fontFamily: FONT,
         fontSize: '20px',
         fontStyle: 'bold',
@@ -164,11 +195,17 @@ class UpgradeRow extends Phaser.GameObjects.Container {
     this.detail = scene.add
       .text(MARGIN + 112, 22, '', { fontFamily: FONT, fontSize: '24px', color: toCss(PALETTE.muted) })
       .setOrigin(0, 0.5);
+    this.specialty = scene.add
+      .text(MARGIN + 112, 22, '', { fontFamily: FONT, fontSize: '21px', fontStyle: 'bold', color: toCss(PALETTE.tileBlue) })
+      .setOrigin(0, 0.5)
+      .setVisible(false);
+    this.gauge = scene.add.graphics();
     this.button = new Button(scene, MARGIN + width - BUTTON_WIDTH / 2 - 14, 0, BUTTON_WIDTH, 80, onBuy, 'coin');
     this.button.sound = 'buy';
     this.glow = scene.add.graphics().setAlpha(0);
     this.glow.lineStyle(10, PALETTE.saffron, 1).strokeRoundedRect(MARGIN - 4, -ROW_HEIGHT / 2 - 4, width + 8, ROW_HEIGHT + 8, 20);
-    this.add([this.bg, this.icon, this.lock, this.title, this.level, this.tag, this.detail, this.button, this.glow]);
+    this.shimmer = scene.add.image(this.button.x, 0, shimmerTexture(scene)).setScale(1 / ART_RES).setAlpha(0).setVisible(false);
+    this.add([this.bg, this.icon, this.lock, this.title, this.level, this.tag, this.detail, this.specialty, this.gauge, this.button, this.shimmer, this.glow]);
     // The staff help ad: a small blue button left of the buy button.
     this.help = null;
     if (onHelp) {
@@ -188,7 +225,12 @@ class UpgradeRow extends Phaser.GameObjects.Container {
     else this.icon.clearTint();
     this.level.setText(view.level);
     this.level.x = this.title.x + this.title.width + 12;
-    const tag = view.tag ?? (view.highlight ? { text: t('row.bottleneck'), color: PALETTE.pomegranate } : null);
+    const tag = view.tag ?? null;
+    const threeLines = view.load !== undefined && view.load !== null;
+    this.title.y = threeLines ? -29 : -20;
+    this.level.y = this.tag.y = threeLines ? -27 : -18;
+    this.detail.y = threeLines ? -2 : 22;
+    this.renderLoad(view);
     this.tag.setVisible(tag !== null);
     if (tag && this.tag.text !== tag.text) this.tag.setText(tag.text);
     if (tag) this.tag.setBackgroundColor(toCss(tag.color));
@@ -220,6 +262,60 @@ class UpgradeRow extends Phaser.GameObjects.Container {
       const look = view.highlight ? ROW_CARDS.highlight : ROW_CARDS.normal;
       this.bg.setTexture(card(this.scene, `row-${view.highlight ? 'hot' : 'plain'}`, width, ROW_HEIGHT, look));
     }
+  }
+
+  // The load gauge along the bottom of a section row and its specialty line.
+  private renderLoad(view: RowView): void {
+    const threeLines = view.load !== undefined && view.load !== null;
+    const show = threeLines && !!view.specialty;
+    this.specialty.setVisible(show);
+    if (show) {
+      this.specialty.setText(view.specialty!.text).setAlpha(view.specialty!.active ? 1 : 0.65);
+      this.specialty.y = 21;
+      const room = GAME_WIDTH - MARGIN * 2 - BUTTON_WIDTH - 150;
+      this.specialty.setScale(Math.min(1, room / Math.max(1, this.specialty.width)));
+    }
+    const key = threeLines ? view.load!.toFixed(2) : '';
+    if (key === this.lastGauge) return;
+    this.lastGauge = key;
+    this.gauge.clear();
+    if (!threeLines) return;
+    const x = MARGIN + 112;
+    const width = GAME_WIDTH - MARGIN * 2 - BUTTON_WIDTH - 150;
+    const y = 36;
+    // Full bar = a load of 1.5; the amber and red marks sit where the colours change.
+    const fill = Math.min(1, view.load! / 1.5);
+    const color = view.load! > GAUGE.redFrom ? GAUGE.red : view.load! >= GAUGE.amberFrom ? GAUGE.amber : GAUGE.green;
+    this.gauge.fillStyle(0x000000, 0.12).fillRoundedRect(x, y, width, GAUGE.height, 3);
+    this.gauge.fillStyle(color, 1).fillRoundedRect(x, y, Math.max(GAUGE.height, width * fill), GAUGE.height, 3);
+    this.gauge.fillStyle(0xffffff, 0.8).fillRect(x + (width * GAUGE.redFrom) / 1.5 - 1, y - 2, 2, GAUGE.height + 4);
+  }
+
+  // A soft gold sweep across the buy button every few seconds, for a row worth a look.
+  setHinted(hinted: boolean): void {
+    if (hinted === (this.shimmerTween !== null)) return;
+    if (!hinted) {
+      this.shimmerTween?.remove();
+      this.shimmerTween = null;
+      this.shimmer.setVisible(false).setAlpha(0);
+      return;
+    }
+    const reach = BUTTON_WIDTH / 2 - SHIMMER_WIDTH / 2 - 6;
+    this.shimmer.setVisible(true);
+    this.shimmerTween = this.scene.tweens.add({
+      targets: this.shimmer,
+      x: { from: this.button.x - reach, to: this.button.x + reach },
+      duration: 900,
+      repeat: -1,
+      repeatDelay: 2600,
+      delay: Math.random() * 1500,
+      ease: 'Sine.easeInOut',
+      onUpdate: (_tween, target: Phaser.GameObjects.Image) => {
+        const p = (target.x - (this.button.x - reach)) / (2 * reach);
+        target.setAlpha(Math.sin(Math.PI * Phaser.Math.Clamp(p, 0, 1)) * 0.85);
+      },
+      onRepeat: () => this.shimmer.setAlpha(0),
+    });
   }
 
   // Short flash after a purchase.
@@ -367,6 +463,8 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
   private readonly labRows: LabRow[];
   private readonly labInfo: Phaser.GameObjects.Text;
   private readonly labBadge: Phaser.GameObjects.Container;
+  private readonly hintDots: Record<'restaurant' | 'expand', Phaser.GameObjects.Container>;
+  private hints = new Set<HintRow>();
   private readonly tabButtons: Record<Tab, Button>;
   private readonly amountButton: Button;
   private readonly handle: Phaser.GameObjects.Container;
@@ -411,6 +509,16 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     const mark = scene.add.text(0, -2, '!', outlined(30)).setOrigin(0.5);
     this.labBadge = scene.add.container(tabX(2) + tabWidth / 2 - 14, tabY - TAB_HEIGHT / 2 + 8, [dot, mark]).setVisible(false);
     scene.tweens.add({ targets: this.labBadge, scale: 1.18, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    // A small gold dot with a slow glow on the tabs whose rows hold an upgrade worth a look. It
+    // sits on the tab's top left corner, away from the red "!" of the Lab tab.
+    const makeDot = (tabIndex: number) => {
+      const glow = scene.add.circle(0, 0, 20, 0xffd34d, 0.5).setBlendMode(Phaser.BlendModes.ADD);
+      const face = scene.add.circle(0, 0, 11, 0xf5b82e).setStrokeStyle(3, 0xfff4dc);
+      const container = scene.add.container(tabX(tabIndex) - tabWidth / 2 + 16, tabY - TAB_HEIGHT / 2 + 8, [glow, face]).setVisible(false);
+      scene.tweens.add({ targets: glow, scale: 1.45, alpha: 0.15, duration: 1500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      return container;
+    };
+    this.hintDots = { restaurant: makeDot(0), expand: makeDot(3) };
     // A grip on the top edge closes the open drawer.
     const grip = scene.add.graphics();
     grip.fillStyle(0xc98a4a, 1).fillRoundedRect(-70, -26, 140, 40, 18);
@@ -418,7 +526,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     grip.lineStyle(6, 0xb0763c, 1).beginPath().moveTo(-18, -9).lineTo(0, 3).lineTo(18, -9).strokePath();
     this.handle = scene.add.container(GAME_WIDTH / 2, -6, [grip]).setSize(220, 70).setVisible(false);
     this.handle.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.close());
-    this.add([...TABS.map((tab) => this.tabButtons[tab]), this.amountButton, this.labBadge, this.handle]);
+    this.add([...TABS.map((tab) => this.tabButtons[tab]), this.amountButton, this.labBadge, this.hintDots.restaurant, this.hintDots.expand, this.handle]);
 
     const rowY = (i: number) => 20 + TAB_HEIGHT + 18 + ROW_HEIGHT / 2 + i * (ROW_HEIGHT + ROW_GAP);
     this.sectionRows = SECTION_IDS.map(
@@ -597,6 +705,30 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     this.setMode({ kind: 'tab', tab });
   }
 
+  // Rows worth a look (see upgradeHints): a shimmer on their buy buttons and a gold dot on the
+  // tab that holds them, unless that tab is the one open.
+  setHints(hints: Set<HintRow>): void {
+    this.hints = hints;
+    this.sectionRows.forEach((row, i) => row.setHinted(hints.has(SECTION_IDS[i])));
+    this.deliveryRow.setHinted(hints.has('delivery'));
+    this.safeRow.setHinted(hints.has('safe'));
+    this.parkingRow.setHinted(hints.has('parking'));
+    this.valetRow.setHinted(hints.has('valet'));
+    this.busStopRow.setHinted(hints.has('busStop'));
+    this.terraceRow.setHinted(hints.has('terrace'));
+    this.roofBarRow.setHinted(hints.has('roofBar'));
+    this.refreshHintDots();
+  }
+
+  private refreshHintDots(): void {
+    const open = this.mode.kind === 'tab' ? this.mode.tab : null;
+    const h = this.hints;
+    const restaurant = SECTION_IDS.some((id) => h.has(id)) || h.has('delivery') || h.has('safe');
+    const expand = h.has('parking') || h.has('valet') || h.has('busStop') || h.has('terrace') || h.has('roofBar');
+    this.hintDots.restaurant.setVisible(restaurant && open !== 'restaurant');
+    this.hintDots.expand.setVisible(expand && open !== 'expand');
+  }
+
   // Shows the rows of the current mode at their places and hides the rest.
   private applyMode(): void {
     const rowY = (i: number) => 20 + TAB_HEIGHT + 18 + ROW_HEIGHT / 2 + i * (ROW_HEIGHT + ROW_GAP);
@@ -615,6 +747,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     this.labInfo.setVisible(tab === 'lab');
     this.amountButton.setVisible(tab !== 'lab');
     this.handle.setVisible(mode.kind !== 'closed');
+    this.refreshHintDots();
     for (const id of TABS) {
       this.tabButtons[id].setButtonStyle(tab === id ? BUTTON_STYLES.primary : BUTTON_STYLES.disabled);
     }
@@ -678,6 +811,8 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
   private refreshSections(state: EconomyState): void {
     const rates = sectionRates(state);
     const { bottleneck } = throughput(state);
+    const load = sectionLoad(state);
+    const spec = specialties(state);
     const helpLevels = this.staffHelpAllowed ? staffHelpLevels(state) : 0;
     SECTION_IDS.forEach((id, i) => {
       const level = state.sectionLevels[id];
@@ -690,7 +825,13 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
         buttonIcon: true,
         affordable: state.money >= cost,
         buyable: true,
-        highlight: id === bottleneck,
+        highlight: false,
+        tag: id === bottleneck ? { text: t('row.busiest'), color: PALETTE.saffronDark } : null,
+        load: load[id],
+        specialty: {
+          text: t('row.specialty', { name: t(`specialty.${id}` as TranslationKey), bonus: Math.round(spec[id].bonus * 100), cap: Math.round(spec[id].cap * 100) }),
+          active: spec[id].bonus > 0,
+        },
         icon: sectionIcon(this.scene, id, SECTION_COLORS[id]),
         locked: false,
         help: id === bottleneck && helpLevels > 0 ? t('staff.button', { levels: helpLevels }) : null,

@@ -452,8 +452,8 @@ function paintFacade(ctx: Ctx, street: StreetTheme): void {
   ctx.fillRect(0, faceTop, GAME_WIDTH, 12);
   // Coping: the top of the cut wall and its rounded front edge.
   ctx.fillStyle = vGradient(ctx, FRONT.capTop, faceTop - 8, [
-    [0, css(street.trim, -0.18)],
-    [1, css(street.trim, -0.02)],
+    [0, css(street.trim, 0.1)],
+    [1, css(street.trim, 0.22)],
   ]);
   ctx.fillRect(0, FRONT.capTop, GAME_WIDTH, faceTop - 8 - FRONT.capTop);
   ctx.fillStyle = vGradient(ctx, faceTop - 8, faceTop, [

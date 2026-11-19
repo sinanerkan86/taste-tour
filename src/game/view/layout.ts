@@ -79,21 +79,23 @@ export const WORLD = { top: ROOF.top, bottom: LOT.bottom, left: 0, right: 1080 }
 // Passers-by walk along the pavement here, between the queue and the curb.
 export const WALK_LANES = [1272, 1300];
 
-// People and furniture farther back (higher on screen) are drawn a little smaller, which gives
-// the room depth.
+// People and furniture farther back (higher on screen) are drawn smaller, which gives the room
+// depth: about 0.72 at the back wall up to 1.12 at the front of the room.
 export function depthScale(y: number): number {
-  // The terrace deck is a floor of its own with the same range of sizes.
+  // The terrace deck is a floor of its own with its own range of sizes.
   if (y < ROOM.top) {
     const deck = (y - ROOF.deckTop) / (ROOF.deckBottom - ROOF.deckTop);
-    return Math.min(1.12, Math.max(0.8, 0.86 + deck * 0.22));
+    return Math.min(1.06, Math.max(0.74, 0.74 + deck * 0.32));
   }
   const t = (y - ROOM.wallBottom) / (ROOM.bottom - ROOM.wallBottom);
-  return Math.min(1.12, Math.max(0.8, 0.86 + t * 0.22));
+  return Math.min(1.12, Math.max(0.72, 0.72 + t * 0.4));
 }
 
 export const KITCHEN = { left: 560, right: 1060, counterY: 470 } as const;
 export const DISHPIT = { left: 20, right: 250, counterY: 470 } as const;
-export const DISHWASHER: Point = { x: 130, y: 452 };
+export const DISHWASHER: Point = { x: 130, y: 430 };
+// Chefs stand behind the counter far enough back that head, shoulders and chest show over it.
+export const CHEF_Y = KITCHEN.counterY - 40;
 // Dirty plates pile up left of the sink, clean ones stack on the right.
 export const DIRTY_STACK: Point = { x: DISHPIT.left + 32, y: DISHPIT.counterY - 82 };
 export const CLEAN_STACK: Point = { x: DISHPIT.right - 34, y: DISHPIT.counterY - 82 };
@@ -139,6 +141,14 @@ export const CASHIER_STAFF: Point = { x: 170, y: 625 };
 // Customers line up to pay from the front of the desk toward the tables.
 export const CASHIER_LINE: Point[] = [0, 1, 2, 3, 4, 5].map((i) => ({ x: 170 + i * 52, y: 740 + (i % 2) * 14 }));
 export const WAITER_HOME: Point = { x: 470, y: 560 };
+// Idle waiters wait spread out along the back of the dining room, not in one clump.
+export const WAITER_HOMES: Point[] = [
+  { x: 470, y: 560 },
+  { x: 640, y: 574 },
+  { x: 820, y: 560 },
+  { x: 990, y: 574 },
+  { x: 340, y: 572 },
+];
 // Where a VIP guest waits to be noticed, in the open floor inside the door.
 export const VIP_SPOT: Point = { x: 190, y: 985 };
 // Where a food critic stands taking notes, between the front tables.
@@ -176,7 +186,7 @@ export const SEAT_OFFSET_X = 78;
 // Where customers line up outside when every seat is taken: from the door along the front wall.
 export const QUEUE_SPOTS: Point[] = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => ({ x: DOOR_X + 8 + i * 76, y: 1196 + (i % 2) * 10 }));
 
-// Where the bottleneck marker floats for each section.
+// Where each section is pointed at (first tip, spots, drawer focus).
 export const SECTION_ANCHORS: Record<SectionId, Point> = {
   entrance: { x: DOOR_X + 110, y: FRONT.capTop - 40 },
   seating: { x: 660, y: 560 },

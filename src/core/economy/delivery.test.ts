@@ -15,6 +15,7 @@ import {
   newEconomy,
   prestige,
   sectionRates,
+  specialties,
   throughput,
   type EconomyState,
 } from '.';
@@ -85,7 +86,9 @@ describe('delivery', () => {
     const dineIn = baseIncomePerSecond(state);
     state.deliveryLevel = 3;
     const orders = deliveryFlow(state).ordersPerSecond;
-    expect(baseIncomePerSecond(state)).toBeCloseTo(dineIn + orders * DELIVERY.billFraction * billPerCustomer(state));
+    // Orders pay half a bill, plus what the kitchen's Quality specialty adds to every bill.
+    const quality = 1 + specialties(state).kitchen.bonus;
+    expect(baseIncomePerSecond(state)).toBeCloseTo(dineIn + orders * DELIVERY.billFraction * billPerCustomer(state) * quality);
     expect(incomeBreakdown(state).dineIn).toBeCloseTo(dineIn);
   });
 

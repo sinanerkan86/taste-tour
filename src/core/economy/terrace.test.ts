@@ -14,6 +14,8 @@ import {
   prestige,
   roofBarCost,
   sectionRates,
+  specialtyMultiplier,
+  throughput,
   seatingSplit,
   terraceBuyPlan,
   terraceCost,
@@ -55,15 +57,16 @@ describe('terrace', () => {
     for (const id of SECTION_IDS) state.sectionLevels[id] = 10;
     state.sectionLevels.seating = 30;
     const indoor = sectionRates(state).seating;
-    const before = incomeBreakdown(state).dineIn;
+    const perCustomer = () => incomeBreakdown(state).dineIn / (throughput(state).customersPerSecond * specialtyMultiplier(state));
+    const before = perCustomer();
     state.terraceLevel = 10;
     const split = seatingSplit(state);
     expect(split.indoor).toBeCloseTo(indoor);
     expect(sectionRates(state).seating).toBeCloseTo(indoor + split.terrace);
     expect(split.terraceShare).toBeCloseTo(split.terrace / (indoor + split.terrace));
     expect(split.billMultiplier).toBeCloseTo(1 + split.terraceShare * TERRACE.billBonus);
-    // Seating was not the bottleneck, so only the bill grows.
-    expect(incomeBreakdown(state).dineIn).toBeCloseTo(before * split.billMultiplier);
+    // Every customer pays more by the terrace share.
+    expect(perCustomer()).toBeCloseTo(before * split.billMultiplier);
   });
 
   it('offers the roof bar once the terrace is big enough', () => {

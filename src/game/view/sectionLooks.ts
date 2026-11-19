@@ -3,7 +3,7 @@ import { STYLE_TIERS, styleTier, type SectionId } from '../../core/economy';
 import { ROOM_FX_DEPTH, sparkle } from '../fx';
 import { CASHIER_DESK, DISHPIT, DOOR_WIDTH, DOOR_X, FRONT, KITCHEN, PASS_SPOTS, ROOM, TABLES, depthScale } from './layout';
 import { type Ctx, ART_RES, addArt, css, ellipse, floorShadow, hGradient, paintTexture, radial, roundRect, vGradient } from './paint';
-import { type RoomArt, paintTable } from './room';
+import { CHAIR_BACK, CHAIR_SEAT, type RoomArt, insetPoly, polyPath, tableTexture } from './room';
 import type { CityTheme } from './themes';
 
 // Furniture and props that get better as each section levels up (style tiers from core).
@@ -11,10 +11,10 @@ import type { CityTheme } from './themes';
 type Piece = Phaser.GameObjects.Image;
 type Builder = (looks: SectionLooks) => Piece[];
 
-const GOLD = 0xd4a437;
-const COUNTER_TOP = KITCHEN.counterY - 66;
-const DISHPIT_TOP = DISHPIT.counterY - 76;
-const DESK_TOP = CASHIER_DESK.y - 66;
+// Heights where props stand: on the worktop / sink counter / desk top (see room.ts).
+const COUNTER_TOP = KITCHEN.counterY - 64;
+const DISHPIT_TOP = DISHPIT.counterY - 70;
+const DESK_TOP = CASHIER_DESK.y - 12;
 const HOOD_LIP = ROOM.top + 96;
 const PAN_XS = [673, 763, 853, 943];
 const POP_MS = 420;
@@ -109,8 +109,7 @@ export class SectionLooks {
   // --- Dining room --------------------------------------------------------------------------
 
   fancyTables(): Piece[] {
-    const key = paintTexture(this.scene, `looks-table-${this.theme.accent.toString(16)}`, 180, 100, (ctx) => paintFancyTable(ctx, this.theme));
-    this.art.tables.forEach((table) => table.setTexture(key));
+    this.art.tables.forEach((table, i) => table.setTexture(tableTexture(this.scene, this.theme, TABLES[i].y, true, (ctx) => paintTableSettings(ctx, this.theme))));
     return this.art.tables;
   }
 
@@ -119,6 +118,7 @@ export class SectionLooks {
     return this.art.chairs.map((chair) =>
       addArt(this.scene, chair.x, chair.y, key, 32, 80)
         .setScale(chair.scaleX, chair.scaleY)
+        .setFlipX(chair.flipX)
         .setDepth(chair.depth + 0.1),
     );
   }
@@ -175,7 +175,7 @@ export class SectionLooks {
   // --- Dish pit -----------------------------------------------------------------------------
 
   soap(): Piece[] {
-    return [this.image(DISHPIT.left + 78, DISHPIT_TOP, 'looks-soap', 50, 40, 25, 36, paintSoap).setDepth(DISHPIT.counterY + 2)];
+    return [this.image(DISHPIT.left + 176, DISHPIT_TOP, 'looks-soap', 50, 40, 25, 36, paintSoap).setDepth(DISHPIT.counterY + 2)];
   }
 
   plateRack(): Piece[] {
@@ -308,67 +308,76 @@ function paintServiceBell(ctx: Ctx): void {
   ctx.fill();
 }
 
-function paintFancyTable(ctx: Ctx, theme: CityTheme): void {
-  paintTable(ctx, { ...theme, accent: GOLD });
-  // paintTable leaves the context at the table center.
-  // Folded napkins and wine glasses at both places.
+// Drawn over the table texture (the context is at its middle, the top center 12 above it): folded napkins and
+// wine glasses at both places, standing on the top with small contact shadows.
+function paintTableSettings(ctx: Ctx, theme: CityTheme): void {
+  // paintTable leaves the context at the table's middle.
   [-1, 1].forEach((side) => {
-    const x = side * 46;
+    const x = side * 44;
+    const y = -8;
+    ctx.fillStyle = 'rgba(40,20,5,0.22)';
+    ellipse(ctx, x + 2, y + 1, 11, 3);
+    ctx.fill();
     ctx.fillStyle = css(theme.accent, 0.1);
+    // A folded napkin lying flat on the top.
     ctx.beginPath();
-    ctx.moveTo(x - 9, -6);
-    ctx.lineTo(x + 9, -6);
-    ctx.lineTo(x, -22);
+    ctx.moveTo(x - 10, y - 1);
+    ctx.lineTo(x - 2, y - 6);
+    ctx.lineTo(x + 10, y - 3);
+    ctx.lineTo(x + 2, y + 3);
     ctx.closePath();
     ctx.fill();
     outline(ctx, 1);
-    const gx = x + side * 16;
+    const gx = x + side * 17;
+    const gy = y - 3;
+    ctx.fillStyle = 'rgba(40,20,5,0.2)';
+    ellipse(ctx, gx + 2, gy + 1, 6, 2);
+    ctx.fill();
     ctx.fillStyle = 'rgba(230,245,255,0.75)';
     ctx.beginPath();
-    ctx.moveTo(gx - 5, -30);
-    ctx.lineTo(gx + 5, -30);
-    ctx.quadraticCurveTo(gx + 5, -20, gx, -19);
-    ctx.quadraticCurveTo(gx - 5, -20, gx - 5, -30);
+    ctx.moveTo(gx - 5, gy - 18);
+    ctx.lineTo(gx + 5, gy - 18);
+    ctx.quadraticCurveTo(gx + 5, gy - 9, gx, gy - 8);
+    ctx.quadraticCurveTo(gx - 5, gy - 9, gx - 5, gy - 18);
     ctx.fill();
     ctx.fillStyle = 'rgba(150,20,40,0.8)';
     ctx.beginPath();
-    ctx.moveTo(gx - 4, -25);
-    ctx.lineTo(gx + 4, -25);
-    ctx.quadraticCurveTo(gx + 4, -20, gx, -20);
-    ctx.quadraticCurveTo(gx - 4, -20, gx - 4, -25);
+    ctx.moveTo(gx - 4, gy - 13);
+    ctx.lineTo(gx + 4, gy - 13);
+    ctx.quadraticCurveTo(gx + 4, gy - 9, gx, gy - 9);
+    ctx.quadraticCurveTo(gx - 4, gy - 9, gx - 4, gy - 13);
     ctx.fill();
     ctx.strokeStyle = 'rgba(200,220,230,0.9)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(gx, -19);
-    ctx.lineTo(gx, -11);
-    ctx.moveTo(gx - 4, -10);
-    ctx.lineTo(gx + 4, -10);
+    ctx.moveTo(gx, gy - 8);
+    ctx.lineTo(gx, gy - 1);
+    ctx.moveTo(gx - 4, gy - 1);
+    ctx.lineTo(gx + 4, gy - 1);
     ctx.stroke();
   });
 }
 
-// Origin (32, 80) like the chair: a padded back and seat in the city's accent velvet.
+// Origin (32, 80) like the chair: padded back and seat in the city's accent velvet, on the
+// chair's own seat and back shapes.
 function paintCushion(ctx: Ctx, accent: number): void {
   ctx.translate(32, 80);
-  ctx.fillStyle = vGradient(ctx, -58, -28, [
+  ctx.fillStyle = vGradient(ctx, -70, -30, [
+    [0, css(accent, 0.2)],
+    [1, css(accent, -0.25)],
+  ]);
+  polyPath(ctx, insetPoly(CHAIR_BACK, 0.78));
+  ctx.fill();
+  outline(ctx, 1);
+  ctx.fillStyle = vGradient(ctx, -31, -13, [
     [0, css(accent, 0.15)],
     [1, css(accent, -0.3)],
   ]);
-  roundRect(ctx, -15, -58, 30, 30, 7);
+  polyPath(ctx, insetPoly(CHAIR_SEAT, 0.9), -1);
   ctx.fill();
   outline(ctx, 1);
-  ctx.fillStyle = 'rgba(255,255,255,0.25)';
-  roundRect(ctx, -11, -55, 14, 4, 2);
-  ctx.fill();
   ctx.fillStyle = css(accent, -0.45);
-  ellipse(ctx, 0, -43, 1.8, 1.8);
-  ctx.fill();
-  ctx.fillStyle = vGradient(ctx, -24, -14, [
-    [0, css(accent, 0.1)],
-    [1, css(accent, -0.35)],
-  ]);
-  roundRect(ctx, -26, -24, 52, 9, 4);
+  ellipse(ctx, -13, -50, 1.8, 1.8);
   ctx.fill();
 }
 

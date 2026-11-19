@@ -1,14 +1,13 @@
 import { MusicPlayer } from './music/MusicPlayer';
 import { settings } from './settings';
 
-// All sound is synthesized with the Web Audio API: no audio files, nothing to license, tiny APK.
-// Sound effects are short envelopes on oscillators; the music is one looping tune per city
-// (src/game/music), played by a small sequencer.
+// Sound effects are synthesized with the Web Audio API: short envelopes on oscillators, nothing to license.
+// The music is recorded: five shuffled tracks per city (src/game/music), streamed through the music bus.
 
 export type Sfx = 'tap' | 'coin' | 'buy' | 'unlock' | 'celebrate' | 'click' | 'vip' | 'look' | 'firework';
 
 const SFX_VOLUME = 0.45;
-const MUSIC_VOLUME = 0.16;
+const MUSIC_VOLUME = 0.5; // the tracks are normalized to -18 LUFS, so this sits under the effects
 
 // Equal temperament: MIDI note number to frequency.
 const hz = (note: number) => 440 * Math.pow(2, (note - 69) / 12);
@@ -18,7 +17,7 @@ class AudioEngine {
   private sfxBus: GainNode | null = null;
   private musicBus: GainNode | null = null;
   private music: MusicPlayer | null = null;
-  private song = 'istanbul';
+  private city = 'istanbul';
   private lastPlayed = new Map<Sfx, number>();
 
   // Browsers only allow audio after a user gesture, so the context starts on the first tap.
@@ -36,25 +35,27 @@ class AudioEngine {
       this.musicBus.gain.value = settings.music ? MUSIC_VOLUME : 0;
       this.musicBus.connect(compressor);
       this.music = new MusicPlayer(this.ctx, this.musicBus);
-      this.music.setSong(this.song);
+      this.music.setCity(this.city);
       if (settings.music) this.music.start();
       document.addEventListener('visibilitychange', () => (document.hidden ? this.pause() : this.resume()));
     }
     if (this.ctx.state === 'suspended' && !document.hidden) void this.ctx.resume();
   }
 
-  // Each city has its own music; the switch fades over about half a second.
+  // Each city has its own tracks; the switch fades over under a second.
   setCity(id: string): void {
-    this.song = id;
-    this.music?.setSong(id);
+    this.city = id;
+    this.music?.setCity(id);
   }
 
   pause(): void {
+    this.music?.pause();
     if (this.ctx?.state === 'running') void this.ctx.suspend();
   }
 
   resume(): void {
     if (this.ctx?.state === 'suspended') void this.ctx.resume();
+    this.music?.resume();
   }
 
   applySettings(): void {

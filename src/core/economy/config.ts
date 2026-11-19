@@ -74,6 +74,29 @@ export const VALET = {
   extraBillBonus: 0.1,
 };
 
+// Roof terrace: open-air tables above the dining room. Its seats add to the dining room's seating
+// rate (not a seventh section: the slowest-link rule is unchanged) and guests who came for the view
+// spend more, so it widens the seating and raises the average bill (GDD 5).
+export const TERRACE = {
+  // Cost to open the terrace (in the city's cost scale), then the level curve of its tables.
+  unlockCost: 4e7,
+  // Seated customers per second it adds at level 1.
+  baseRate: 0.2,
+  baseCost: 3e4,
+  costGrowth: 1.27,
+  // A terrace guest orders this much more (0.2 = +20% on the bill).
+  billBonus: 0.2,
+};
+
+// Roof bar: a one-time upgrade of a big enough terrace. More guests stay for a drink and they
+// spend a little more.
+export const ROOF_BAR = {
+  minTerraceLevel: 25,
+  cost: 2.5e12,
+  rateMultiplier: 1.25,
+  extraBillBonus: 0.1,
+};
+
 // Bus stop: a bus brings a group on a timetable while the game is open (never offline). The
 // group is seated at the dining room's spare tables, so a full dining room sends riders away,
 // and they order a set menu that costs less than the taste tour (GDD 13).

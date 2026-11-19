@@ -362,5 +362,14 @@
   "row.busStopRate": "{rate} 乘客/秒 · 每 {minutes} 分钟一班",
   "row.busStopSeats": "{rate} / {max} 乘客/秒：扩建餐厅",
   "row.seatsFull": "座位已满",
-  "banner.busStopOpen": "公交车站开通了！每 {minutes} 分钟一班公交送来客人"
+  "banner.busStopOpen": "公交车站开通了！每 {minutes} 分钟一班公交送来客人",
+  "row.terrace": "屋顶露台",
+  "row.terraceClosed": "带风景的露天餐桌：更多座位，更高的账单",
+  "row.terraceRate": "楼上 {rate} 位顾客/秒 · 账单 +{bonus}%",
+  "row.roofBar": "屋顶酒吧",
+  "row.roofBarLocked": "需要 {level} 级屋顶露台",
+  "row.roofBarOffer": "露台顾客 +{rate}%，消费更多",
+  "row.roofBarOwned": "调酒师为客人调酒：露台顾客 +{rate}%",
+  "banner.terraceOpen": "屋顶露台开放了！客人上楼欣赏风景",
+  "banner.roofBar": "屋顶酒吧！在美景中小酌"
 }

@@ -79,6 +79,12 @@ import {
   busPayout,
   busStopCost,
   buyBusStopLevels,
+  buyRoofBar,
+  buyTerraceLevels,
+  canBuyRoofBar,
+  roofBarCost,
+  terraceCost,
+  terraceRate,
   deliveryFlow,
   incomeBreakdown,
   offlineCapSeconds,
@@ -121,7 +127,7 @@ import { GoalBar } from '../ui/GoalBar';
 import { HintBubble } from '../ui/HintBubble';
 import { PANEL_STRIP, UpgradePanel } from '../ui/UpgradePanel';
 import { WelcomeBackModal } from '../ui/WelcomeBackModal';
-import { BUS_STOP_ANCHOR, BUS_STOP_SPOT, DELIVERY_SIGN, PARKING_ANCHOR, ROOM, SECTION_ANCHORS, SPOT_ANCHORS, WORLD, spotAt, type Point, type SpotId } from '../view/layout';
+import { BUS_STOP_ANCHOR, BUS_STOP_SPOT, DELIVERY_SIGN, PARKING_ANCHOR, ROOM, SECTION_ANCHORS, SPOT_ANCHORS, TERRACE_ANCHOR, WORLD, spotAt, type Point, type SpotId } from '../view/layout';
 import { SpotMarkers } from '../view/SpotMarkers';
 import { RestaurantView } from '../view/RestaurantView';
 import { Decor } from '../view/decor';
@@ -274,7 +280,7 @@ export class RestaurantScene extends Phaser.Scene {
     this.forcedEvent = null;
     // Dev-only shortcuts for testing: /?money=1e6, /?city=2 (look and prices of another city), /?vip=1 (VIP right away),
     // /?event=critic|tourBus|festival (that event in a few seconds), /?parking=30&valet=1 (a lot of that level),
-    // /?bus=20 (a bus stop of that level, the first bus in a few seconds)
+    // /?bus=20 (a bus stop of that level, the first bus in a few seconds), /?terrace=30&bar=1 (a roof terrace of that level)
     if (import.meta.env.DEV) {
       const params = new URLSearchParams(location.search);
       const money = Number(params.get('money'));
@@ -285,6 +291,9 @@ export class RestaurantScene extends Phaser.Scene {
       const parking = Number(params.get('parking'));
       if (Number.isInteger(parking) && parking > 0) this.economy.parkingLevel = parking;
       if (params.has('valet') && this.economy.parkingLevel > 0) this.economy.valet = true;
+      const terrace = Number(params.get('terrace'));
+      if (Number.isInteger(terrace) && terrace > 0) this.economy.terraceLevel = terrace;
+      if (params.has('bar') && this.economy.terraceLevel > 0) this.economy.roofBar = true;
       const bus = Number(params.get('bus'));
       if (Number.isInteger(bus) && bus > 0) {
         this.economy.busStopLevel = bus;
@@ -318,6 +327,8 @@ export class RestaurantScene extends Phaser.Scene {
       () => this.buyParking(),
       () => this.buyValet(),
       () => this.buyBusStop(),
+      () => this.buyTerrace(),
+      () => this.buyRoofBar(),
       () => this.offerStaffHelp(),
     );
     this.panel.onTabChange = (tab) => {
@@ -436,6 +447,7 @@ export class RestaurantScene extends Phaser.Scene {
     if (can(safeUpgradeCost(e))) affordable.add('cashier');
     if (can(parkingCost(e)) || (canBuyValet(e) && can(valetCost(e)))) affordable.add('parking');
     if (can(busStopCost(e))) affordable.add('busStop');
+    if (can(terraceCost(e)) || (canBuyRoofBar(e) && can(roofBarCost(e)))) affordable.add('terrace');
     this.spotMarkers.update(affordable, this.panel.openSpot);
   }
 
@@ -1241,6 +1253,7 @@ export class RestaurantScene extends Phaser.Scene {
         },
         parking: { level: this.economy.parkingLevel, valet: this.economy.valet, carShare: arrivals(this.economy).carShare },
         busStopLevel: this.economy.busStopLevel,
+        terrace: { level: this.economy.terraceLevel, rate: terraceRate(this.economy), roofBar: this.economy.roofBar },
       },
       time,
       delta,
@@ -1354,6 +1367,35 @@ export class RestaurantScene extends Phaser.Scene {
     this.panel.pulseValet();
     this.celebrate(t('banner.valet'), PALETTE.success);
     if (!this.room.shows(PARKING_ANCHOR, 0)) this.room.panTo(PARKING_ANCHOR);
+    this.refreshUi();
+  }
+
+  // Opening the terrace is celebrated and the room scrolls up to it; the roof bar likewise.
+  private buyTerrace(): void {
+    const level = this.economy.terraceLevel;
+    const bought = buyTerraceLevels(this.economy, this.panel.buyAmount);
+    if (bought === 0) return;
+    void this.saveGame();
+    this.panel.pulseTerrace();
+    if (level === 0) {
+      this.celebrate(t('banner.terraceOpen'), PALETTE.success);
+      if (!this.room.shows(TERRACE_ANCHOR, 0)) this.room.panTo(TERRACE_ANCHOR);
+    } else {
+      this.track('upgrades', bought);
+      this.celebratePurchase();
+      if (milestonesReached(this.economy.terraceLevel) > milestonesReached(level)) {
+        this.note(t('banner.milestone', { name: t('row.terrace'), bonus: MILESTONE_BONUS.section }));
+      }
+    }
+    this.refreshUi();
+  }
+
+  private buyRoofBar(): void {
+    if (!buyRoofBar(this.economy)) return;
+    void this.saveGame();
+    this.panel.pulseRoofBar();
+    this.celebrate(t('banner.roofBar'), PALETTE.success);
+    if (!this.room.shows(TERRACE_ANCHOR, 0)) this.room.panTo(TERRACE_ANCHOR);
     this.refreshUi();
   }
 

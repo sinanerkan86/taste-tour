@@ -1520,3 +1520,92 @@ export function busStopIcon(scene: Phaser.Scene): string {
     }),
   );
 }
+
+// A striped parasol over a little table, for the Roof terrace row.
+export function terraceIcon(scene: Phaser.Scene): string {
+  return paintTexture(scene, 'icon-terrace', ICON_SIZE, ICON_SIZE, (ctx) =>
+    badge(ctx, 0x1f9bb0, (c) => {
+      // Pole and table top.
+      c.strokeStyle = '#7a5a3a';
+      c.lineWidth = 3;
+      c.beginPath();
+      c.moveTo(0, -12);
+      c.lineTo(0, 20);
+      c.stroke();
+      c.fillStyle = vGradient(c, 14, 24, [
+        [0, '#fff8ec'],
+        [1, '#d9c9a8'],
+      ]);
+      ellipse(c, 0, 18, 19, 5);
+      c.fill();
+      outline(c, 1.5);
+      c.fillStyle = '#4a4f55';
+      c.fillRect(-1.5, 20, 3, 6);
+      // Canopy with scallops.
+      c.fillStyle = '#e8463a';
+      c.beginPath();
+      c.moveTo(-26, -6);
+      c.quadraticCurveTo(0, -42, 26, -6);
+      c.quadraticCurveTo(17, 0, 8.5, -6);
+      c.quadraticCurveTo(0, 0, -8.5, -6);
+      c.quadraticCurveTo(-17, 0, -26, -6);
+      c.closePath();
+      c.fill();
+      outline(c, 2);
+      c.fillStyle = '#fff6e6';
+      c.beginPath();
+      c.moveTo(0, -24);
+      c.lineTo(-9, -4);
+      c.lineTo(9, -4);
+      c.closePath();
+      c.fill();
+    }),
+  );
+}
+
+// A cocktail glass with a slice of lime, for the Roof bar row.
+export function roofBarIcon(scene: Phaser.Scene): string {
+  return paintTexture(scene, 'icon-roof-bar', ICON_SIZE, ICON_SIZE, (ctx) =>
+    badge(ctx, 0xd1456b, (c) => {
+      // Stem and foot.
+      c.fillStyle = 'rgba(235,245,250,0.95)';
+      c.fillRect(-2, 2, 4, 20);
+      ellipse(c, 0, 24, 13, 4);
+      c.fill();
+      outline(c, 1.5);
+      // Glass.
+      c.fillStyle = 'rgba(235,245,250,0.9)';
+      c.beginPath();
+      c.moveTo(-24, -22);
+      c.lineTo(24, -22);
+      c.lineTo(0, 4);
+      c.closePath();
+      c.fill();
+      outline(c, 2);
+      // Drink.
+      c.fillStyle = vGradient(c, -20, 2, [
+        [0, '#ffb347'],
+        [1, '#e8463a'],
+      ]);
+      c.beginPath();
+      c.moveTo(-19, -18);
+      c.lineTo(19, -18);
+      c.lineTo(0, 1);
+      c.closePath();
+      c.fill();
+      // Lime slice on the rim and a straw.
+      c.strokeStyle = '#ffffff';
+      c.lineWidth = 3;
+      c.beginPath();
+      c.moveTo(6, -18);
+      c.lineTo(16, -34);
+      c.stroke();
+      c.fillStyle = '#7fcf3f';
+      c.beginPath();
+      c.arc(-17, -22, 9, Math.PI, 0);
+      c.closePath();
+      c.fill();
+      outline(c, 1.5);
+    }),
+  );
+}

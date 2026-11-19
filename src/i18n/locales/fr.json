@@ -362,5 +362,14 @@
   "row.busStopRate": "{rate} passagers/s · un bus toutes les {minutes} min",
   "row.busStopSeats": "{rate} sur {max} passagers/s : agrandissez la salle",
   "row.seatsFull": "SALLE PLEINE",
-  "banner.busStopOpen": "L'arrêt de bus est ouvert ! Un bus amène des clients toutes les {minutes} minutes"
+  "banner.busStopOpen": "L'arrêt de bus est ouvert ! Un bus amène des clients toutes les {minutes} minutes",
+  "row.terrace": "Toit-terrasse",
+  "row.terraceClosed": "Des tables en plein air avec vue : plus de places et des additions plus grosses",
+  "row.terraceRate": "{rate} clients/s en haut · additions +{bonus} %",
+  "row.roofBar": "Bar sur le toit",
+  "row.roofBarLocked": "Toit-terrasse de niveau {level} requis",
+  "row.roofBarOffer": "Clients de la terrasse +{rate} % et ils dépensent plus",
+  "row.roofBarOwned": "Un barman sert les boissons : clients de la terrasse +{rate} %",
+  "banner.terraceOpen": "Le toit-terrasse est ouvert ! Les clients montent pour la vue",
+  "banner.roofBar": "Bar sur le toit ! Des cocktails avec vue"
 }

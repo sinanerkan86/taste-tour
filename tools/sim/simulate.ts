@@ -23,6 +23,10 @@ import {
   arrivals,
   canBuyValet,
   parkingCost,
+  terraceCost,
+  roofBarCost,
+  canBuyRoofBar,
+  seatingSplit,
   valetCost,
   incomeBreakdown,
   earn,
@@ -109,6 +113,12 @@ export interface CycleResult {
   valetBought: number | null;
   finalParkingLevel: number;
   carBillMultiplier: number;
+  // Terrace: when it opened and the roof bar came, its level and the bill multiplier from terrace guests
+  // at the end.
+  terraceOpened: number | null;
+  roofBarBought: number | null;
+  finalTerraceLevel: number;
+  terraceBillMultiplier: number;
   // Bus stop: when it opened, its level, its share of income at the end and the share of time the
   // dining room had no seats for all the riders.
   busOpened: number | null;
@@ -161,6 +171,8 @@ function candidates(state: EconomyState): Option[] {
   options.push({ label: 'delivery', targets: ['delivery'], cost: deliveryCost(state), apply: (s) => s.deliveryLevel++ });
   options.push({ label: 'bus', targets: ['bus'], cost: busStopCost(state), apply: (s) => s.busStopLevel++ });
   options.push({ label: 'parking', targets: ['parking'], cost: parkingCost(state), apply: (s) => s.parkingLevel++ });
+  options.push({ label: 'terrace', targets: ['terrace'], cost: terraceCost(state), apply: (s) => s.terraceLevel++ });
+  if (canBuyRoofBar(state)) options.push({ label: 'roofBar', targets: ['roofBar'], cost: roofBarCost(state), apply: (s) => (s.roofBar = true) });
   if (canBuyValet(state)) options.push({ label: 'valet', targets: ['valet'], cost: valetCost(state), apply: (s) => (s.valet = true) });
 
   DISH_TIERS.forEach((_, i) => {
@@ -251,6 +263,10 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
       valetBought: null,
       finalParkingLevel: 0,
       carBillMultiplier: 1,
+      terraceOpened: null,
+      roofBarBought: null,
+      finalTerraceLevel: 0,
+      terraceBillMultiplier: 1,
       busOpened: null,
       finalBusLevel: 0,
       busShare: 0,
@@ -302,6 +318,8 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
     cycle.finalDeliveryLevel = state.deliveryLevel;
     cycle.finalParkingLevel = state.parkingLevel;
     cycle.carBillMultiplier = arrivals(state).billMultiplier;
+    cycle.finalTerraceLevel = state.terraceLevel;
+    cycle.terraceBillMultiplier = seatingSplit(state).billMultiplier;
     cycle.finalBusLevel = state.busStopLevel;
     cycle.busShare = busIncomePerSecond(state) / Math.max(activeIncomePerSecond(state), 1e-300);
     const split = incomeBreakdown(state);
@@ -379,6 +397,8 @@ export function simulate(partial: Partial<SimOptions> = {}): SimResult {
     if (best.label === 'delivery' && state.deliveryLevel === 0) cycle.deliveryOpened = time - cycle.startTime;
     if (best.label === 'parking' && state.parkingLevel === 0) cycle.parkingOpened = time - cycle.startTime;
     if (best.label === 'valet') cycle.valetBought = time - cycle.startTime;
+    if (best.label === 'terrace' && state.terraceLevel === 0) cycle.terraceOpened = time - cycle.startTime;
+    if (best.label === 'roofBar') cycle.roofBarBought = time - cycle.startTime;
     if (best.label === 'bus' && state.busStopLevel === 0) cycle.busOpened = time - cycle.startTime;
     best.apply(state);
     if (lockedBefore >= 0 && state.dishLevels[lockedBefore] > 0) {

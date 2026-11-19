@@ -14,6 +14,20 @@ export const ROOM = {
   bottom: 1010,
 } as const;
 
+// The roof terrace on top of the building, stacked above the room like the floors of a doll's
+// house: sky and skyline at the top, the back parapet, the deck and the building's front edge.
+export const ROOF = {
+  top: ROOM.top - 750,
+  // Bottom of the skyline: it stands behind the back parapet.
+  horizon: -250,
+  // The back parapet's coping, and where the deck floor starts.
+  parapetTop: -290,
+  deckTop: -208,
+  deckBottom: 172,
+  // The building's front edge (cornice) hides the top of the room's wall.
+  edgeBottom: ROOM.top + 14,
+} as const;
+
 // In front of the room: the front wall (cut low, like a doll's house, so the room stays visible),
 // the pavement where customers queue and passers-by walk, and the street with traffic.
 export const FRONT = {
@@ -61,13 +75,18 @@ export const PARKING_ANCHOR: Point = { x: 540, y: 1880 };
 export const BUS_STOP_SPOT = { x: 130, y: STREET.curb - 6, signX: 242, alightY: STREET.curb + 4 } as const;
 export const BUS_STOP_ANCHOR: Point = { x: BUS_STOP_SPOT.x - 90, y: BUS_STOP_SPOT.y - 280 };
 // Everything the camera may show.
-export const WORLD = { top: ROOM.top, bottom: LOT.bottom, left: 0, right: 1080 } as const;
+export const WORLD = { top: ROOF.top, bottom: LOT.bottom, left: 0, right: 1080 } as const;
 // Passers-by walk along the pavement here, between the queue and the curb.
 export const WALK_LANES = [1272, 1300];
 
 // People and furniture farther back (higher on screen) are drawn a little smaller, which gives
 // the room depth.
 export function depthScale(y: number): number {
+  // The terrace deck is a floor of its own with the same range of sizes.
+  if (y < ROOM.top) {
+    const deck = (y - ROOF.deckTop) / (ROOF.deckBottom - ROOF.deckTop);
+    return Math.min(1.12, Math.max(0.8, 0.86 + deck * 0.22));
+  }
   const t = (y - ROOM.wallBottom) / (ROOM.bottom - ROOM.wallBottom);
   return Math.min(1.12, Math.max(0.8, 0.86 + t * 0.22));
 }
@@ -81,6 +100,30 @@ export const CLEAN_STACK: Point = { x: DISHPIT.right - 34, y: DISHPIT.counterY -
 
 // City landmark poster on the wall between the dish pit and the kitchen.
 export const POSTER = { x: 405, y: 262, width: 240, height: 110 } as const;
+
+// The stairs to the roof terrace: a doorway in the back wall where the poster hangs while the
+// terrace is closed. People climb in the door, reappear at the stair head on the roof, and back.
+export const STAIR_DOOR = { x: POSTER.x, top: 262, width: 140, bottom: ROOM.wallBottom } as const;
+export const STAIR_FOOT: Point = { x: STAIR_DOOR.x, y: ROOM.wallBottom + 12 };
+export const STAIR_HEAD = { x: POSTER.x, base: -174 } as const;
+export const STAIR_TOP_OUT: Point = { x: STAIR_HEAD.x, y: STAIR_HEAD.base + 12 };
+// Terrace tables are 2-seaters on both sides, staggered so parasols never cover the guests behind.
+export const TERRACE_TABLES: Point[] = [
+  { x: 140, y: -98 },
+  { x: 640, y: -98 },
+  { x: 390, y: 38 },
+  { x: 880, y: 38 },
+];
+export const TERRACE_PLANTERS: Point[] = [
+  { x: 52, y: 150 },
+  { x: 1028, y: 150 },
+  { x: 270, y: -182 },
+  { x: 640, y: 160 },
+];
+export const ROOF_BAR_SPOT: Point = { x: 925, y: -162 };
+// Where the bartender stands, behind the counter.
+export const BARTENDER_SPOT: Point = { x: 925, y: -190 };
+export const TERRACE_ANCHOR: Point = { x: 540, y: -20 };
 
 // The entrance is a gap in the front wall. People walk through it from the pavement: outside
 // the door, the threshold, and the first step onto the floor.
@@ -145,7 +188,7 @@ export const SECTION_ANCHORS: Record<SectionId, Point> = {
 
 // Where a tap in the scene opens a part of the restaurant's upgrades (checked in this order).
 // Rectangles in world coordinates: x, y, width, height.
-export type SpotId = SectionId | 'parking' | 'busStop';
+export type SpotId = SectionId | 'parking' | 'busStop' | 'terrace';
 export const SPOT_AREAS: [SpotId, [number, number, number, number][]][] = [
   [
     'busStop',
@@ -167,8 +210,15 @@ export const SPOT_AREAS: [SpotId, [number, number, number, number][]][] = [
     ],
   ],
   ['parking', [[0, LOT.top, 1080, LOT.bottom - LOT.top]]],
+  [
+    'terrace',
+    [
+      [0, ROOF.horizon - 130, 1080, ROOM.top - ROOF.horizon + 130],
+      [STAIR_DOOR.x - STAIR_DOOR.width / 2, STAIR_DOOR.top - 50, STAIR_DOOR.width, STAIR_DOOR.bottom - STAIR_DOOR.top + 50],
+    ],
+  ],
 ];
-export const SPOT_ANCHORS: Record<SpotId, Point> = { ...SECTION_ANCHORS, parking: PARKING_ANCHOR, busStop: BUS_STOP_ANCHOR };
+export const SPOT_ANCHORS: Record<SpotId, Point> = { ...SECTION_ANCHORS, parking: PARKING_ANCHOR, busStop: BUS_STOP_ANCHOR, terrace: TERRACE_ANCHOR };
 
 export function spotAt(point: Point): SpotId | null {
   for (const [id, rects] of SPOT_AREAS) {

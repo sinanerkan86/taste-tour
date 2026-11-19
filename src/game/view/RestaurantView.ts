@@ -24,6 +24,11 @@ import {
   PASS_SPOTS,
   QUEUE_SPOTS,
   SEAT_OFFSET_X,
+  STAIR_DOOR,
+  STAIR_FOOT,
+  STAIR_HEAD,
+  STAIR_TOP_OUT,
+  TERRACE_TABLES,
   SECTION_ANCHORS,
   STOVES,
   STREET_ENDS,
@@ -39,6 +44,7 @@ import { StreetLife } from './StreetLife';
 import { ParkingLot } from './ParkingLot';
 import { Person, createPlate } from './Person';
 import { BusStop } from './BusStop';
+import { Terrace } from './Terrace';
 import { drawRoom } from './room';
 import { ART_RES, addArt, paintTexture, roundRect, vGradient, type Ctx } from './paint';
 import { deliveryIcon, dishIcon } from '../ui/icons';
@@ -75,6 +81,11 @@ const MAX_COURIERS = COURIER_SPOTS.length;
 const MIN_RIDE_SECONDS = 3;
 const MAX_RIDE_SECONDS = 15;
 
+// Going up or down the stairs takes this long to fade out and in again, and the terrace guests
+// stay a little longer than the dining room guests because of the climb.
+const STAIR_FADE_MS = 260;
+const CLIMB_SECONDS = 6;
+
 // Small icons over people that explain why they are not working.
 type Status = 'sleep' | 'noPlates' | 'passFull' | 'bill' | 'kitchenBusy';
 
@@ -100,6 +111,12 @@ export interface ViewState {
     carShare: number;
   };
   busStopLevel: number;
+  terrace: {
+    level: number;
+    // Seated customers per second the terrace adds to the seating rate.
+    rate: number;
+    roofBar: boolean;
+  };
 }
 
 // How fast each section works on screen. Every section's real rate is scaled by the same
@@ -109,6 +126,7 @@ interface Flow {
   visualRate: number;
   arrivalRate: number;
   seatsOpen: number;
+  terraceSeatsOpen: number;
   cookSeconds: number;
   waiterSpeed: number;
   cashierSeconds: number;
@@ -123,6 +141,7 @@ interface Flow {
 }
 
 interface Seat {
+  terrace: boolean;
   table: Point;
   side: -1 | 1;
   chair: Phaser.GameObjects.Image;
@@ -168,6 +187,8 @@ interface DeliveryOrder {
 
 interface Checkout {
   person: Person;
+  // Still on the terrace: the guest comes down the stairs on the way to the cashier.
+  upstairs: boolean;
   leaveSeat: () => void;
   paid: () => void;
 }
@@ -205,13 +226,20 @@ function computeFlow(state: ViewState): Flow {
 
   // A seat serves one customer per stay, so the dining room's rate is seats / stay length.
   const stay = DOOR_TO_SEAT_SECONDS + cookSeconds + PASS_TO_TABLE_PX / waiterSpeed + EAT_MS / 1000;
-  const seats = rate('seating') * stay;
   // Other sections get a spare seat so the dining room never looks like the bottleneck by accident.
+  const terraceRate = state.terrace.level > 0 ? Math.min(rate('seating') - 1e-6, state.terrace.rate * scale) : 0;
+  const indoorSeats = Math.max(rate('seating') - terraceRate, 1e-6) * stay;
   const seatsOpen = Phaser.Math.Clamp(
-    state.bottleneck === 'seating' ? Math.round(seats) : Math.ceil(seats) + 1,
+    state.bottleneck === 'seating' ? Math.round(indoorSeats) : Math.ceil(indoorSeats) + 1,
     1,
     TABLES.length * 2,
   );
+  // The terrace seats open the same way, from its own share of the seating rate.
+  const terraceSeats = terraceRate * (stay + CLIMB_SECONDS);
+  const terraceSeatsOpen =
+    state.terrace.level > 0
+      ? Phaser.Math.Clamp(state.bottleneck === 'seating' ? Math.round(terraceSeats) : Math.ceil(terraceSeats) + 1, 1, TERRACE_TABLES.length * 2)
+      : 0;
 
   // Couriers ride at their own (scaled) rate; the kitchen cooks dine-in orders first, so when it
   // has no time to spare they stand waiting at the counter.
@@ -226,6 +254,7 @@ function computeFlow(state: ViewState): Flow {
     visualRate,
     arrivalRate: state.bottleneck === 'entrance' ? visualRate : Math.min(rate('entrance'), visualRate * ARRIVAL_SURPLUS),
     seatsOpen,
+    terraceSeatsOpen,
     cookSeconds,
     waiterSpeed,
     cashierSeconds: Phaser.Math.Clamp(1 / rate('cashier'), 1, 10),
@@ -238,6 +267,11 @@ function computeFlow(state: ViewState): Flow {
 export class RestaurantView {
   private readonly seats: Seat[];
   private readonly tables: Phaser.GameObjects.Image[];
+  private readonly terraceTables: Phaser.GameObjects.Image[];
+  private readonly terraceParasols: Phaser.GameObjects.Image[];
+  private readonly terrace: Terrace;
+  // People on the stairs: their walks are not redirected by the cashier line.
+  private readonly onStairs = new Set<Person>();
   private readonly doorQueue: { person: Person; admit: (seat: Seat) => void }[] = [];
   private readonly orders: Order[] = [];
   private readonly readyPlates: ReadyPlate[] = [];
@@ -286,6 +320,9 @@ export class RestaurantView {
     private readonly dishes: string[],
   ) {
     const art = drawRoom(scene, theme);
+    this.terrace = new Terrace(scene, theme, { addPerson: (person) => this.addPerson(person) });
+    this.terraceTables = this.terrace.seats.tables;
+    this.terraceParasols = this.terrace.seats.parasols;
     drawStreet(scene, theme.street);
     this.streetLife = new StreetLife(scene, theme.street);
     this.lot = new ParkingLot(scene, theme.street, this.streetLife, {
@@ -300,9 +337,14 @@ export class RestaurantView {
     });
     this.tables = art.tables;
     this.looks = new SectionLooks(scene, theme, art);
-    this.seats = TABLES.flatMap((table, i) =>
-      ([-1, 1] as const).map((side, s) => ({ table, side, chair: art.chairs[i * 2 + s], open: true, occupant: null })),
-    );
+    this.seats = [
+      ...TABLES.flatMap((table, i) =>
+        ([-1, 1] as const).map((side, s) => ({ terrace: false, table, side, chair: art.chairs[i * 2 + s], open: true, occupant: null })),
+      ),
+      ...TERRACE_TABLES.flatMap((table, i) =>
+        ([-1, 1] as const).map((side, s) => ({ terrace: true, table, side, chair: this.terrace.seats.chairs[i * 2 + s], open: false, occupant: null })),
+      ),
+    ];
     STOVES.forEach((stove) => {
       for (let i = 0; i < 3; i++) this.steam.push(scene.add.ellipse(stove.x, stove.y, 40, 30, 0xffffff, 0).setDepth(KITCHEN.counterY + 1));
     });
@@ -330,9 +372,10 @@ export class RestaurantView {
     this.syncDelivery(this.flow, wasStarted);
     this.lot.sync(state.parking.level, state.parking.valet, wasStarted);
     this.busStop.sync(state.busStopLevel, wasStarted);
+    this.terrace.sync(state.terrace.level, state.terrace.roofBar, wasStarted);
     this.deliveryCredit = Math.min(this.deliveryCredit + (this.flow.deliveryRate * delta) / 1000, 1.5);
     this.applyLooks(state.levels, wasStarted);
-    this.syncSeats(this.flow.seatsOpen);
+    this.syncSeats(this.flow.seatsOpen, this.flow.terraceSeatsOpen);
     this.updateMarker(state.bottleneck);
 
     this.spawnCustomers(this.flow, delta);
@@ -508,6 +551,7 @@ export class RestaurantView {
       doorQueue: this.doorQueue.length,
       turnedAway: this.turnedAway,
       seated: this.seats.filter((s) => s.occupant).length,
+      terraceSeated: this.seats.filter((s) => s.terrace && s.occupant).length,
       orders: this.orders.length,
       cooking: this.chefs.filter((c) => c.cooking).length,
       onPass: this.readyPlates.length,
@@ -591,6 +635,7 @@ export class RestaurantView {
       return;
     }
 
+    if (seat.terrace) await this.climb(person);
     await person.walkTo({ x: seat.table.x + seat.side * SEAT_OFFSET_X, y: seat.table.y - 6 });
     person.face(seat.side === 1 ? -1 : 1);
     person.sit();
@@ -603,10 +648,10 @@ export class RestaurantView {
     const plate = await new Promise<Phaser.GameObjects.Container>((served) => this.orders.push({ seat, color, served }));
     bubble.close();
     await this.delay(EAT_MS);
-    this.clearPlate(plate);
+    this.clearPlate(plate, seat.terrace);
 
     await new Promise<void>((paid) => {
-      const checkout: Checkout = { person, paid, leaveSeat: () => (seat.occupant = null) };
+      const checkout: Checkout = { person, paid, upstairs: seat.terrace, leaveSeat: () => (seat.occupant = null) };
       if (this.cashierLine.length < CASHIER_LINE.length) this.enterCashierLine(checkout);
       else this.checkoutWaiting.push(checkout);
     });
@@ -630,14 +675,20 @@ export class RestaurantView {
 
   // --- Dining room -----------------------------------------------------------------------
 
-  private syncSeats(open: number): void {
+  private syncSeats(open: number, terraceOpen: number): void {
+    const indoor = this.tables.length * 2;
     this.seats.forEach((seat, i) => {
-      const isOpen = i < open;
+      const isOpen = seat.terrace ? i - indoor < terraceOpen : i < open;
       if (seat.open === isOpen) return;
       seat.open = isOpen;
       seat.chair.setAlpha(isOpen ? 1 : 0.3);
     });
     this.tables.forEach((table, i) => table.setAlpha(this.seats[i * 2].open ? 1 : 0.3));
+    this.terraceTables.forEach((table, i) => {
+      const alpha = this.seats[indoor + i * 2].open ? 1 : 0.3;
+      table.setAlpha(alpha);
+      this.terraceParasols[i].setAlpha(alpha);
+    });
   }
 
   private freeSeat(): Seat | null {
@@ -676,6 +727,37 @@ export class RestaurantView {
         }),
       );
     }
+  }
+
+  // --- Stairs ----------------------------------------------------------------------------
+
+  private fade(person: Person, alpha: number): Promise<void> {
+    return new Promise((done) => this.scene.tweens.add({ targets: person, alpha, duration: STAIR_FADE_MS, onComplete: () => done() }));
+  }
+
+  // From the dining room up to the terrace: in at the stairwell door, out at the stair head.
+  private async climb(person: Person, speed?: number): Promise<void> {
+    this.onStairs.add(person);
+    if (person.y > 640) await person.walkTo({ x: 320, y: 620 }, speed);
+    await person.walkTo(STAIR_FOOT, speed);
+    await person.walkTo({ x: STAIR_DOOR.x, y: STAIR_DOOR.bottom - 6 }, speed);
+    await this.fade(person, 0);
+    person.setPosition(STAIR_HEAD.x, STAIR_HEAD.base + 2).setDepth(STAIR_HEAD.base + 2);
+    void this.fade(person, 1);
+    await person.walkTo(STAIR_TOP_OUT, speed);
+    this.onStairs.delete(person);
+  }
+
+  // From the terrace down to the dining room.
+  private async descend(person: Person, speed?: number): Promise<void> {
+    this.onStairs.add(person);
+    await person.walkTo(STAIR_TOP_OUT, speed);
+    await person.walkTo({ x: STAIR_HEAD.x, y: STAIR_HEAD.base + 2 }, speed);
+    await this.fade(person, 0);
+    person.setPosition(STAIR_DOOR.x, STAIR_DOOR.bottom - 6).setDepth(STAIR_DOOR.bottom - 6);
+    void this.fade(person, 1);
+    await person.walkTo(STAIR_FOOT, speed);
+    this.onStairs.delete(person);
   }
 
   // --- Kitchen ---------------------------------------------------------------------------
@@ -812,12 +894,15 @@ export class RestaurantView {
     ready.plate.setPosition(0, 0);
 
     const { seat } = ready.order;
+    if (seat.terrace) await this.climb(person, this.waiterSpeed());
     await person.walkTo({ x: seat.table.x + seat.side * 20, y: seat.table.y + 60 }, this.waiterSpeed());
     person.hands.remove(ready.plate);
     this.scene.add.existing(ready.plate);
     ready.plate.setPosition(seat.table.x + seat.side * 38, seat.table.y - 14).setDepth(seat.table.y + 2);
     ready.order.served(ready.plate);
 
+    // The waiter is back downstairs before taking the next plate.
+    if (seat.terrace) await this.descend(person, this.waiterSpeed());
     waiter.busy = false;
     // Head back unless another plate is already waiting (dispatch then redirects the walk).
     if (this.readyPlates.length === 0) void person.walkTo(waiter.home, this.waiterSpeed());
@@ -833,7 +918,17 @@ export class RestaurantView {
     this.setStatus(checkout.person, null);
     checkout.leaveSeat();
     this.cashierLine.push(checkout);
-    void checkout.person.walkTo(CASHIER_LINE[this.cashierLine.length - 1]);
+    void this.walkToCashierLine(checkout);
+  }
+
+  // Guests from the terrace come down the stairs first; the line may have moved by then.
+  private async walkToCashierLine(checkout: Checkout): Promise<void> {
+    if (checkout.upstairs) {
+      checkout.upstairs = false;
+      await this.descend(checkout.person);
+    }
+    const index = this.cashierLine.indexOf(checkout);
+    if (index >= 0) void checkout.person.walkTo(CASHIER_LINE[index]);
   }
 
   private serveAtCashier(): void {
@@ -850,7 +945,9 @@ export class RestaurantView {
       this.cashierLine.shift();
       this.onPayment(this.paymentPerCustomer(), { x: head.person.x, y: head.person.y - 170 });
       head.paid();
-      this.cashierLine.forEach((c, i) => void c.person.walkTo(CASHIER_LINE[i]));
+      this.cashierLine.forEach((c, i) => {
+        if (!this.onStairs.has(c.person) && !c.upstairs) void c.person.walkTo(CASHIER_LINE[i]);
+      });
       const next = this.checkoutWaiting.shift();
       if (next) this.enterCashierLine(next);
     });
@@ -858,7 +955,22 @@ export class RestaurantView {
 
   // --- Dishwashing -----------------------------------------------------------------------
 
-  private clearPlate(plate: Phaser.GameObjects.Container): void {
+  private clearPlate(plate: Phaser.GameObjects.Container, upstairs = false): void {
+    if (upstairs) {
+      // The plate is cleared from the terrace and washed downstairs: it fades away at the table.
+      this.scene.tweens.add({
+        targets: plate,
+        alpha: 0,
+        y: plate.y - 20,
+        duration: 500,
+        onComplete: () => {
+          plate.destroy();
+          this.dirtyPlates++;
+          this.drawStacks();
+        },
+      });
+      return;
+    }
     plate.setDepth(5000);
     this.scene.tweens.add({
       targets: plate,

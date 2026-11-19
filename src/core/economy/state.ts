@@ -1,4 +1,4 @@
-import { ADS, DELIVERY, DISH_TIERS, EVENTS, MILESTONE_BONUS, PARKING, SECTION_IDS, SECTIONS, TAP, VALET, type SectionId } from './config';
+import { ADS, DELIVERY, DISH_TIERS, EVENTS, MILESTONE_BONUS, PARKING, ROOF_BAR, SECTION_IDS, SECTIONS, TAP, TERRACE, VALET, type SectionId } from './config';
 import { cityCostScale, cityPriceScale, scaledValue } from './formulas';
 import { incomeMultiplier, newLab, newPerks, sectionRateMultiplier, type LabState, type PerkLevels } from './bonuses';
 import { newChefs, type ChefState } from './chefs';
@@ -44,6 +44,9 @@ export interface EconomyState {
   // Parking lot level (0 = no lot yet) and whether it has valet service. Both start over with a franchise.
   parkingLevel: number;
   valet: boolean;
+  // Roof terrace level (0 = closed) and whether it has a roof bar. Both start over with a franchise.
+  terraceLevel: number;
+  roofBar: boolean;
   // Bus stop level (0 = no stop yet); starts over with a franchise.
   busStopLevel: number;
 }
@@ -73,6 +76,8 @@ export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomySt
     deliveryLevel: 0,
     parkingLevel: 0,
     valet: false,
+    terraceLevel: 0,
+    roofBar: false,
     busStopLevel: 0,
   };
 }
@@ -97,12 +102,35 @@ export function sectionRates(state: EconomyState): Record<SectionId, number> {
     rates[id] = scaledValue(SECTIONS[id].baseRate, state.sectionLevels[id], MILESTONE_BONUS.section) * sectionRateMultiplier(state, id);
   }
   rates.entrance += parkingRate(state);
+  rates.seating += terraceRate(state);
   return rates;
 }
 
 // Drivers per second the parking lot brings in (0 without a lot).
 export function parkingRate(state: EconomyState): number {
   return scaledValue(PARKING.baseRate, state.parkingLevel, MILESTONE_BONUS.section) * (state.valet ? VALET.rateMultiplier : 1);
+}
+
+// Seated customers per second the roof terrace adds (0 while it is closed).
+export function terraceRate(state: EconomyState): number {
+  return scaledValue(TERRACE.baseRate, state.terraceLevel, MILESTONE_BONUS.section) * (state.roofBar ? ROOF_BAR.rateMultiplier : 1);
+}
+
+export interface SeatingSplit {
+  // Customers per second seated at the terrace and in the dining room (their sum is the seating rate).
+  terrace: number;
+  indoor: number;
+  // Share of seated customers who sit on the terrace, and what that adds to the average bill.
+  terraceShare: number;
+  billMultiplier: number;
+}
+
+export function seatingSplit(state: EconomyState): SeatingSplit {
+  const terrace = terraceRate(state);
+  const total = sectionRates(state).seating;
+  const terraceShare = total > 0 ? terrace / total : 0;
+  const bonus = TERRACE.billBonus + (state.roofBar ? ROOF_BAR.extraBillBonus : 0);
+  return { terrace, indoor: total - terrace, terraceShare, billMultiplier: 1 + terraceShare * bonus };
 }
 
 export interface Arrivals {
@@ -170,7 +198,7 @@ export function deliveryFlow(state: EconomyState): DeliveryFlow {
 export function incomeBreakdown(state: EconomyState): { dineIn: number; delivery: number } {
   const perBill = billPerCustomer(state) * incomeMultiplier(state);
   return {
-    dineIn: throughput(state).customersPerSecond * perBill * arrivals(state).billMultiplier,
+    dineIn: throughput(state).customersPerSecond * perBill * arrivals(state).billMultiplier * seatingSplit(state).billMultiplier,
     delivery: deliveryFlow(state).ordersPerSecond * DELIVERY.billFraction * perBill,
   };
 }

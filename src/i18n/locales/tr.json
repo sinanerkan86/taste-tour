@@ -362,5 +362,14 @@
   "row.busStopRate": "{rate} yolcu/sn · {minutes} dakikada bir otobüs",
   "row.busStopSeats": "{rate} / {max} yolcu/sn: salonu büyüt",
   "row.seatsFull": "MASALAR DOLU",
-  "banner.busStopOpen": "Otobüs durağı açıldı! Her {minutes} dakikada bir otobüs misafir getirir"
+  "banner.busStopOpen": "Otobüs durağı açıldı! Her {minutes} dakikada bir otobüs misafir getirir",
+  "row.terrace": "Çatı terası",
+  "row.terraceClosed": "Manzaralı açık hava masaları: daha çok yer, daha yüksek hesaplar",
+  "row.terraceRate": "Üstte {rate} misafir/sn · hesaplar +%{bonus}",
+  "row.roofBar": "Çatı barı",
+  "row.roofBarLocked": "Seviye {level} çatı terası gerekir",
+  "row.roofBarOffer": "Teras misafirleri +%{rate}, daha da çok harcarlar",
+  "row.roofBarOwned": "Barmen içki servis eder: teras misafirleri +%{rate}",
+  "banner.terraceOpen": "Çatı terası açıldı! Misafirler manzara için yukarı çıkıyor",
+  "banner.roofBar": "Çatı barı! Manzaralı kokteyller"
 }

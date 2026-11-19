@@ -1,4 +1,4 @@
-import { ADS, CHEF, DELIVERY, DISH_MAX_LEVEL, DISH_TIERS, PARKING, PERK, SAFE, SECTION_IDS, SECTIONS, VALET, type PerkId, type SectionId } from './config';
+import { ADS, CHEF, DELIVERY, DISH_MAX_LEVEL, DISH_TIERS, PARKING, PERK, ROOF_BAR, SAFE, SECTION_IDS, SECTIONS, TERRACE, VALET, type PerkId, type SectionId } from './config';
 import { giveChefCards } from './chefs';
 import { cityCostScale, levelCost, starsForReputation } from './formulas';
 import {
@@ -175,6 +175,40 @@ export function canBuyValet(state: EconomyState): boolean {
 export function buyValet(state: EconomyState): boolean {
   if (!canBuyValet(state) || !spend(state, valetCost(state))) return false;
   state.valet = true;
+  return true;
+}
+
+// Opening the terrace is its first level; after that each level of tables costs like a section level.
+export function terraceBuyPlan(state: EconomyState, amount: BuyAmount): BuyPlan {
+  const level = state.terraceLevel;
+  if (level === 0) return { levels: 1, cost: TERRACE.unlockCost * costScale(state) };
+  const scale = sectionCostScale(state);
+  return planLevels((k) => levelCost(TERRACE.baseCost, TERRACE.costGrowth, level + k) * scale, amount, MAX_LEVELS_PER_BUY, state.money);
+}
+
+export function terraceCost(state: EconomyState): number {
+  return terraceBuyPlan(state, 1).cost;
+}
+
+export function buyTerraceLevels(state: EconomyState, amount: BuyAmount): number {
+  const plan = terraceBuyPlan(state, amount);
+  if (plan.levels === 0 || !spend(state, plan.cost)) return 0;
+  state.terraceLevel += plan.levels;
+  return plan.levels;
+}
+
+// Roof bar: offered once the terrace is big enough; Infinity once it is bought.
+export function roofBarCost(state: EconomyState): number {
+  return state.roofBar ? Infinity : ROOF_BAR.cost * costScale(state);
+}
+
+export function canBuyRoofBar(state: EconomyState): boolean {
+  return !state.roofBar && state.terraceLevel >= ROOF_BAR.minTerraceLevel;
+}
+
+export function buyRoofBar(state: EconomyState): boolean {
+  if (!canBuyRoofBar(state) || !spend(state, roofBarCost(state))) return false;
+  state.roofBar = true;
   return true;
 }
 

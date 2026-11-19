@@ -362,5 +362,14 @@
   "row.busStopRate": "{rate} riders/s · a bus every {minutes} min",
   "row.busStopSeats": "{rate} of {max} riders/s: add seating",
   "row.seatsFull": "SEATS FULL",
-  "banner.busStopOpen": "The bus stop is open! A bus brings guests every {minutes} minutes"
+  "banner.busStopOpen": "The bus stop is open! A bus brings guests every {minutes} minutes",
+  "row.terrace": "Roof terrace",
+  "row.terraceClosed": "Open-air tables with a view: more seats and bigger bills",
+  "row.terraceRate": "{rate} guests/s upstairs · bills +{bonus}%",
+  "row.roofBar": "Roof bar",
+  "row.roofBarLocked": "Needs a roof terrace at level {level}",
+  "row.roofBarOffer": "Terrace guests +{rate}% and they spend more",
+  "row.roofBarOwned": "A bartender serves drinks: terrace guests +{rate}%",
+  "banner.terraceOpen": "The roof terrace is open! Guests climb up for the view",
+  "banner.roofBar": "Roof bar! Cocktails with a view"
 }

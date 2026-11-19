@@ -93,6 +93,18 @@ console.table(
   })),
 );
 
+console.log('Terrace');
+console.table(
+  result.cycles.map((c) => ({
+    cycle: c.index + 1,
+    opened: c.terraceOpened === null ? '-' : formatDuration(c.terraceOpened),
+    level: c.finalTerraceLevel,
+    bar: c.roofBarBought === null ? '-' : formatDuration(c.roofBarBought),
+    'bill bonus at the end (%)': Math.round((c.terraceBillMultiplier - 1) * 100),
+    'terrace upgrades (%)': Math.round(((c.purchasesByTarget.terrace ?? 0) / Math.max(c.purchases, 1)) * 100),
+  })),
+);
+
 console.log('Bus stop');
 console.table(
   result.cycles.map((c) => ({

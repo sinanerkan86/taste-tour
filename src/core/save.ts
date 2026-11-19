@@ -93,6 +93,9 @@ export function parseSave(json: string): SaveData | null {
     // Valet service needs a lot.
     valet: saved.valet === true && finiteOr(saved.parkingLevel, 0) >= 1,
     busStopLevel: Math.max(0, Math.floor(finiteOr(saved.busStopLevel, 0))),
+    terraceLevel: Math.max(0, Math.floor(finiteOr(saved.terraceLevel, 0))),
+    // A roof bar needs a terrace.
+    roofBar: saved.roofBar === true && finiteOr(saved.terraceLevel, 0) >= 1,
   };
   for (const id of CHEF_IDS) {
     economy.chefs.levels[id] = Math.min(chefMaxLevel(), Math.max(0, Math.floor(finiteOr(saved.chefs?.levels?.[id], 0))));

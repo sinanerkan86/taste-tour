@@ -93,20 +93,32 @@ export const WALK_SPEED = 165; // pixels per second, unhurried so the scene stay
 const BLINK_MS = 140;
 
 // Joints, in the cell's coordinates (feet at 0,0, up is negative).
-const HIP_X = 11;
-const HIP_Y = -38;
-const KNEE_DROP = 18; // knee below the hip
-const WAIST_Y = -44; // the torso, arms and head hang from here and lean about it
-const SHOULDER_X = 30;
-const SHOULDER_Y = -80;
-const NECK_Y = -88;
-const HANDS_Y = -62;
-const SEAT_DROP = 24; // how far a seated person sinks, so the table hides the lower legs
+const HIP_X = 8;
+const HIP_Y = -50;
+const KNEE_DROP = 25; // knee below the hip
+const WAIST_Y = -56; // the torso, arms and head hang from here and lean about it
+const ARM_ART_X = 25; // where the arm parts are painted, per side
+const ARM_X_MALE = 25; // shoulder joints; women have narrower shoulders
+const ARM_X_FEMALE = 21;
+const SHOULDER_Y = -88;
+const ELBOW_Y = -72;
+const NECK_Y = -88; // the head art's neck, the pivot of the head, hats and hair
+const HEAD_Y = -100; // where that pivot sits on the body (the neck is a separate part)
+const HEAD_SCALE = 0.8;
+const HANDS_Y = -64;
+const SEAT_DROP = 32; // how far a seated person sinks, so the table hides the lower legs
+// The clothes overlays were painted for a taller torso (y -88 to -26, hem at -26, waist pivot -44);
+// a chest container maps that frame onto the new one (shoulders at -90, hem at -52).
+const OLD_WAIST_Y = -44;
+const CHEST_SCALE_Y = 0.613;
+const CHEST_SCALE_X_MALE = 0.82;
+const CHEST_SCALE_X_FEMALE = 0.72;
+const CHEST_Y = -63; // where the old waist pivot lands on the new body
 
 // Walk cycle. One step is half a cycle; the stride is fixed in world pixels, so a faster walker
 // takes quicker steps instead of sliding.
 const STEP_LENGTH = 50;
-const LEG_SWING = 0.55; // radians
+const LEG_SWING = 0.48; // radians
 const KNEE_BEND = 0.8;
 const ARM_SWING = 0.5;
 const BOB_HEIGHT = 5;
@@ -134,9 +146,13 @@ interface Leg {
 
 interface Arm {
   root: Phaser.GameObjects.Container;
+  // The sleeve (shirt tint) and the forearm container, which bends at the elbow.
   arm: Phaser.GameObjects.Image;
+  elbow: Phaser.GameObjects.Container;
   side: -1 | 1;
 }
+
+const FACE_TURN = 5; // px the face shifts toward the walking direction
 
 const approach = (value: number, target: number, rate: number): number => value + (target - value) * Math.min(1, rate);
 
@@ -148,6 +164,8 @@ export class Person extends Phaser.GameObjects.Container {
   // The part above the waist: torso, arms and head.
   private readonly upper: Phaser.GameObjects.Container;
   private readonly head: Phaser.GameObjects.Container;
+  // The face parts, shifted toward the walking direction for a 3/4 turn.
+  private readonly faceGroup: Phaser.GameObjects.Container;
   private readonly shadow: Phaser.GameObjects.Image;
   private readonly legs: Leg[] = [];
   private readonly arms: Arm[] = [];
@@ -210,6 +228,8 @@ export class Person extends Phaser.GameObjects.Container {
     // Parts of the upper body hang from the waist; of the head, from the neck.
     const upperPart = (name: Part, tint?: number) => part(name, tint, 0, WAIST_Y);
     const headPart = (name: Part, tint?: number) => part(name, tint, 0, NECK_Y);
+    // Overlays are painted in the old torso frame, see CHEST_* above.
+    const chest = () => scene.add.container(0, CHEST_Y - WAIST_Y).setScale(female ? CHEST_SCALE_X_FEMALE : CHEST_SCALE_X_MALE, CHEST_SCALE_Y);
     const front = <T extends Showable>(item: T): T => (this.frontOnly.push(item), item);
     const back = <T extends Showable>(item: T): T => (this.backOnly.push(item), item);
 
@@ -222,27 +242,33 @@ export class Person extends Phaser.GameObjects.Container {
       const root = scene.add.container(side * HIP_X, HIP_Y, [shin, part('thigh', skirt ? skin : pants, 0, HIP_Y)]);
       this.legs.push({ root, shin, side });
     }
+    let pelvis: Phaser.GameObjects.Image | undefined;
     if (skirt) {
       this.skirt = part('skirt', pick(SHIRT_COLORS.filter((c) => c !== shirt)), 0, WAIST_Y).setPosition(0, WAIST_Y);
+    } else {
+      pelvis = part(female ? 'pelvisF' : 'pelvis', pants);
     }
 
     // Upper body.
-    this.torso = front(upperPart('torso', shirt));
-    this.torsoBack = back(upperPart('torsoBack', shirt));
+    this.torso = front(upperPart(female ? 'torsoF' : 'torso', shirt));
+    this.torsoBack = back(upperPart(female ? 'torsoBackF' : 'torsoBack', shirt));
+    const neck = upperPart('neck', skin);
     for (const side of [-1, 1] as const) {
-      const arm = part(side === -1 ? 'armLeft' : 'armRight', shirt, side * SHOULDER_X, SHOULDER_Y);
-      const hand = part(side === -1 ? 'handLeft' : 'handRight', skin, side * SHOULDER_X, SHOULDER_Y);
-      const root = scene.add.container(side * SHOULDER_X, SHOULDER_Y - WAIST_Y, [arm, hand]);
-      this.arms.push({ root, arm, side });
+      const sleeve = part(side === -1 ? 'armLeft' : 'armRight', shirt, side * ARM_ART_X, SHOULDER_Y);
+      const forearm = part(side === -1 ? 'forearmLeft' : 'forearmRight', skin, side * ARM_ART_X, ELBOW_Y);
+      const hand = part(side === -1 ? 'handLeft' : 'handRight', skin, side * ARM_ART_X, ELBOW_Y);
+      const elbow = scene.add.container(0, ELBOW_Y - SHOULDER_Y, [forearm, hand]);
+      const root = scene.add.container(side * (female ? ARM_X_FEMALE : ARM_X_MALE), SHOULDER_Y - WAIST_Y, [elbow, sleeve]);
+      this.arms.push({ root, arm: sleeve, elbow, side });
     }
-    this.bodyWear = front(scene.add.container(0, 0));
-    this.bodyWearBack = back(scene.add.container(0, 0));
+    this.bodyWear = front(chest());
+    this.bodyWearBack = back(chest());
     this.hands = scene.add.container(0, HANDS_Y - WAIST_Y);
-    const upper: Phaser.GameObjects.GameObject[] = [this.torso, this.torsoBack, ...this.arms.map((a) => a.root), this.bodyWear, this.bodyWearBack];
+    const upper: Phaser.GameObjects.GameObject[] = [this.torso, this.torsoBack, neck, ...this.arms.map((a) => a.root), this.bodyWear, this.bodyWearBack];
     if (outfit.body) {
       const both = BOTH_SIDES.includes(outfit.body);
-      const image = upperPart(outfit.body);
-      upper.push(both ? image : front(image));
+      const outfitChest = chest().add(part(outfit.body, undefined, 0, OLD_WAIST_Y));
+      upper.push(both ? outfitChest : front(outfitChest));
     }
 
     // Head: the hair that hangs behind the head is drawn before it in front, after it from behind.
@@ -251,21 +277,23 @@ export class Person extends Phaser.GameObjects.Container {
     if (hairStyle === 'long') headParts.push(front(headPart('hairLong', hair)));
     if (hairStyle === 'bob') headParts.push(front(headPart('hairBob', hair)));
     if (hairStyle === 'ponytail') headParts.push(front(headPart('hairPonytail', hair)));
-    headParts.push(headPart('head', skin), front(headPart('shine')), front(headPart(female ? 'faceFemale' : 'faceMale')), this.eyelids);
-    headParts.push(front(headPart(female ? 'hairTop' : 'hairShort', hair)), back(headPart('hairCapBack', hair)));
+    const faceParts: Phaser.GameObjects.GameObject[] = [front(headPart('shine')), front(headPart(female ? 'faceFemale' : 'faceMale')), this.eyelids];
+    faceParts.push(front(headPart(female ? 'hairTop' : 'hairShort', hair)));
+    for (const name of FACE_WEAR[kind] ?? []) faceParts.push(front(headPart(name)));
+    this.faceGroup = scene.add.container(0, 0, faceParts);
+    headParts.push(headPart('head', skin), this.faceGroup, back(headPart('hairCapBack', hair)));
     if (hairStyle === 'long') headParts.push(back(headPart('hairLong', hair)));
     if (hairStyle === 'bob') headParts.push(back(headPart('hairBob', hair)));
     if (hairStyle === 'ponytail') headParts.push(back(headPart('hairPonytailBack', hair)));
     if (hairStyle === 'bun') headParts.push(headPart('hairBun', hair));
-    for (const name of FACE_WEAR[kind] ?? []) headParts.push(front(headPart(name)));
     if (outfit.head) headParts.push(headPart(outfit.head));
     this.headWear = scene.add.container(0, 0);
     headParts.push(this.headWear);
-    this.head = scene.add.container(0, NECK_Y - WAIST_Y, headParts);
+    this.head = scene.add.container(0, HEAD_Y - WAIST_Y, headParts).setScale(HEAD_SCALE);
     upper.push(this.hands, this.head);
     this.upper = scene.add.container(0, WAIST_Y, upper);
 
-    this.figure = scene.add.container(0, 0, [...this.legs.map((l) => l.root), ...(this.skirt ? [this.skirt] : []), this.upper]);
+    this.figure = scene.add.container(0, 0, [...this.legs.map((l) => l.root), ...(pelvis ? [pelvis] : []), ...(this.skirt ? [this.skirt] : []), this.upper]);
     this.add([this.shadow, this.figure]);
     this.shadow.setScale(this.shadowScale);
     this.backOnly.forEach((item) => item.setVisible(false));
@@ -288,11 +316,11 @@ export class Person extends Phaser.GameObjects.Container {
     this.arms.forEach(({ arm }) => arm.setTint(look.sleeves ?? look.shirt));
     const wear = (name: Part, px: number, py: number) =>
       makePart(this.scene, name, name === 'neckerchief' ? (this.scarf ?? SCARF_TINT[this.kind]) : undefined, px, py);
-    this.bodyWear.removeAll(true).add(look.body.map((name) => wear(name, 0, WAIST_Y)));
+    this.bodyWear.removeAll(true).add(look.body.map((name) => wear(name, 0, OLD_WAIST_Y)));
     this.bodyWearBack.removeAll(true).add(
       look.body.flatMap((name) => {
         const backName = BACK_WEAR[name];
-        return backName ? [wear(backName, 0, WAIST_Y)] : [];
+        return backName ? [wear(backName, 0, OLD_WAIST_Y)] : [];
       }),
     );
     this.headWear.removeAll(true).add(look.head.map((name) => wear(name, 0, NECK_Y)));
@@ -422,10 +450,13 @@ export class Person extends Phaser.GameObjects.Container {
     this.figure.x = sway * 1.2 + Math.sin(time * 0.0011 + ph) * 0.9 * idle;
     this.upper.angle = LEAN_DEGREES * hx * g + sway * 1.2 + Math.sin(time * 0.0009 + ph) * 0.5 * idle + Math.sin(time * 0.011 + ph) * 1 * this.busyBlend;
     this.upper.x = sway * 1.4;
+    // A walking figure turns a little away from the camera: narrower body, face shifted forward.
+    this.upper.scaleX = 1 - 0.1 * hx * g;
+    this.faceGroup.x = FACE_TURN * hx * g;
     this.upper.scaleY = 1 + Math.sin(time * 0.003 + ph) * 0.012;
     // The head trails the body a little.
     this.head.angle = -this.upper.angle * 0.5 + Math.sin(time * 0.0017 + ph) * 0.6 * idle;
-    this.head.y = NECK_Y - WAIST_Y + (bob - Math.abs(Math.cos(cycle - 0.6)) * g) * 2;
+    this.head.y = HEAD_Y - WAIST_Y + (bob - Math.abs(Math.cos(cycle - 0.6)) * g) * 2;
     if (this.skirt) {
       this.skirt.rotation = sway * 0.05;
       // Seated, the thighs fold forward: squash the skirt so no hem sticks out under the table.
@@ -433,18 +464,22 @@ export class Person extends Phaser.GameObjects.Container {
       this.skirt.y = WAIST_Y;
     }
 
-    // Arms swing against the legs; they hold still carrying a plate and work when busy.
+    // Arms swing against the legs, bending a little at the elbow; carrying a plate the forearms come
+    // up in front of the body, and working staff stir with a bent arm.
     const carry = this.carryBlend;
     const work = this.busyBlend;
-    for (const { root, side } of this.arms) {
+    for (const { root, elbow, side } of this.arms) {
       const s = Math.sin(cycle + (side === -1 ? Math.PI : 0)) * g;
       const swing = -s * ARM_SWING * hx + Math.sin(time * 0.003 + ph) * 0.03;
-      const hold = side * 0.95;
-      const stir = side * 0.55 + Math.sin(time * 0.012 + ph + (side === -1 ? 0 : 1.7)) * 0.4;
+      const stir = side * 0.35 + Math.sin(time * 0.012 + ph + (side === -1 ? 0 : 1.7)) * 0.25;
       let angle = Phaser.Math.Linear(swing, stir, work);
-      angle = Phaser.Math.Linear(angle, hold, carry);
+      angle = Phaser.Math.Linear(angle, side * 0.25, carry);
       root.rotation = angle;
-      root.scaleY = 1 - 0.2 * Math.max(carry, work);
+      const stirBend = side * (0.8 + Math.sin(time * 0.012 + ph + (side === -1 ? 1.2 : 2.9)) * 0.3);
+      let bend = side * (0.1 + 0.14 * g);
+      bend = Phaser.Math.Linear(bend, stirBend, work);
+      bend = Phaser.Math.Linear(bend, side * 1.15, carry);
+      elbow.rotation = bend;
       root.y = SHOULDER_Y - WAIST_Y + s * vy * 2.5;
     }
 

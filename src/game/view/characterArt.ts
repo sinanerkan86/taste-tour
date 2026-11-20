@@ -17,6 +17,13 @@ export type Part =
   | 'skirt'
   | 'torso'
   | 'torsoBack'
+  | 'torsoF'
+  | 'torsoBackF'
+  | 'neck'
+  | 'pelvis'
+  | 'pelvisF'
+  | 'forearmLeft'
+  | 'forearmRight'
   | 'armLeft'
   | 'armRight'
   | 'handLeft'
@@ -63,6 +70,13 @@ const PAINTERS: Record<Part, (ctx: Ctx) => void> = {
   skirt: paintSkirt,
   torso: (ctx) => paintTorso(ctx, true),
   torsoBack: (ctx) => paintTorso(ctx, false),
+  torsoF: (ctx) => paintTorso(ctx, true, true),
+  torsoBackF: (ctx) => paintTorso(ctx, false, true),
+  neck: paintNeck,
+  pelvis: (ctx) => paintPelvis(ctx, false),
+  pelvisF: (ctx) => paintPelvis(ctx, true),
+  forearmLeft: (ctx) => paintForearm(ctx, -1),
+  forearmRight: (ctx) => paintForearm(ctx, 1),
   armLeft: (ctx) => paintArm(ctx, -1),
   armRight: (ctx) => paintArm(ctx, 1),
   handLeft: (ctx) => paintHand(ctx, -1),
@@ -134,12 +148,17 @@ export function ensurePeopleAtlas(scene: Phaser.Scene): void {
   texture.refresh();
 }
 
+// Soft light from the upper left: bright on the left, a gentle falloff to a darker right side and
+// a faint reflected rim at the very edge.
 function cylinder(ctx: Ctx, x0: number, x1: number): CanvasGradient {
   return hGradient(ctx, x0, x1, [
-    [0, DARK],
-    [0.3, LIT],
-    [0.65, MID],
-    [1, DARK],
+    [0, '#b4b4b4'],
+    [0.2, '#f0f0f0'],
+    [0.38, LIT],
+    [0.6, '#e0e0e0'],
+    [0.82, '#b2b2b2'],
+    [0.95, '#9c9c9c'],
+    [1, '#adadad'],
   ]);
 }
 
@@ -160,21 +179,51 @@ function paintShadow(ctx: Ctx): void {
   ctx.beginPath();
   ctx.arc(0, 0, 32, 0, Math.PI * 2);
   ctx.fill();
+  // A tighter, darker contact core right under the feet.
+  ctx.fillStyle = radial(ctx, 0, 0, 0, 17, [
+    [0, 'rgba(20,8,0,0.5)'],
+    [0.6, 'rgba(20,8,0,0.3)'],
+    [1, 'rgba(20,8,0,0)'],
+  ]);
+  ctx.beginPath();
+  ctx.arc(0, 0, 17, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
 }
 
-// A leg is three parts so it can bend: the thigh (hip at y -38), the shin (knee at y -20) and the
+// A leg is three parts so it can bend: the thigh (hip at y -50), the shin (knee at y -25) and the
 // shoe. They are painted centered on x = 0 and placed at the left or right hip.
 function paintThigh(ctx: Ctx): void {
-  ctx.fillStyle = cylinder(ctx, -7, 7);
-  roundRect(ctx, -7, -41, 14, 23, 5);
+  ctx.fillStyle = cylinder(ctx, -8.5, 8.5);
+  ctx.beginPath();
+  ctx.moveTo(-8.4, -48);
+  ctx.quadraticCurveTo(-8.6, -53, -3, -53);
+  ctx.lineTo(3, -53);
+  ctx.quadraticCurveTo(8.6, -53, 8.4, -48);
+  ctx.quadraticCurveTo(7.6, -34, 6.4, -26);
+  ctx.quadraticCurveTo(6.4, -22, 0, -22);
+  ctx.quadraticCurveTo(-6.4, -22, -6.4, -26);
+  ctx.quadraticCurveTo(-7.6, -34, -8.4, -48);
+  ctx.closePath();
   ctx.fill();
   outline(ctx, 1.2);
+  // The knee is a soft bump.
+  ctx.fillStyle = 'rgba(255,255,255,0.28)';
+  ellipse(ctx, -1.5, -25, 3, 2.2);
+  ctx.fill();
 }
 
 function paintShin(ctx: Ctx): void {
-  ctx.fillStyle = cylinder(ctx, -6.5, 6.5);
-  roundRect(ctx, -6.5, -23, 13, 18, [3, 3, 6, 6]);
+  ctx.fillStyle = cylinder(ctx, -7, 7);
+  ctx.beginPath();
+  ctx.moveTo(-6, -27);
+  ctx.lineTo(6, -27);
+  ctx.quadraticCurveTo(7.6, -17, 5.6, -11);
+  ctx.quadraticCurveTo(4.8, -6, 4.4, -3.5);
+  ctx.lineTo(-4.4, -3.5);
+  ctx.quadraticCurveTo(-4.8, -6, -5.6, -11);
+  ctx.quadraticCurveTo(-7.6, -17, -6, -27);
+  ctx.closePath();
   ctx.fill();
   outline(ctx, 1.2);
 }
@@ -185,114 +234,291 @@ function paintShoe(ctx: Ctx): void {
     [0, '#5a4a40'],
     [1, '#241a14'],
   ]);
-  ellipse(ctx, 2.5, -3.5, 9.5, 5);
+  ellipse(ctx, 2.2, -3.4, 8.6, 4.3);
   ctx.fill();
   ctx.fillStyle = 'rgba(255,255,255,0.25)';
-  ellipse(ctx, 0.5, -5.5, 4, 1.5);
+  ellipse(ctx, 0.5, -5.2, 3.6, 1.3);
   ctx.fill();
 }
 
+// A modest A-line skirt from the waist (-56) to just above the knee.
 function paintSkirt(ctx: Ctx): void {
-  // A knee-length A-line skirt: narrow at the waist, hem just below the knee.
-  ctx.fillStyle = cylinder(ctx, -24, 24);
+  ctx.fillStyle = cylinder(ctx, -22, 22);
   ctx.beginPath();
-  ctx.moveTo(-19, -44);
-  ctx.lineTo(19, -44);
-  ctx.quadraticCurveTo(21, -30, 24, -18);
-  ctx.quadraticCurveTo(0, -15, -24, -18);
-  ctx.quadraticCurveTo(-21, -30, -19, -44);
+  ctx.moveTo(-14, -56);
+  ctx.lineTo(14, -56);
+  ctx.quadraticCurveTo(17, -42, 21.5, -28);
+  ctx.quadraticCurveTo(0, -25.5, -21.5, -28);
+  ctx.quadraticCurveTo(-17, -42, -14, -56);
   ctx.closePath();
   ctx.fill();
   outline(ctx);
-  ctx.strokeStyle = 'rgba(0,0,0,0.12)';
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+  ctx.lineWidth = 1.4;
   [-8, 0, 8].forEach((x) => {
     ctx.beginPath();
-    ctx.moveTo(x * 0.8, -40);
-    ctx.lineTo(x * 1.2, -19);
+    ctx.moveTo(x * 0.6, -52);
+    ctx.lineTo(x * 1.9, -29);
     ctx.stroke();
   });
 }
 
-// front: with the collar opening; the back view is plain with a faint seam down the spine.
-function paintTorso(ctx: Ctx, front: boolean): void {
-  ctx.fillStyle = cylinder(ctx, -27, 27);
+// The hips that join the legs to the torso, tinted like the trousers.
+function paintPelvis(ctx: Ctx, female: boolean): void {
+  const w = female ? 19 : 17;
+  ctx.fillStyle = cylinder(ctx, -w, w);
   ctx.beginPath();
-  ctx.moveTo(-18, -88);
-  ctx.quadraticCurveTo(0, -92, 18, -88);
-  ctx.quadraticCurveTo(28, -86, 27, -72);
-  ctx.lineTo(25, -34);
-  ctx.quadraticCurveTo(25, -26, 17, -26);
-  ctx.lineTo(-17, -26);
-  ctx.quadraticCurveTo(-25, -26, -25, -34);
-  ctx.lineTo(-27, -72);
-  ctx.quadraticCurveTo(-28, -86, -18, -88);
+  ctx.moveTo(-15, -59);
+  ctx.lineTo(15, -59);
+  ctx.quadraticCurveTo(w, -53, w - 0.5, -48);
+  ctx.quadraticCurveTo(w - 1, -43.5, w - 4, -43.5);
+  ctx.lineTo(-w + 4, -43.5);
+  ctx.quadraticCurveTo(-w + 1, -43.5, -w + 0.5, -48);
+  ctx.quadraticCurveTo(-w, -53, -15, -59);
   ctx.closePath();
   ctx.fill();
-  outline(ctx);
-  // Shading under the chest and a collar.
-  ctx.fillStyle = vGradient(ctx, -50, -26, [
-    [0, 'rgba(0,0,0,0)'],
-    [1, 'rgba(0,0,0,0.18)'],
+  outline(ctx, 1.2);
+  // The leg split.
+  ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(0, -50);
+  ctx.lineTo(0, -43.5);
+  ctx.stroke();
+}
+
+// The neck, from the jaw down into the collar; the head's cast shadow darkens its top.
+function paintNeck(ctx: Ctx): void {
+  ctx.fillStyle = cylinder(ctx, -5.5, 5.5);
+  roundRect(ctx, -5.4, -100, 10.8, 12, 2);
+  ctx.fill();
+  ctx.fillStyle = vGradient(ctx, -100, -88, [
+    [0, 'rgba(0,0,0,0.5)'],
+    [0.5, 'rgba(0,0,0,0.18)'],
+    [1, 'rgba(0,0,0,0.22)'],
   ]);
-  ctx.fillRect(-26, -50, 52, 24);
+  ctx.fillRect(-5.4, -100, 10.8, 12);
+}
+
+// A human upper body: sloping shoulders, chest, a taper to the waist and a shirt hem that flares a
+// little over the hips. Women are narrower at the shoulder with a clearer waist.
+function torsoPath(ctx: Ctx, female: boolean): void {
+  ctx.beginPath();
+  ctx.moveTo(-6, -92.5);
+  ctx.quadraticCurveTo(0, -93.6, 6, -92.5);
+  if (female) {
+    ctx.bezierCurveTo(10.5, -91.7, 14.5, -90.5, 18.2, -87.6);
+    ctx.quadraticCurveTo(20.2, -86, 19.8, -82);
+    ctx.quadraticCurveTo(21.6, -75.5, 18.8, -69);
+    ctx.quadraticCurveTo(13.6, -64, 13.4, -60);
+    ctx.quadraticCurveTo(14, -55, 18.6, -51.8);
+    ctx.lineTo(-18.6, -51.8);
+    ctx.quadraticCurveTo(-14, -55, -13.4, -60);
+    ctx.quadraticCurveTo(-13.6, -64, -18.8, -69);
+    ctx.quadraticCurveTo(-21.6, -75.5, -19.8, -82);
+    ctx.quadraticCurveTo(-20.2, -86, -18.2, -87.6);
+    ctx.bezierCurveTo(-14.5, -90.5, -10.5, -91.7, -6, -92.5);
+  } else {
+    ctx.bezierCurveTo(13, -91.7, 19, -90.6, 22.4, -87.4);
+    ctx.quadraticCurveTo(24.4, -85.6, 23.8, -81);
+    ctx.quadraticCurveTo(23.4, -72, 20.6, -66);
+    ctx.quadraticCurveTo(16.2, -61.5, 15.8, -58);
+    ctx.quadraticCurveTo(16, -54.5, 18, -51.8);
+    ctx.lineTo(-18, -51.8);
+    ctx.quadraticCurveTo(-16, -54.5, -15.8, -58);
+    ctx.quadraticCurveTo(-16.2, -61.5, -20.6, -66);
+    ctx.quadraticCurveTo(-23.4, -72, -23.8, -81);
+    ctx.quadraticCurveTo(-24.4, -85.6, -22.4, -87.4);
+    ctx.bezierCurveTo(-19, -90.6, -13, -91.7, -6, -92.5);
+  }
+  ctx.closePath();
+}
+
+// front: with a crew neckline; the back view is plain with a faint seam down the spine.
+function paintTorso(ctx: Ctx, front: boolean, female = false): void {
+  const w = female ? 21.5 : 24;
+  ctx.fillStyle = hGradient(ctx, -w, w, [
+    [0, '#b8b8b8'],
+    [0.16, '#eeeeee'],
+    [0.38, LIT],
+    [0.62, '#e6e6e6'],
+    [0.86, '#bcbcbc'],
+    [1, '#a8a8a8'],
+  ]);
+  torsoPath(ctx, female);
+  ctx.fill();
+  ctx.save();
+  torsoPath(ctx, female);
+  ctx.clip();
+  // Lighter at the shoulders, darker toward the hem.
+  ctx.fillStyle = vGradient(ctx, -93, -52, [
+    [0, 'rgba(255,255,255,0.2)'],
+    [0.3, 'rgba(255,255,255,0)'],
+    [0.7, 'rgba(0,0,0,0.1)'],
+    [1, 'rgba(0,0,0,0.26)'],
+  ]);
+  ctx.fillRect(-26, -95, 52, 44);
+  // The trapezius and the chest plane catch the light from the upper left.
+  ctx.fillStyle = radial(ctx, -12, -89, 0, 11, [
+    [0, 'rgba(255,255,255,0.4)'],
+    [1, 'rgba(255,255,255,0)'],
+  ]);
+  ctx.fillRect(-26, -96, 28, 20);
   if (front) {
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.fillStyle = radial(ctx, -6, -78, 0, 17, [
+      [0, 'rgba(255,255,255,0.35)'],
+      [1, 'rgba(255,255,255,0)'],
+    ]);
+    ctx.fillRect(-26, -96, 40, 36);
+    // Shadow under the chest.
+    ctx.save();
+    ctx.translate(0, -68);
+    ctx.scale(1, 0.2);
+    ctx.fillStyle = radial(ctx, 0, 0, 0, 19, [
+      [0, female ? 'rgba(0,0,0,0.26)' : 'rgba(0,0,0,0.16)'],
+      [1, 'rgba(0,0,0,0)'],
+    ]);
+    ctx.fillRect(-22, -22, 44, 44);
+    ctx.restore();
+    if (female) {
+      // A subtle bust: two soft lit domes.
+      [-1, 1].forEach((side) => {
+        ctx.fillStyle = radial(ctx, side * 7.5, -75, 0, 8, [
+          [0, 'rgba(255,255,255,0.3)'],
+          [1, 'rgba(255,255,255,0)'],
+        ], side * 8.5, -77);
+        ctx.fillRect(side * 7.5 - 9, -85, 18, 18);
+      });
+    }
+  }
+  // Soft shadows at the waist and where the arms rest against the body.
+  [-1, 1].forEach((side) => {
+    ctx.fillStyle = hGradient(ctx, 24 * side, 14 * side, [
+      [0, 'rgba(0,0,0,0.26)'],
+      [1, 'rgba(0,0,0,0)'],
+    ]);
+    ctx.fillRect(side > 0 ? 14 : -24, -88, 10, 30);
+    ctx.fillStyle = hGradient(ctx, 17 * side, 10 * side, [
+      [0, 'rgba(0,0,0,0.18)'],
+      [1, 'rgba(0,0,0,0)'],
+    ]);
+    ctx.fillRect(side > 0 ? 10 : -17, -66, 7, 14);
+  });
+  ctx.restore();
+  outline(ctx);
+  if (front) {
+    ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+    ctx.lineWidth = 1.3;
     ctx.beginPath();
-    ctx.moveTo(-9, -89);
-    ctx.lineTo(0, -80);
-    ctx.lineTo(9, -89);
-    ctx.closePath();
-    ctx.fill();
+    ctx.ellipse(0, -91.8, 8, 4.4, 0, 0.1, Math.PI - 0.1);
+    ctx.stroke();
   } else {
     ctx.strokeStyle = 'rgba(0,0,0,0.12)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(0, -86);
-    ctx.lineTo(0, -28);
+    ctx.moveTo(0, -88);
+    ctx.lineTo(0, -54);
     ctx.stroke();
   }
 }
 
-// One sleeve, hanging from the shoulder (pivot at x = 30 * side, y -80).
+// One sleeve, hanging from the shoulder (pivot at the shoulder, y -88) down to the elbow (y -72).
+// Painted around x = 25 for the right arm; the left one is mirrored. The light comes from the
+// upper left, so the right sleeve is lit on its inner side and the left one on its outer side.
 function paintArm(ctx: Ctx, side: -1 | 1): void {
   ctx.save();
   ctx.scale(side, 1);
-  ctx.fillStyle = hGradient(ctx, 23, 37, [
-    [0, MID],
-    [0.4, LIT],
-    [1, DARK],
-  ]);
+  const stops: [number, string][] = [
+    [0, '#c4c4c4'],
+    [0.25, LIT],
+    [0.5, '#e4e4e4'],
+    [0.8, '#b0b0b0'],
+    [1, '#9c9c9c'],
+  ];
+  ctx.fillStyle = side === -1 ? hGradient(ctx, 30, 19.5, stops) : hGradient(ctx, 19.5, 30, stops);
   ctx.beginPath();
-  ctx.moveTo(24, -84);
-  ctx.quadraticCurveTo(36, -82, 37, -70);
-  ctx.lineTo(37, -52);
-  ctx.quadraticCurveTo(31, -48, 25, -52);
-  ctx.lineTo(24, -84);
+  ctx.moveTo(20, -89.5);
+  ctx.quadraticCurveTo(29, -90, 30.2, -83);
+  ctx.quadraticCurveTo(30.4, -77, 29.4, -72);
+  ctx.quadraticCurveTo(25, -70, 20.6, -72);
+  ctx.quadraticCurveTo(19.4, -80, 20, -89.5);
   ctx.closePath();
   ctx.fill();
+  ctx.save();
+  ctx.clip();
+  // Darker toward the body, a lit cap on the shoulder and a shadow under the cuff.
+  ctx.fillStyle = hGradient(ctx, 20, 24, [
+    [0, 'rgba(0,0,0,0.3)'],
+    [1, 'rgba(0,0,0,0)'],
+  ]);
+  ctx.fillRect(19, -90, 5, 20);
+  ctx.fillStyle = vGradient(ctx, -76, -70, [
+    [0, 'rgba(0,0,0,0)'],
+    [1, 'rgba(0,0,0,0.25)'],
+  ]);
+  ctx.fillRect(19, -76, 12, 7);
+  ctx.fillStyle = radial(ctx, 24, -87, 0, 7, [
+    [0, 'rgba(255,255,255,0.6)'],
+    [1, 'rgba(255,255,255,0)'],
+  ]);
+  ctx.fillRect(18, -92, 14, 12);
+  ctx.restore();
   outline(ctx, 1.2);
   ctx.restore();
 }
 
-function paintHand(ctx: Ctx, side: -1 | 1): void {
-  const x = 31 * side;
-  ctx.fillStyle = radial(ctx, x, -46, 0, 8, [
-    [0, LIT],
-    [1, DARK],
-  ], x - 2, -48);
+// The forearm, from the elbow (y -72) down to the wrist: skin, tinted per person.
+function paintForearm(ctx: Ctx, side: -1 | 1): void {
+  ctx.save();
+  ctx.scale(side, 1);
+  const stops: [number, string][] = [
+    [0, '#c4c4c4'],
+    [0.3, LIT],
+    [0.6, '#dcdcdc'],
+    [1, '#a2a2a2'],
+  ];
+  ctx.fillStyle = side === -1 ? hGradient(ctx, 29.5, 20.5, stops) : hGradient(ctx, 20.5, 29.5, stops);
   ctx.beginPath();
-  ctx.arc(x, -46, 7, 0, Math.PI * 2);
+  ctx.moveTo(20.8, -74);
+  ctx.lineTo(29.2, -74);
+  ctx.quadraticCurveTo(29.4, -65, 28, -57.5);
+  ctx.lineTo(22, -57.5);
+  ctx.quadraticCurveTo(20.6, -65, 20.8, -74);
+  ctx.closePath();
+  ctx.fill();
+  outline(ctx, 1.1);
+  ctx.restore();
+}
+
+// A mitten hand with a thumb on the inner side, hanging at about hip level.
+function paintHand(ctx: Ctx, side: -1 | 1): void {
+  ctx.save();
+  ctx.scale(side, 1);
+  ctx.fillStyle = radial(ctx, 25, -53.5, 0, 7, [
+    [0, LIT],
+    [1, '#b0b0b0'],
+  ], 23.5, -55.5);
+  ellipse(ctx, 21.6, -55.5, 1.9, 3.4);
+  ctx.fill();
+  outline(ctx, 0.9);
+  ellipse(ctx, 25, -53.2, 4.4, 5.2);
   ctx.fill();
   outline(ctx, 1);
+  ctx.restore();
+}
+
+// A slightly oval head with a soft jaw (the neck is a separate part, see paintNeck).
+function headPath(ctx: Ctx): void {
+  ctx.beginPath();
+  ctx.moveTo(0, -133.5);
+  ctx.bezierCurveTo(14, -133.5, 24.5, -123, 24.5, -108);
+  ctx.bezierCurveTo(24.5, -96, 16, -83, 0, -82.5);
+  ctx.bezierCurveTo(-16, -83, -24.5, -96, -24.5, -108);
+  ctx.bezierCurveTo(-24.5, -123, -14, -133.5, 0, -133.5);
+  ctx.closePath();
 }
 
 function paintHead(ctx: Ctx): void {
-  // Neck, ears, then the head as a lit sphere.
-  ctx.fillStyle = cylinder(ctx, -8, 8);
-  ctx.fillRect(-7, -90, 14, 8);
-  ctx.fillStyle = 'rgba(0,0,0,0.22)';
-  ctx.fillRect(-7, -90, 14, 4);
   [-24, 24].forEach((x) => {
     ctx.fillStyle = radial(ctx, x, -106, 0, 7, [
       [0, MID],
@@ -302,14 +528,29 @@ function paintHead(ctx: Ctx): void {
     ctx.arc(x, -106, 6, 0, Math.PI * 2);
     ctx.fill();
   });
-  ctx.fillStyle = radial(ctx, 0, -108, 0, 26, [
+  ctx.fillStyle = radial(ctx, 0, -108, 0, 28, [
     [0, LIT],
-    [0.7, '#efefef'],
-    [1, DARK],
-  ], -7, -117);
-  ctx.beginPath();
-  ctx.arc(0, -108, 25, 0, Math.PI * 2);
+    [0.55, '#f0f0f0'],
+    [0.8, '#a4a4a4'],
+    [1, '#747474'],
+  ], -8, -118);
+  headPath(ctx);
   ctx.fill();
+  // Core shadow toward the lower right and a faint reflected light along the lower edge.
+  ctx.save();
+  headPath(ctx);
+  ctx.clip();
+  ctx.fillStyle = radial(ctx, 10, -96, 0, 22, [
+    [0, 'rgba(0,0,0,0.3)'],
+    [1, 'rgba(0,0,0,0)'],
+  ]);
+  ctx.fillRect(-26, -134, 52, 52);
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(0, -108, 21.5, 23.5, 0, Math.PI * 0.2, Math.PI * 0.6);
+  ctx.stroke();
+  ctx.restore();
   outline(ctx);
 }
 
@@ -503,10 +744,10 @@ function paintVest(ctx: Ctx): void {
   ctx.lineTo(0, -64);
   ctx.lineTo(9, -84);
   ctx.lineTo(22, -70);
-  ctx.lineTo(23, -32);
-  ctx.quadraticCurveTo(22, -27, 16, -27);
-  ctx.lineTo(-16, -27);
-  ctx.quadraticCurveTo(-22, -27, -23, -32);
+  ctx.lineTo(23, -33);
+  ctx.quadraticCurveTo(22, -29, 17, -28);
+  ctx.lineTo(-17, -28);
+  ctx.quadraticCurveTo(-22, -29, -23, -33);
   ctx.closePath();
   ctx.fill();
   ctx.fillStyle = '#d4af37';
@@ -542,7 +783,14 @@ function paintChefApron(ctx: Ctx): void {
     [0, '#f4f0e8'],
     [1, '#cfc7b8'],
   ]);
-  roundRect(ctx, -20, -66, 40, 40, 8);
+  ctx.beginPath();
+  ctx.moveTo(-20, -58);
+  ctx.quadraticCurveTo(-20, -66, -12, -66);
+  ctx.lineTo(12, -66);
+  ctx.quadraticCurveTo(20, -66, 20, -58);
+  ctx.lineTo(20, -30);
+  ctx.lineTo(-20, -30);
+  ctx.closePath();
   ctx.fill();
   outline(ctx, 1);
   // Double-breasted buttons.
@@ -594,7 +842,14 @@ function paintRubberApron(ctx: Ctx): void {
     [0.35, '#ffd34d'],
     [1, '#b88200'],
   ]);
-  roundRect(ctx, -20, -72, 40, 44, [6, 6, 10, 10]);
+  ctx.beginPath();
+  ctx.moveTo(-20, -66);
+  ctx.quadraticCurveTo(-20, -72, -14, -72);
+  ctx.lineTo(14, -72);
+  ctx.quadraticCurveTo(20, -72, 20, -66);
+  ctx.lineTo(20, -30);
+  ctx.lineTo(-20, -30);
+  ctx.closePath();
   ctx.fill();
   outline(ctx, 1);
   ctx.strokeStyle = '#b88200';
@@ -762,7 +1017,12 @@ function paintWaistApron(ctx: Ctx): void {
     [0, '#3a3a46'],
     [1, '#1e1e26'],
   ]);
-  roundRect(ctx, -22, -40, 44, 34, [3, 3, 8, 8]);
+  ctx.beginPath();
+  ctx.moveTo(-22, -37);
+  ctx.lineTo(22, -37);
+  ctx.lineTo(22, -14);
+  ctx.lineTo(-22, -14);
+  ctx.closePath();
   ctx.fill();
   outline(ctx, 1);
   ctx.fillStyle = '#2a2a34';

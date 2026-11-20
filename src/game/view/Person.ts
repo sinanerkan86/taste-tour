@@ -327,6 +327,11 @@ export class Person extends Phaser.GameObjects.Container {
     return true;
   }
 
+  // A guest of the restaurant (not staff).
+  get isGuest(): boolean {
+    return this.kind === 'customer' || this.kind === 'vip' || this.kind === 'critic' || this.kind === 'tourist';
+  }
+
   get isWalking(): boolean {
     return this.walking;
   }

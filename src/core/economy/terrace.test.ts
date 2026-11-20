@@ -46,9 +46,9 @@ describe('terrace', () => {
   it('levels cost like a section level, with the manager discount', () => {
     const state = newEconomy();
     state.terraceLevel = 5;
-    expect(terraceCost(state)).toBeCloseTo(levelCost(TERRACE.baseCost, TERRACE.costGrowth, 5));
+    expect(terraceCost(state)).toBeCloseTo(levelCost(TERRACE.baseCost, TERRACE.costGrowth, 5) * cityCostScale(0));
     state.perks.manager = 1;
-    expect(terraceCost(state)).toBeCloseTo(levelCost(TERRACE.baseCost, TERRACE.costGrowth, 5) * (1 - PERK.managerDiscount));
+    expect(terraceCost(state)).toBeCloseTo(levelCost(TERRACE.baseCost, TERRACE.costGrowth, 5) * cityCostScale(0) * (1 - PERK.managerDiscount));
     expect(terraceBuyPlan(state, 10).levels).toBe(10);
   });
 

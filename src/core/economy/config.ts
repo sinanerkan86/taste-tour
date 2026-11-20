@@ -154,21 +154,31 @@ export const BUS_STOP = {
 // only how many customers arrive at the entrance, so they matter most when the entrance is what
 // holds the restaurant back and otherwise make the busiest section show (queues, waits). The day
 // does not run offline.
-export type DayPhaseId = 'morning' | 'lunch' | 'afternoon' | 'dinner' | 'night';
+export type DayPhaseId = 'morning' | 'lunch' | 'afternoon' | 'dinner' | 'closed';
 export const DAY = {
   lengthSeconds: 600,
   phases: [
-    { id: 'morning', end: 0.18 },
-    { id: 'lunch', end: 0.34 },
-    { id: 'afternoon', end: 0.58 },
-    { id: 'dinner', end: 0.78 },
-    { id: 'night', end: 1 },
+    { id: 'morning', end: 0.2 },
+    { id: 'lunch', end: 0.38 },
+    { id: 'afternoon', end: 0.64 },
+    { id: 'dinner', end: 0.85 },
+    { id: 'closed', end: 1 },
   ] as { id: DayPhaseId; end: number }[],
-  // Arrivals at the entrance (walk-ins and drivers) are multiplied by this in a rush and at night.
+  // Arrivals at the entrance (walk-ins and drivers) are multiplied by this in a rush; none come while closed.
   rushArrivals: 2.5,
-  nightArrivals: 0.9,
+  // The clock: the open hours take the first `openShare` of the day, the closed hours the rest.
+  openHour: 9,
+  closeHour: 22,
+  openShare: 0.85,
   // A new phase's factor is reached over this fraction of the day, so rates never jump.
   rampFraction: 0.02,
+};
+
+// Night cleaning (GDD 6h): after closing the staff cleans for baseSeconds of work; a dish pit with
+// spare capacity speeds it up by up to maxSpeedup (1 + Spotless share * maxSpeedup).
+export const CLEAN = {
+  baseSeconds: 120,
+  maxSpeedup: 1.5,
 };
 
 // Unlock costs are calibrated so each new dish arrives as growth from the previous one stalls.
@@ -214,6 +224,10 @@ export const CITY = {
   // n-th city are multiplied by (1 + expectedBonusPerCity * n). Players ahead of that (more
   // research, better perks) get through faster.
   expectedBonusPerCity: 0.8,
+  // One global discount on every city's costs. While the game is open the closed hours (15% of the
+  // day) earn no dine-in income and the rushes cannot make that up, so costs come down to keep the
+  // city times where they were before opening hours (GDD 6h). Tuned with `npm run sim`.
+  closedHoursCostFactor: 0.905,
 };
 
 // A dish stops leveling here ("mastered"), so growth has to come from new dishes.

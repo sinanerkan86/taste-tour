@@ -45,9 +45,9 @@ describe('parking', () => {
   it('levels cost like a section level, with the manager discount', () => {
     const state = newEconomy();
     state.parkingLevel = 5;
-    expect(parkingCost(state)).toBeCloseTo(levelCost(PARKING.baseCost, PARKING.costGrowth, 5));
+    expect(parkingCost(state)).toBeCloseTo(levelCost(PARKING.baseCost, PARKING.costGrowth, 5) * cityCostScale(0));
     state.perks.manager = 1;
-    expect(parkingCost(state)).toBeCloseTo(levelCost(PARKING.baseCost, PARKING.costGrowth, 5) * (1 - PERK.managerDiscount));
+    expect(parkingCost(state)).toBeCloseTo(levelCost(PARKING.baseCost, PARKING.costGrowth, 5) * cityCostScale(0) * (1 - PERK.managerDiscount));
     expect(parkingBuyPlan(state, 10).levels).toBe(10);
   });
 

@@ -6,12 +6,17 @@ import {
   EVENTS,
   MILESTONE_BONUS,
   activateRush,
+  advanceCleaning,
   advanceDay,
   advanceTime,
   baseIncomePerSecond,
+  callNightCrew,
+  canCallNightCrew,
+  clockText,
   dayArrivalMultiplier,
   dayBonusPerSecond,
   dayInfo,
+  isOpen,
   isRushPhase,
   setDayLength,
   setDayPhase,
@@ -257,6 +262,8 @@ export class RestaurantScene extends Phaser.Scene {
   private eventBar!: EventBar;
   private dayChip!: DayChip;
   private lastPhase: DayPhaseId = 'morning';
+  // Whether the doors are open (null until the first frame, so starting a session announces nothing).
+  private open: boolean | null = null;
   private daySince = Infinity;
 
   constructor() {
@@ -285,7 +292,7 @@ export class RestaurantScene extends Phaser.Scene {
     // Dev-only shortcuts for testing: /?money=1e6, /?city=2 (look and prices of another city), /?vip=1 (VIP right away),
     // /?event=critic|tourBus|festival (that event in a few seconds), /?parking=30&valet=1 (a lot of that level),
     // /?bus=20 (a bus stop of that level, the first bus in a few seconds), /?terrace=30&bar=1 (a roof terrace of that level),
-    // /?day=morning|lunch|afternoon|dinner|night (that time of day), /?daylen=60 (a day of 60 seconds)
+    // /?day=morning|lunch|afternoon|dinner|closed (that time of day), /?daylen=60 (a day of 60 seconds)
     if (import.meta.env.DEV) {
       const params = new URLSearchParams(location.search);
       const money = Number(params.get('money'));
@@ -352,7 +359,7 @@ export class RestaurantScene extends Phaser.Scene {
     this.panel.setDepth(UI_DEPTH);
     this.goalBar = new GoalBar(this, GAME_WIDTH / 2, ROOM.top + GOAL_BAR_Y, () => this.followGoal()).setDepth(FX_DEPTH - 3);
     this.eventBar = new EventBar(this, GAME_WIDTH / 2, ROOM.top + EVENT_BAR_Y).setDepth(FX_DEPTH - 3);
-    this.dayChip = new DayChip(this, DAY_CHIP.x, ROOM.top + GOAL_BAR_Y, () => this.showDayHint()).setDepth(FX_DEPTH - 3);
+    this.dayChip = new DayChip(this, DAY_CHIP.x, ROOM.top + GOAL_BAR_Y, () => this.tapDayChip()).setDepth(FX_DEPTH - 3);
     this.lastPhase = dayInfo(this.economy).phase;
     this.layout();
     this.refreshUi();
@@ -952,7 +959,8 @@ export class RestaurantScene extends Phaser.Scene {
 
   // Counts down play time to the next VIP guest while none is in the room.
   private updateVip(seconds: number): void {
-    if (this.view.hasVip) return;
+    // Guests do not come while the restaurant is closed.
+    if (this.view.hasVip || !this.open) return;
     this.vipCountdown -= seconds;
     if (this.vipCountdown > 0) return;
     this.vipCountdown = nextVipGap(Math.random(), this.economy);
@@ -993,7 +1001,7 @@ export class RestaurantScene extends Phaser.Scene {
     const event = this.event;
     if (!event) {
       if (!this.seenHints.includes(BOTTLENECK_HINT) && !this.forcedEvent) return;
-      if (this.dailyModal?.active || this.scene.isActive('WorldMap')) return;
+      if (!this.open || this.dailyModal?.active || this.scene.isActive('WorldMap')) return;
       this.eventCountdown -= seconds;
       if (this.eventCountdown <= 0) this.startEvent();
       this.renderEventBar();
@@ -1198,18 +1206,32 @@ export class RestaurantScene extends Phaser.Scene {
     if (this.daySince < DAY_REFRESH_SECONDS) return;
     this.daySince = 0;
     const info = dayInfo(this.economy);
+    const open = this.open !== false;
     this.view.setDay(info.fraction);
-    this.view.setStreetBusyness(Math.max(0.8, 1 + (factor - 1) * 0.8));
+    this.view.setStreetBusyness(open ? Math.max(0.8, 1 + (factor - 1) * 0.8) : 0.5);
     const rush = isRushPhase(info.phase);
-    const clock = (s: number) => `${Math.floor(Math.ceil(s) / 60)}:${String(Math.ceil(s) % 60).padStart(2, '0')}`;
-    this.dayChip.render({
-      icon: info.phase === 'night' ? 'moon' : info.phase === 'dinner' ? 'sunset' : 'sun',
-      title: t(`day.${info.phase}` as TranslationKey),
-      subtitle: rush
-        ? t('day.endsIn', { time: clock(info.secondsLeft) })
-        : t(info.nextRush === 'lunch' ? 'day.nextLunch' : 'day.nextDinner', { time: clock(info.secondsToRush) }),
-      rush,
-    });
+    const left = (s: number) => `${Math.floor(Math.ceil(s) / 60)}:${String(Math.ceil(s) % 60).padStart(2, '0')}`;
+    const clock = clockText(info.fraction);
+    if (open) {
+      this.dayChip.render({
+        icon: info.phase === 'dinner' ? 'sunset' : 'sun',
+        title: t(`day.${info.phase}` as TranslationKey),
+        subtitle: rush
+          ? t('day.leftShort', { clock, time: left(info.secondsLeft) })
+          : t('day.inShort', { clock, time: left(info.secondsToRush) }),
+        rush,
+      });
+    } else {
+      // Closed (or opening late): the staff cleans once the last guest has left.
+      const percent = Math.floor(this.economy.cleanProgress * 100);
+      const waiting = this.economy.cleanProgress <= 0 && this.view.guestsInside > 0;
+      this.dayChip.render({
+        icon: info.phase === 'closed' ? 'moon' : 'sun',
+        title: t(info.phase === 'closed' ? 'day.closed' : 'day.openingLate'),
+        subtitle: t(waiting ? 'day.closing' : 'day.cleaning', { percent }),
+        rush: info.phase !== 'closed',
+      });
+    }
     if (info.phase === this.lastPhase) return;
     this.lastPhase = info.phase;
     if (!rush) return;
@@ -1217,6 +1239,31 @@ export class RestaurantScene extends Phaser.Scene {
     banner(this, BANNER_Y, t(info.phase === 'lunch' ? 'banner.lunchRush' : 'banner.dinnerRush'), info.phase === 'lunch' ? PALETTE.saffronDark : PALETTE.tileBlue);
     // The first rush explains the day, once the first tip is out of the way.
     if (!this.seenHints.includes(DAY_HINT) && this.seenHints.includes(BOTTLENECK_HINT)) this.time.delayedCall(1800, () => this.showDayHint());
+  }
+
+  // Tapping the chip while the restaurant is closed offers the night crew; otherwise it explains the day.
+  private tapDayChip(): void {
+    if (this.open === false && canCallNightCrew(this.economy)) this.offerNightCrew();
+    else this.showDayHint();
+  }
+
+  // Night crew (an ad, once per day): the cleaning is done and the doors open right now.
+  private offerNightCrew(): void {
+    const offer = { title: t('ads.nightTitle'), body: adText('ads.nightBody'), reward: t('ads.nightReward') };
+    new AdOfferModal(this, offer, UI_DEPTH + 100, () => {
+      if (!canCallNightCrew(this.economy)) return;
+      void this.watchAd('nightCrew', () => callNightCrew(this.economy));
+    });
+  }
+
+  // The doors open or close: the sign on the door, and a banner (not for the state at the start).
+  private setOpen(open: boolean): void {
+    const first = this.open === null;
+    this.open = open;
+    this.view.setClosedSign(open ? null : t('day.closed').toUpperCase());
+    if (first) return;
+    audio.play(open ? 'unlock' : 'look', 0.7);
+    banner(this, BANNER_Y, t(open ? 'banner.open' : 'banner.closed'), open ? PALETTE.success : PALETTE.tileBlue);
   }
 
   // Tip about the day, from tapping the chip or (once) at the first rush.
@@ -1239,7 +1286,15 @@ export class RestaurantScene extends Phaser.Scene {
     // The day goes on while the game is open; a rush or the night changes the entrance's arrivals and
     // with them the income (offline earnings do not see it).
     advanceDay(this.economy, delta / 1000);
+    // Closed: once the last guest has left the staff cleans, and the doors open when it is done.
+    const cleaning = !isOpen(this.economy) && this.view.guestsInside === 0;
+    if (cleaning) advanceCleaning(this.economy, delta / 1000);
+    this.view.setCleaning(cleaning && !isOpen(this.economy));
+    const open = isOpen(this.economy);
+    if (open !== this.open) this.setOpen(open);
+    // No guests arrive while closed, but the room keeps its normal rates for the guests still inside.
     const dayFactor = dayArrivalMultiplier(this.economy);
+    const viewFactor = dayFactor > 0 ? dayFactor : 1;
     earn(this.economy, dayBonusPerSecond(this.economy, dayFactor) * (delta / 1000));
     this.updateDay(delta / 1000, dayFactor);
     this.track('playTime', delta / 1000);
@@ -1247,13 +1302,14 @@ export class RestaurantScene extends Phaser.Scene {
     this.updateVip(delta / 1000);
     this.updateEvent(delta / 1000);
     this.updateBus(delta / 1000);
-    const flow = throughput(this.economy, dayFactor);
+    const flow = throughput(this.economy, viewFactor);
+    // Couriers get the whole kitchen while the dining room is closed.
     const delivery = deliveryFlow(this.economy, dayFactor);
-    const income = incomeBreakdown(this.economy, dayFactor);
+    const income = { dineIn: incomeBreakdown(this.economy, viewFactor).dineIn, delivery: incomeBreakdown(this.economy, dayFactor).delivery };
     const boost = boostMultiplier(this.economy);
     this.view.update(
       {
-        rates: sectionRates(this.economy, dayFactor),
+        rates: sectionRates(this.economy, viewFactor),
         arrivalSurge: dayFactor > 1 ? 1 + (dayFactor - 1) * RUSH_SURGE_SHARE : dayFactor,
         levels: this.economy.sectionLevels,
         customersPerSecond: flow.customersPerSecond,
@@ -1438,6 +1494,11 @@ export class RestaurantScene extends Phaser.Scene {
   // The bus timetable: a bus every few minutes while the game is open.
   private updateBus(seconds: number): void {
     if (this.economy.busStopLevel <= 0) return;
+    // The timetable waits for the morning.
+    if (!this.open) {
+      this.view.setBusCountdown(this.busCountdown);
+      return;
+    }
     this.busCountdown -= seconds;
     if (this.busCountdown <= 0) {
       this.busCountdown = BUS_STOP.intervalSeconds;

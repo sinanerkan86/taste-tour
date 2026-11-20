@@ -19,6 +19,7 @@ import {
   cityCostScale,
   cityPriceScale,
   CITIES,
+  CITY,
   buySectionLevel,
   currentGoal,
   menuSize,
@@ -69,7 +70,8 @@ describe('formulas', () => {
 
   it('scales later cities and repeats the city list', () => {
     expect(cityPriceScale(0)).toBe(1);
-    expect(cityCostScale(0)).toBe(1);
+    // The global closed-hours discount applies to every city, the first one too.
+    expect(cityCostScale(0)).toBeCloseTo(CITY.closedHoursCostFactor);
     expect(cityCostScale(2)).toBeGreaterThan(cityPriceScale(2));
     expect(cityConfig(CITIES.length + 1).id).toBe(CITIES[1].id);
   });

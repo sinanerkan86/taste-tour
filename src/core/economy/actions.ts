@@ -256,6 +256,9 @@ export function prestige(state: EconomyState, perk: PerkId | null = null): Econo
   next.staffCooldown = state.staffCooldown;
   // The day goes on through a franchise.
   next.dayTime = state.dayTime;
+  next.dayIndex = state.dayIndex;
+  next.cleanProgress = state.cleanProgress;
+  next.nightCrewUsed = state.nightCrewUsed;
   next.lab = { levels: { ...state.lab.levels }, slots: state.lab.slots.map((slot) => ({ ...slot })) };
   next.perks = { ...state.perks };
   next.daily = structuredClone(state.daily);

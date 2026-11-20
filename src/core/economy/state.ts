@@ -51,6 +51,12 @@ export interface EconomyState {
   busStopLevel: number;
   // Seconds into the restaurant's day (see day.ts); it only runs while the game is open and survives franchises.
   dayTime: number;
+  // Closing times passed so far (a counter for "once per day"), the cleanliness of the restaurant
+  // (1 = clean; closing resets it to 0 and the night's cleaning brings it back, see day.ts) and the
+  // dayIndex the night crew ad was last used on (-1 = never).
+  dayIndex: number;
+  cleanProgress: number;
+  nightCrewUsed: number;
 }
 
 export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomyState {
@@ -82,6 +88,9 @@ export function newEconomy(stars = 0, lifetimeEarnings = 0, city = 0): EconomySt
     roofBar: false,
     busStopLevel: 0,
     dayTime: 0,
+    dayIndex: 0,
+    cleanProgress: 1,
+    nightCrewUsed: -1,
   };
 }
 
@@ -247,7 +256,8 @@ export interface DeliveryFlow {
   limitedBy: 'couriers' | 'kitchen';
 }
 
-// The kitchen cooks for dine-in customers first; delivery gets what it has left.
+// The kitchen cooks for dine-in customers first; delivery gets what it has left. While the entrance
+// is closed (factor 0) there are no dine-in customers, so the couriers can take the whole kitchen.
 export function deliveryFlow(state: EconomyState, entranceFactor = 1): DeliveryFlow {
   const couriers = courierRate(state);
   const kitchenSpare = Math.max(0, sectionRates(state, entranceFactor).kitchen - throughput(state, entranceFactor).customersPerSecond);
@@ -262,7 +272,8 @@ export function deliveryFlow(state: EconomyState, entranceFactor = 1): DeliveryF
 // Income without the timed boosts, split into the dining room and delivery.
 export function incomeBreakdown(state: EconomyState, entranceFactor = 1): { dineIn: number; delivery: number } {
   const perBill = billPerCustomer(state) * incomeMultiplier(state);
-  const quality = 1 + specialties(state, entranceFactor).kitchen.bonus;
+  // With the dining room closed the kitchen's quality bonus still counts (judged at the plain rate).
+  const quality = 1 + specialties(state, entranceFactor > 0 ? entranceFactor : 1).kitchen.bonus;
   return {
     dineIn: throughput(state, entranceFactor).customersPerSecond * perBill * arrivals(state).billMultiplier * seatingSplit(state).billMultiplier * specialtyMultiplier(state, entranceFactor),
     delivery: deliveryFlow(state, entranceFactor).ordersPerSecond * DELIVERY.billFraction * perBill * quality,

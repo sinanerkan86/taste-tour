@@ -45,5 +45,5 @@ export function cityPriceScale(city: number): number {
 }
 
 export function cityCostScale(city: number): number {
-  return cityPriceScale(city) * starMultiplier(CITY.expectedStarsPerCity * city) * (1 + CITY.expectedBonusPerCity * city);
+  return cityPriceScale(city) * starMultiplier(CITY.expectedStarsPerCity * city) * (1 + CITY.expectedBonusPerCity * city) * CITY.closedHoursCostFactor;
 }

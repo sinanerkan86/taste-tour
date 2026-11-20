@@ -51,9 +51,9 @@ describe('delivery', () => {
   it('prices courier levels like a section, with the manager discount', () => {
     const state = newEconomy();
     state.deliveryLevel = 5;
-    expect(deliveryCost(state)).toBeCloseTo(levelCost(DELIVERY.baseCost, DELIVERY.costGrowth, 5));
+    expect(deliveryCost(state)).toBeCloseTo(levelCost(DELIVERY.baseCost, DELIVERY.costGrowth, 5) * cityCostScale(0));
     state.perks.manager = 1;
-    expect(deliveryCost(state)).toBeCloseTo(levelCost(DELIVERY.baseCost, DELIVERY.costGrowth, 5) * (1 - PERK.managerDiscount));
+    expect(deliveryCost(state)).toBeCloseTo(levelCost(DELIVERY.baseCost, DELIVERY.costGrowth, 5) * cityCostScale(0) * (1 - PERK.managerDiscount));
     expect(deliveryBuyPlan(state, 10).levels).toBe(10);
   });
 

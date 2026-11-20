@@ -3,7 +3,7 @@ import { styleTier, type SectionId } from '../../core/economy';
 import { SectionLooks } from './sectionLooks';
 import { DayLight } from './DayLight';
 import { DISH_COLORS } from '../colors';
-import { PALETTE } from '../config';
+import { FONT, PALETTE, toCss } from '../config';
 import { ROOM_FX_DEPTH, sparkle } from '../fx';
 import {
   CASHIER_LINE,
@@ -20,6 +20,8 @@ import {
   DOOR,
   DOOR_IN,
   DOOR_OUT,
+  DOOR_X,
+  FRONT,
   KITCHEN,
   PASS_SPOTS,
   QUEUE_SPOTS,
@@ -296,6 +298,12 @@ export class RestaurantView {
   private readonly dishwasher: Person;
   private readonly stacks: Phaser.GameObjects.Graphics;
   private readonly steam: Phaser.GameObjects.Ellipse[] = [];
+  private closedSign: Phaser.GameObjects.Container | null = null;
+  private closedSignLabel = '';
+  // Night cleaning: on while the room is empty and the staff works.
+  private cleaning = false;
+  private cleanTable = 0;
+  private cleanSplash = 0;
   private cleanPlates = PLATE_POOL;
   private dirtyPlates = 0;
   private cashierBusy = false;
@@ -376,11 +384,99 @@ export class RestaurantView {
     this.serveAtCashier();
     this.washDishes();
     this.updateStatuses(delta / 1000);
+    this.updateCleaning(delta);
 
     this.animateSteam(time);
     this.people.forEach((p) => p.animate(time));
     this.streetLife.update(time, delta);
     this.flickerLamps(time);
+  }
+
+  // --- Closing time and night cleaning (GDD 6h) -----------------------------------------
+
+  // Guests anywhere in or around the restaurant (arriving, queuing, eating, paying, leaving).
+  get guestsInside(): number {
+    let count = 0;
+    this.people.forEach((person) => {
+      if (person.isGuest) count++;
+    });
+    return count;
+  }
+
+  // The "Closed" sign hanging in the doorway: pass its text while closed, null while open.
+  setClosedSign(label: string | null): void {
+    if (label === null) {
+      if (!this.closedSign) return;
+      const sign = this.closedSign;
+      this.closedSign = null;
+      this.scene.tweens.add({ targets: sign, alpha: 0, duration: 300, onComplete: () => sign.destroy() });
+      return;
+    }
+    if (this.closedSign) {
+      if (this.closedSignLabel !== label) {
+        this.closedSign.destroy();
+        this.closedSign = null;
+      } else return;
+    }
+    this.closedSignLabel = label;
+    const width = 136;
+    const height = 44;
+    const plate = this.scene.add.graphics();
+    plate.fillStyle(0x000000, 0.25).fillRoundedRect(-width / 2 + 3, -height / 2 + 5, width, height, 12);
+    plate.fillStyle(PALETTE.pomegranate, 1).fillRoundedRect(-width / 2, -height / 2, width, height, 12);
+    plate.lineStyle(3, 0xfff3d6, 1).strokeRoundedRect(-width / 2 + 4, -height / 2 + 4, width - 8, height - 8, 9);
+    const text = this.scene.add
+      .text(0, 0, label, { fontFamily: FONT, fontSize: '26px', fontStyle: 'bold', color: toCss(0xfff3d6) })
+      .setOrigin(0.5);
+    text.setScale(Math.min(1, (width - 24) / Math.max(text.width, 1)));
+    // Hung on a string from the top of the doorway.
+    const string = this.scene.add.graphics();
+    string.lineStyle(3, 0xf3e6c8, 1).lineBetween(-22, -height / 2, 0, -height / 2 - 18).lineBetween(22, -height / 2, 0, -height / 2 - 18);
+    const sign = this.scene.add.container(DOOR_X, FRONT.faceTop + 50, [string, plate, text]).setDepth(FRONT.faceBottom - 2);
+    this.closedSign = sign;
+    sign.setAngle(-6);
+    this.scene.tweens.add({ targets: sign, angle: 6, duration: 1800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+  }
+
+  // While true (and the room is empty) the waiters wipe the tables and the dishwasher mops: a calm,
+  // cheap loop of walking, a busy pose and small sparkles.
+  setCleaning(on: boolean): void {
+    if (this.cleaning === on) return;
+    this.cleaning = on;
+    // The cleaners start (and end) with a fresh idle count.
+    this.idleSeconds.delete(this.dishwasher);
+    this.waiters.forEach((w) => this.idleSeconds.delete(w.person));
+    if (!on) this.dishwasher.busy = false;
+  }
+
+  private updateCleaning(delta: number): void {
+    if (!this.cleaning) return;
+    this.dishwasher.busy = true;
+    this.cleanSplash += delta;
+    if (this.cleanSplash > 1500) {
+      this.cleanSplash = 0;
+      this.splash();
+    }
+    for (const waiter of this.waiters) {
+      if (waiter.busy) continue;
+      waiter.busy = true;
+      void this.wipeTable(waiter);
+    }
+  }
+
+  private async wipeTable(waiter: Waiter): Promise<void> {
+    const { person } = waiter;
+    const table = TABLES[this.cleanTable++ % TABLES.length];
+    await person.walkTo({ x: table.x + 20, y: table.y + 60 }, 200);
+    if (this.cleaning) {
+      person.busy = true;
+      sparkle(this.scene, table.x, table.y - 10, 0xbfe6f5, ROOM_FX_DEPTH);
+      await new Promise<void>((resolve) => this.scene.time.delayedCall(Phaser.Math.Between(1800, 2600), resolve));
+      sparkle(this.scene, table.x + 20, table.y - 20, 0xffffff, ROOM_FX_DEPTH);
+      person.busy = false;
+    }
+    waiter.busy = false;
+    if (!this.cleaning) void person.walkTo(waiter.home, this.waiterSpeed());
   }
 
   // The light of the day (fraction of the day 0 to 1): tints, lamps, sky. Cheap, so the scene calls it often.
@@ -1094,6 +1190,8 @@ export class RestaurantView {
     const busiest = this.state?.bottleneck ?? null;
     const sweaty = (section: SectionId, status: Status | null): Status | null => (status === null && section === busiest ? 'busy' : status);
     const passFull = !this.passTaken.includes(false);
+    // Night cleaning: the cleaners show no status at all, and chefs cooking for the couriers are not idle.
+    const nightDelivery = this.cleaning && this.couriers.length > 0;
     for (const chef of this.chefs) {
       let status: Status | null = null;
       if (!chef.cooking && this.orders.length > 0) {
@@ -1101,17 +1199,17 @@ export class RestaurantView {
         if (this.cleanPlates === 0) status = 'noPlates';
         else if (passFull) status = 'passFull';
       }
-      const sleepy = idle(chef.person, chef.cooking || status !== null);
+      const sleepy = idle(chef.person, chef.cooking || status !== null || nightDelivery);
       this.setStatus(chef.person, sweaty('kitchen', status ?? sleepy), 215);
     }
-    for (const waiter of this.waiters) this.setStatus(waiter.person, sweaty('waiters', idle(waiter.person, waiter.busy)));
+    for (const waiter of this.waiters) this.setStatus(waiter.person, this.cleaning ? null : sweaty('waiters', idle(waiter.person, waiter.busy)));
     // A courier kept waiting shows a busy pot: the kitchen has no time for delivery.
     for (const courier of this.couriers) {
       const waited = idle(courier.person, !courier.waiting);
       this.setStatus(courier.person, waited ? 'kitchenBusy' : null, 200);
     }
     this.setStatus(this.cashier, sweaty('cashier', idle(this.cashier, this.cashierBusy || this.cashierLine.length > 0)));
-    this.setStatus(this.dishwasher, sweaty('dishwashing', idle(this.dishwasher, this.washing)));
+    this.setStatus(this.dishwasher, this.cleaning ? null : sweaty('dishwashing', idle(this.dishwasher, this.washing)));
     for (const checkout of this.checkoutWaiting) this.setStatus(checkout.person, 'bill', 175);
 
     // Bubbles follow walking staff.

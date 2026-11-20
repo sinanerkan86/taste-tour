@@ -40,6 +40,7 @@ import {
   nextLockedDish,
   nextMilestone,
   sectionBuyPlan,
+  cleanSeconds,
   staffHelpLevels,
   sectionLoad,
   sectionRates,
@@ -433,6 +434,8 @@ function milestoneText(level: number, bonus: number): string {
 // The entrance's rate counts the drivers too, so its row says how many of them came by car.
 function sectionDetail(state: EconomyState, id: SectionId, rate: number): string {
   const parking = id === 'entrance' ? arrivals(state).parking : 0;
+  // The dish pit also sets how long the night's cleaning takes.
+  if (id === 'dishwashing') return `${t('row.sectionRate', { rate: formatNumber(rate, 2) })} · ${t('row.cleaning', { time: tDuration(Math.ceil(cleanSeconds(state))) })}`;
   if (parking <= 0) return t('row.sectionRate', { rate: formatNumber(rate, 2) });
   return t('row.entranceRate', { rate: formatNumber(rate, 2), cars: formatNumber(parking, 2) });
 }

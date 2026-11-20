@@ -47,7 +47,7 @@ describe('bus stop', () => {
     expect(state.money).toBeCloseTo(0);
     const fresh = newEconomy();
     fresh.busStopLevel = 4;
-    expect(busStopCost(fresh)).toBeCloseTo(levelCost(BUS_STOP.baseCost, BUS_STOP.costGrowth, 4));
+    expect(busStopCost(fresh)).toBeCloseTo(levelCost(BUS_STOP.baseCost, BUS_STOP.costGrowth, 4) * cityCostScale(0));
     expect(busStopBuyPlan(fresh, 10).levels).toBe(10);
   });
 

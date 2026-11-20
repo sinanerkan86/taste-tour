@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { DAY } from '../../core/economy';
 import { GAME_WIDTH } from '../config';
 import { AC, BACKDROP_BOTTOM, NEAR_BUILDINGS, TANK } from './terraceArt';
 import { DOOR_X, FRONT, ROOF, WORLD } from './layout';
@@ -32,8 +33,9 @@ interface Key {
   night: number;
 }
 
-// The day's light, keyed on the fractions of the day in config (morning 0-0.18, lunch to 0.34,
-// afternoon to 0.58, dinner to 0.78, night to 1). The last key wraps into the first.
+// The day's light, keyed on the fractions of an older day (morning 0-0.18, lunch to 0.34, afternoon
+// to 0.58, dinner to 0.78, night to 1); `lightFraction` maps today's phases onto it, so the sun
+// sets over the dinner rush and it is dark when the doors close. The last key wraps into the first.
 const KEYS: Key[] = [
   { at: 0, out: 0xa9b8e6, room: 0xd3dcf6, warm: 0.25, night: 0.38 },
   { at: 0.05, out: 0xd6e4ff, room: 0xeef3ff, warm: 0.1, night: 0 },
@@ -55,6 +57,23 @@ const NIGHT_SKY = 0x0a1436;
 const WINDOW = { x: 40, y: 222, width: 190, height: 84 };
 const LAMP_TOP_Y = 1015;
 const BOARD_LAMPS = [540, 760];
+
+const KEY_PHASE_ENDS = [0.18, 0.34, 0.58, 0.78, 1];
+
+// Maps a fraction of the day (phases from DAY.phases) to the fraction the keys were written for.
+function lightFraction(fraction: number): number {
+  let start = 0;
+  let keyStart = 0;
+  for (let i = 0; i < DAY.phases.length; i++) {
+    const end = DAY.phases[i].end;
+    if (fraction < end || i === DAY.phases.length - 1) {
+      return keyStart + ((fraction - start) / (end - start)) * (KEY_PHASE_ENDS[i] - keyStart);
+    }
+    start = end;
+    keyStart = KEY_PHASE_ENDS[i];
+  }
+  return fraction;
+}
 
 export interface LightState {
   // Strength of the lamps 0 to 1 (switched on from dusk to dawn).
@@ -190,7 +209,7 @@ export class DayLight {
 
   // Sets the light for a fraction of the day. Cheap: a few fills and alphas.
   update(fraction: number): LightState {
-    const key = lightAt(fraction);
+    const key = lightAt(lightFraction(fraction));
     this.roof.setFillStyle(key.out);
     this.room.setFillStyle(key.room);
     this.outdoors.forEach((rect) => rect.setFillStyle(key.out));

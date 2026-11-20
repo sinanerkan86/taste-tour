@@ -96,6 +96,10 @@ export function parseSave(json: string): SaveData | null {
     busStopLevel: Math.max(0, Math.floor(finiteOr(saved.busStopLevel, 0))),
     // Where the restaurant's day stands (older saves start in the morning).
     dayTime: Math.max(0, finiteOr(saved.dayTime, 0)) % dayLength(),
+    // Night cleaning (older saves start clean).
+    dayIndex: Math.max(0, Math.floor(finiteOr(saved.dayIndex, 0))),
+    cleanProgress: Math.min(1, Math.max(0, finiteOr(saved.cleanProgress, 1))),
+    nightCrewUsed: Math.floor(finiteOr(saved.nightCrewUsed, -1)),
     terraceLevel: Math.max(0, Math.floor(finiteOr(saved.terraceLevel, 0))),
     // A roof bar needs a terrace.
     roofBar: saved.roofBar === true && finiteOr(saved.terraceLevel, 0) >= 1,

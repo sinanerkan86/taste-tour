@@ -20,6 +20,7 @@ const RELEASE_AD_UNITS: Record<AdPlacement, string> = {
   labSpeedUp: '', // Lab speed up
   streakSave: '', // Streak saver
   staffHelp: '', // Staff help
+  nightCrew: '', // Night crew
 };
 
 export function rewardedAdUnit(placement: AdPlacement): string {

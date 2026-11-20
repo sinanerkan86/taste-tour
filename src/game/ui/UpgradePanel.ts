@@ -451,6 +451,9 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
   // Whether the staff help ad may show (the scene keeps it off in the first minutes).
   staffHelpAllowed = false;
   private lastState: EconomyState | null = null;
+  // The section with the BUSIEST tag and the help button. Picked when the view changes and kept
+  // until the next change, so they do not hop between rows while the player buys.
+  private shownBusiest: SectionId | null = null;
   private readonly sectionRows: UpgradeRow[];
   private readonly safeRow: UpgradeRow;
   private readonly deliveryRow: UpgradeRow;
@@ -481,8 +484,8 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     onBuyBusStop: () => void,
     onBuyTerrace: () => void,
     onBuyRoofBar: () => void,
-    // The staff help ad on the bottleneck section's row.
-    onStaffHelp: () => void,
+    // The staff help ad on the busiest section's row.
+    onStaffHelp: (id: SectionId) => void,
   ) {
     // The scene places the panel at the bottom of the screen.
     super(scene, 0, 0);
@@ -530,7 +533,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
 
     const rowY = (i: number) => 20 + TAB_HEIGHT + 18 + ROW_HEIGHT / 2 + i * (ROW_HEIGHT + ROW_GAP);
     this.sectionRows = SECTION_IDS.map(
-      (id, i) => new UpgradeRow(scene, rowY(i), () => onBuySection(id), onStaffHelp),
+      (id, i) => new UpgradeRow(scene, rowY(i), () => onBuySection(id), () => onStaffHelp(id)),
     );
     this.deliveryRow = new UpgradeRow(scene, rowY(SECTION_IDS.length), onBuyDelivery);
     this.safeRow = new UpgradeRow(scene, rowY(SECTION_IDS.length + 1), onBuySafe);
@@ -597,6 +600,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
   private setMode(mode: Mode): void {
     const spotBefore = this.openSpot;
     this.mode = mode;
+    this.shownBusiest = mode.kind !== 'closed' && this.lastState ? throughput(this.lastState).bottleneck : null;
     if (mode.kind === 'tab') this.tab = mode.tab;
     this.applyMode();
     this.scene.tweens.killTweensOf(this);
@@ -810,10 +814,11 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
 
   private refreshSections(state: EconomyState): void {
     const rates = sectionRates(state);
-    const { bottleneck } = throughput(state);
+    const bottleneck = this.shownBusiest ?? throughput(state).bottleneck;
+    if (this.shownBusiest === null && this.mode.kind !== 'closed') this.shownBusiest = bottleneck;
     const load = sectionLoad(state);
     const spec = specialties(state);
-    const helpLevels = this.staffHelpAllowed ? staffHelpLevels(state) : 0;
+    const helpLevels = this.staffHelpAllowed ? staffHelpLevels(state, bottleneck) : 0;
     SECTION_IDS.forEach((id, i) => {
       const level = state.sectionLevels[id];
       const { levels, cost } = sectionBuyPlan(state, id, settings.buyAmount);

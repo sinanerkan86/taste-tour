@@ -337,7 +337,7 @@ export class RestaurantScene extends Phaser.Scene {
       () => this.buyBusStop(),
       () => this.buyTerrace(),
       () => this.buyRoofBar(),
-      () => this.offerStaffHelp(),
+      (id) => this.offerStaffHelp(id),
     );
     this.panel.onTabChange = (tab) => {
       if (tab === 'lab' && this.hint && this.hintId === LAB_HINT) this.hint.close();
@@ -900,11 +900,11 @@ export class RestaurantScene extends Phaser.Scene {
     );
   }
 
-  // Staff help: free levels for the busiest section (an ad, then a cooldown).
-  private offerStaffHelp(): void {
-    const levels = staffHelpLevels(this.economy);
+  // Staff help: free levels for a section (an ad, then a cooldown).
+  private offerStaffHelp(id: SectionId): void {
+    const levels = staffHelpLevels(this.economy, id);
     if (levels <= 0) return;
-    const section = t(`section.${throughput(this.economy).bottleneck}` as TranslationKey);
+    const section = t(`section.${id}` as TranslationKey);
     const offer = {
       title: t('staff.title'),
       body: adText('staff.body', { section }),
@@ -912,10 +912,9 @@ export class RestaurantScene extends Phaser.Scene {
     };
     new AdOfferModal(this, offer, UI_DEPTH + 100, () => {
       // Another offer may have been used meanwhile.
-      if (staffHelpLevels(this.economy) <= 0) return;
+      if (staffHelpLevels(this.economy, id) <= 0) return;
       void this.watchAd('staffHelp', () => {
-        const id = throughput(this.economy).bottleneck;
-        const hired = useStaffHelp(this.economy);
+        const hired = useStaffHelp(this.economy, id);
         if (hired <= 0) return;
         this.panel.pulseSection(id);
         this.celebrate(t('banner.staffHelp', { levels: hired, section: t(`section.${id}` as TranslationKey) }), PALETTE.success);

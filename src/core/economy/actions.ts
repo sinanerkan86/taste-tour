@@ -290,11 +290,10 @@ export function useTimeSkip(state: EconomyState): number {
   return amount;
 }
 
-// Free levels the staff help ad would hire for the busiest section right now: as many as
-// ADS.staffHelpSeconds of income would buy. 0 while it cools down or when not even one level fits.
-export function staffHelpLevels(state: EconomyState): number {
+// Free levels the staff help ad would hire for a section (default: the busiest one right now): as
+// many as ADS.staffHelpSeconds of income would buy. 0 while it cools down or when not even one level fits.
+export function staffHelpLevels(state: EconomyState, id: SectionId = throughput(state).bottleneck): number {
   if (state.staffCooldown > 0) return 0;
-  const id = throughput(state).bottleneck;
   const budget = baseIncomePerSecond(state) * ADS.staffHelpSeconds;
   const cfg = SECTIONS[id];
   const level = state.sectionLevels[id];
@@ -309,11 +308,12 @@ export function staffHelpLevels(state: EconomyState): number {
   return levels;
 }
 
-// The ad reward: the levels are added for free and the cooldown starts. Returns the levels.
-export function useStaffHelp(state: EconomyState): number {
-  const levels = staffHelpLevels(state);
+// The ad reward: the levels are added for free to the section (default: the busiest) and the
+// cooldown starts. Returns the levels.
+export function useStaffHelp(state: EconomyState, id: SectionId = throughput(state).bottleneck): number {
+  const levels = staffHelpLevels(state, id);
   if (levels <= 0) return 0;
-  state.sectionLevels[throughput(state).bottleneck] += levels;
+  state.sectionLevels[id] += levels;
   state.staffCooldown = ADS.staffHelpCooldownSeconds;
   return levels;
 }

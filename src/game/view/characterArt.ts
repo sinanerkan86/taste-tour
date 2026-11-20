@@ -193,22 +193,23 @@ function paintShoe(ctx: Ctx): void {
 }
 
 function paintSkirt(ctx: Ctx): void {
-  ctx.fillStyle = cylinder(ctx, -32, 32);
+  // A knee-length A-line skirt: narrow at the waist, hem just below the knee.
+  ctx.fillStyle = cylinder(ctx, -24, 24);
   ctx.beginPath();
-  ctx.moveTo(-24, -44);
-  ctx.lineTo(24, -44);
-  ctx.quadraticCurveTo(30, -26, 33, -12);
-  ctx.quadraticCurveTo(0, -6, -33, -12);
-  ctx.quadraticCurveTo(-30, -26, -24, -44);
+  ctx.moveTo(-19, -44);
+  ctx.lineTo(19, -44);
+  ctx.quadraticCurveTo(21, -30, 24, -18);
+  ctx.quadraticCurveTo(0, -15, -24, -18);
+  ctx.quadraticCurveTo(-21, -30, -19, -44);
   ctx.closePath();
   ctx.fill();
   outline(ctx);
   ctx.strokeStyle = 'rgba(0,0,0,0.12)';
   ctx.lineWidth = 1.5;
-  [-12, 0, 12].forEach((x) => {
+  [-8, 0, 8].forEach((x) => {
     ctx.beginPath();
     ctx.moveTo(x * 0.8, -40);
-    ctx.lineTo(x * 1.4, -12);
+    ctx.lineTo(x * 1.2, -19);
     ctx.stroke();
   });
 }

@@ -60,7 +60,7 @@ Delivery (section 3b) and the bus stop (13) sit outside this chain: they use onl
 
 The bonuses multiply dine-in income (`incomeBreakdown`, so offline earnings, taps and events follow). The weakest sections have no surplus and no specialty, so the flow and the bonuses pull the player in two directions: fix the weak link, or push a favourite section ahead for its bonus. Two styles are both viable (checked in the sim, see section 7): even growth ("volume") and fine dining (kitchen, dining room and waiters ahead).
 
-- The panel shows it: every section row has a slim load gauge (green below 0.75, amber 0.75 to 1, red above 1), a specialty line ("Quality +14% (max +60%)") and a soft "BUSIEST" tag on the highest-load row. No red marker in the scene.
+- The panel shows it: every section row has a slim load gauge (green below 0.75, amber 0.75 to 1, red above 1), a specialty line ("Quality +14% (max +60%)") and a soft "BUSIEST" tag on the highest-load row (picked when the drawer opens or switches view and kept until the next change, so it and the staff help button do not hop between rows while the player buys). No red marker in the scene.
 - The scene shows it physically: each section's real rate is scaled by the same factor so the flow runs at the visible customer rate (at most 1.2 customers/s on screen); sections under pressure fall a little behind, so work piles up in front of them in proportion to their load:
 
 | Under pressure | What the player sees |

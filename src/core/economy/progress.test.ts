@@ -57,6 +57,19 @@ describe('staff help', () => {
     expect(staffHelpLevels(state)).toBeGreaterThan(0);
   });
 
+  it('hires for a chosen section instead of the bottleneck', () => {
+    const state = newEconomy();
+    state.money = 0;
+    const busiest = throughput(state).bottleneck;
+    const id = SECTION_IDS.find((s) => s !== busiest)!;
+    const before = state.sectionLevels[id];
+    const levels = staffHelpLevels(state, id);
+    expect(levels).toBeGreaterThan(0);
+    expect(useStaffHelp(state, id)).toBe(levels);
+    expect(state.sectionLevels[id]).toBe(before + levels);
+    expect(state.sectionLevels[busiest]).toBe(newEconomy().sectionLevels[busiest]);
+  });
+
   it('stays offered whatever the money, so the button does not blink', () => {
     const state = newEconomy();
     state.money = 1e12;

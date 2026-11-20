@@ -428,7 +428,8 @@ export class Person extends Phaser.GameObjects.Container {
     this.head.y = NECK_Y - WAIST_Y + (bob - Math.abs(Math.cos(cycle - 0.6)) * g) * 2;
     if (this.skirt) {
       this.skirt.rotation = sway * 0.05;
-      this.skirt.scaleX = 1 + Math.abs(sway) * 0.06;
+      // Seated, the thighs fold forward: squash the skirt so no hem sticks out under the table.
+      this.skirt.setScale((1 + Math.abs(sway) * 0.03) / ART_RES, (1 - seat * 0.3) / ART_RES);
       this.skirt.y = WAIST_Y;
     }
 
